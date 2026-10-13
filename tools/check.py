@@ -27,6 +27,8 @@ def main():
             "test_shape_key_preset_textures.py",
             "test_floating_button_wiring.py",
             "test_gpu.py",
+            "test_prop_material_gpu.py",
+            "test_prop_helpers_gui.py",
         ):
             subprocess.run(
                 [sys.executable, str(ROOT / "tests" / name)],

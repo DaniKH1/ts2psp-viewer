@@ -46,7 +46,8 @@ def decode_bc(raw, width, height, mode):
             block = raw[at : at + block_size]
             a, b = struct.unpack_from("<HH", block, 4)
             c0, c1 = color565(a), color565(b)
-            if a > b:
+            # BC2/BC3 always use four colors, independently of endpoint order.
+            if mode != 0x1F or a > b:
                 palette = [
                     c0,
                     c1,

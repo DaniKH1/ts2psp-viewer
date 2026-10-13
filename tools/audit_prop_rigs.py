@@ -27,6 +27,7 @@ def audit(archive_path):
         "transform_bindings": 0,
         "worst_sample_error": 0.0,
         "errors": [],
+        "helper_only_resources": [],
     }
     with (
         zipfile.ZipFile(archive_path) as archive,
@@ -43,6 +44,9 @@ def audit(archive_path):
                 data = archive.read(row["archivo_zip"])
                 bones, anchors = prop_joints(data)
                 parts = load_parts(data)
+                if not parts:
+                    result["helper_only_resources"].append(row["ruta_interna"])
+                    continue
                 for bone in bones:
                     if not np.isfinite(np.linalg.inv(bone["world"])).all():
                         raise ValueError("Invalid inverse bind matrix")

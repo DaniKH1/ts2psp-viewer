@@ -43,6 +43,15 @@ ARCHIVE = DATA / "sims2_psp_props_recursos.zip"
 
 
 class TextureBlockTests(unittest.TestCase):
+    def test_dxt3_and_dxt5_keep_four_colors_with_reversed_endpoints(self):
+        colors = struct.pack("<IHH", 0xFFFFFFFF, 0, 31)
+        for mode, alpha in ((0x20, b"\xff" * 8), (0x21, b"\0" * 6 + b"\xff\0")):
+            with self.subTest(mode=mode):
+                image = decode_bc(colors + alpha, 4, 4, mode)
+                np.testing.assert_array_equal(
+                    image, np.tile((0, 0, 170, 255), (4, 4, 1))
+                )
+
     def test_dxt_tiles_keep_their_row_order(self):
         blocks = []
         colors = []

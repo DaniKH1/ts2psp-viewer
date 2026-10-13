@@ -119,11 +119,18 @@ class PropTab(ttk.Frame):
             right, text="Show grid", variable=self.show_grid, command=self.schedule
         ).pack(anchor="w")
         self.show_bones = tk.BooleanVar(value=True)
+        self.show_helpers = tk.BooleanVar(value=False)
         ttk.Checkbutton(
             right,
             text="Show bones",
             variable=self.show_bones,
             command=self.schedule,
+        ).pack(anchor="w")
+        ttk.Checkbutton(
+            right,
+            text="Show helper meshes / effect templates",
+            variable=self.show_helpers,
+            command=lambda: self.load(self.current) if self.current else None,
         ).pack(anchor="w")
         self.bones = ()
         self.refresh()
@@ -173,13 +180,16 @@ class PropTab(ttk.Frame):
                 data = z.read(row["archivo_zip"])
             self.stop()
             self.data = data
-            self.parts = load_parts(data)
-            self.bone_src, _ = prop_joints(data)
+            self.parts = load_parts(data, include_helpers=self.show_helpers.get())
+            self.bone_src, _ = prop_joints(
+                data, include_helpers=self.show_helpers.get()
+            )
             self.bones = bones_over(self.parts, self.bone_src)
             self.clip = prop_clip(data)
             self.animator = PropAnimator(data, self.clip)
             self.current = row
-            gl.forget(("prop", row["entry"]))
+            for textured in (False, True):
+                gl.forget(("prop", row["entry"], textured))
             self.objeto = None
             self.objeto_key = None
             self.playhead = 0.0
@@ -187,7 +197,7 @@ class PropTab(ttk.Frame):
             self.position.set(0)
             self.moving_slider = False
             self.slider.configure(to=self.clip["duration"] if self.clip else 1)
-            supported = bool(self.clip and self.animator.bindings)
+            supported = bool(self.parts and self.clip and self.animator.bindings)
             self.play_button.configure(state="normal" if supported else "disabled")
             self.slider.configure(state="normal" if supported else "disabled")
             self.time_label.configure(
@@ -199,6 +209,26 @@ class PropTab(ttk.Frame):
                 + self.bones_text(data)
                 + self.clip_text()
             )
+            warnings = sum(bool(part.get("texture_warning")) for part in self.parts)
+            solid = sum(
+                part.get("material_kind") == "solid_color" for part in self.parts
+            )
+            textured = sum(bool(part.get("texture")) for part in self.parts)
+            self.status.configure(
+                text=self.status.cget("text")
+                + f"\n{textured} textured · {solid} solid-color parts"
+                + (f"\n{warnings} unresolved materials" if warnings else "")
+                + (
+                    "\nNo bitmap textures stored in this resource."
+                    if self.parts and not textured
+                    else ""
+                )
+            )
+            if not self.parts:
+                self.canvas.clear()
+                self.status.configure(
+                    text="This resource contains only helper/effect templates.\nEnable Show helper meshes to inspect them."
+                )
             self.schedule()
         except Exception as exc:
             messagebox.showerror("Object", str(exc))
@@ -352,6 +382,7 @@ class PropTab(ttk.Frame):
         self.last_frame = gl.ahora_ms()
         try:
             if not self.parts:
+                self.stop()
                 return
             self.tick()
             partes = self.posed_parts()
@@ -408,7 +439,12 @@ class PropTab(ttk.Frame):
             with zipfile.ZipFile(self.app.paths["props"]) as z:
                 data = z.read(self.current["archivo_zip"])
             glb = self.app.cache / "prop_export.glb" if fbx else target
-            info = convert_prop(data, self.current["ruta_interna"], glb)
+            info = convert_prop(
+                data,
+                self.current["ruta_interna"],
+                glb,
+                include_helpers=self.show_helpers.get(),
+            )
             if fbx:
                 export_path(glb, target, blender)
             self.status.configure(
