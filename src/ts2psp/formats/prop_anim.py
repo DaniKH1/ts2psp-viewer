@@ -1,204 +1,253 @@
-"""Las curvas de animacion que lleva un prop dentro de su propio recurso.
+"""Embedded NODE curves, explicit property links and pivot-aware prop poses."""
 
-Los clips de personaje son recursos BANM aparte y se listan solos. Un prop no
-tiene ninguno: su animacion va en la cabecera de la seccion `node`, con una
-entrada por canal.
-
-    palabras  0..1  numero de nodos y desplazamiento de la tabla de indices
-    palabras  2..7  constantes; salen iguales en los 751 props del catalogo
-    desde la 8,     una entrada por canal mientras el recuento sea positivo:
-
-                        [?, numero de claves, desplazamiento a las claves]
-
-                    y el desplazamiento se resuelve desde la propia palabra que
-                    lo guarda, igual que el resto de punteros del formato.
-
-    despues,        las claves: registros de 16 bytes con
-                    [instante, valor, 0, 0], en segundos y en la unidad que
-                    traiga el canal.
-
-129 de los 751 props del catalago tienen canales y se leen sin un solo fallo.
-
-Lo que NO se ha averiguado es a que nodo pertenece cada canal: las entradas no
-llevan el indice y los nodos no apuntan a sus curvas. `reparte_canales` las
-asigna por orden a los nodos que tienen transform. Es una conjetura -un canal
-por articulacion, en el mismo orden en que se enumeran-, no algo verificado. Si
-al reproducir un prop las piezas se mueven de forma que no cuadra con lo que
-deberian, el sitio a revisar es esa funcion y el eje del giro, aqui abajo.
-"""
-
+from bisect import bisect_right
 import math
 import struct
+import zipfile
 
 import numpy as np
 
-from ts2psp.formats.props import sections
+from ts2psp.formats.props import sections, prop_joints
 from ts2psp.formats.prop_scene import (
     node_hierarchy,
     transform_vertices,
+    transform_values,
+    transform_matrix,
     _relative,
+    is_transform,
 )
-
-PALABRAS_CABECERA = 8
-PALABRAS_ENTRADA = 3
-FLOATS_CLAVE = 4
-MAX_CLAVES = 4096
-CON_TRANSFORM = 10
 
 
 def prop_clip(data):
-    """Curvas del prop, o None si no lleva animacion.
-
-    Devuelve {"duration": float, "channels": [{"times", "values"}]}. La
-    duracion es el ultimo instante de la curva mas larga.
-    """
-    try:
-        records = sections(data)
-        nodes, _, head, end = node_hierarchy(data, records)
-    except ValueError:
-        return None
+    """Read scalar curves with their source addresses and Hermite tangents."""
+    nodes, _, head, end = node_hierarchy(data, sections(data))
     if head is None:
         return None
-    tabla = _relative(data, head + 4)
-    canales = []
-    at = head + 4 * PALABRAS_CABECERA
-    while at + 4 * PALABRAS_ENTRADA <= tabla:
-        _, claves, desplazamiento = struct.unpack_from("<3i", data, at)
-        if not 0 < claves <= MAX_CLAVES:
+    table = _relative(data, head + 4)
+    channels = []
+    at = head + 32
+    while at + 12 <= table:
+        flags, count, offset = struct.unpack_from("<3i", data, at)
+        if not 0 < count <= 4096:
             break
-        destino = at + 8 + desplazamiento
-        if not head <= destino <= end - 4 * FLOATS_CLAVE * claves:
+        keys = at + 8 + offset
+        if not head <= keys <= end - 16 * count:
             break
-        plano = struct.unpack_from("<%df" % (FLOATS_CLAVE * claves), data, destino)
-        times = plano[0::FLOATS_CLAVE]
-        values = plano[1::FLOATS_CLAVE]
+        values = struct.unpack_from(f"<{4 * count}f", data, keys)
+        times = values[::4]
+        if not all(math.isfinite(x) for x in (*times, *values[1::4])):
+            break
         if any(a >= b for a, b in zip(times, times[1:])):
             break
-        canales.append({"times": times, "values": values})
-        at += 4 * PALABRAS_ENTRADA
-    if not canales:
+        channels.append(
+            {
+                "source": at,
+                "flags": flags,
+                "times": times,
+                "values": values[1::4],
+                "in_tangents": values[2::4],
+                "out_tangents": values[3::4],
+            }
+        )
+        at += 12
+    if not channels:
         return None
     return {
-        "duration": max(canal["times"][-1] for canal in canales),
-        "channels": canales,
+        "duration": max(channel["times"][-1] for channel in channels),
+        "channels": channels,
     }
 
 
 def prop_animations(path, rows):
-    """Que filas del inventario llevan curvas, para montar la lista.
-
-    Se lee el zip una vez y se recorre en memoria: con `ZipFile.read` entrada a
-    entrada se relee el indice central 751 veces.
-    """
-    import zipfile
-
-    encontrados = []
-    with zipfile.ZipFile(path) as archivo:
+    with zipfile.ZipFile(path) as archive:
+        found = []
         for row in rows:
-            try:
-                data = archivo.read(row["archivo_zip"])
-            except KeyError:
-                continue
-            if prop_clip(data) is not None:
-                encontrados.append(row)
-    return encontrados
+            data = archive.read(row["archivo_zip"])
+            clip = prop_clip(data)
+            if clip:
+                animated = {link["node"] for link in curve_bindings(data, clip)}
+                visible = {bone["index"] for bone in prop_joints(data)[0]}
+                if animated & visible:
+                    found.append(row)
+        return found
 
 
-def sample(canal, t):
-    """Valor del canal en el instante t, interpolando entre claves."""
-    times = canal["times"]
-    values = canal["values"]
+def sample(channel, t):
+    """Hermite interpolation; infinite outgoing tangents encode held values."""
+    times, values = channel["times"], channel["values"]
+    offset = 0.0
+    if t > times[-1] and len(times) > 1:
+        mode = (channel.get("flags", 0) >> 8) & 255
+        period = times[-1] - times[0]
+        if mode in (2, 3) and period > 0:
+            cycles = math.floor((t - times[0]) / period)
+            t = times[0] + (t - times[0]) % period
+            if mode == 3:
+                offset = cycles * (values[-1] - values[0])
     if t <= times[0]:
-        return values[0]
-    for i in range(1, len(times)):
-        if t > times[i]:
+        return values[0] + offset
+    if t >= times[-1]:
+        return values[-1] + offset
+    i = bisect_right(times, t) - 1
+    dt = times[i + 1] - times[i]
+    u = (t - times[i]) / dt
+    incoming, outgoing = channel.get("in_tangents"), channel.get("out_tangents")
+    if (channel.get("flags", 0) & 255) == 2:
+        return values[i] + offset
+    if incoming is None or outgoing is None:
+        return values[i] + (values[i + 1] - values[i]) * u + offset
+    a, b = outgoing[i], incoming[i + 1]
+    if not math.isfinite(a) or not math.isfinite(b):
+        return values[i] + offset
+    return (
+        (2 * u**3 - 3 * u**2 + 1) * values[i]
+        + (u**3 - 2 * u**2 + u) * dt * a
+        + (-2 * u**3 + 3 * u**2) * values[i + 1]
+        + (u**3 - u**2) * dt * b
+        + offset
+    )
+
+
+def curve_bindings(data, clip):
+    """Follow each transform's linked list, including multiple XYZ properties."""
+    if clip is None:
+        return ()
+    nodes, _, head, end = node_hierarchy(data, sections(data))
+    curves = {channel["source"]: i for i, channel in enumerate(clip["channels"])}
+    output = []
+    for index, (at, kind, _, _) in enumerate(nodes):
+        if not is_transform(data, (at, kind, None, None)):
             continue
-        antes, ahora = times[i - 1], times[i]
-        if ahora == antes:
-            return values[i]
-        u = (t - antes) / (ahora - antes)
-        return values[i - 1] + (values[i] - values[i - 1]) * u
-    return values[-1]
+        pointer = at + 24
+        seen = set()
+        while struct.unpack_from("<i", data, pointer)[0] != 1:
+            link = _relative(data, pointer)
+            if not head <= link <= end - 24 or link in seen:
+                raise ValueError("Invalid NODE property link")
+            seen.add(link)
+            descriptor, target = struct.unpack_from("<2I", data, link + 12)
+            component = (descriptor >> 8) & 255
+            channel = curves.get(_relative(data, link + 4))
+            if target >> 16 != index:
+                raise ValueError("NODE property link targets another node")
+            if (
+                channel is not None
+                and descriptor & 255 in (3, 6)
+                and 1 <= component <= 9
+            ):
+                factor = struct.unpack_from("<f", data, link + 8)[0]
+                if not math.isfinite(factor):
+                    raise ValueError("Nonfinite NODE channel factor")
+                output.append(
+                    {
+                        "channel": channel,
+                        "node": index,
+                        "component": component,
+                        "factor": factor,
+                    }
+                )
+            pointer = link + 20
+    return tuple(output)
 
 
 def reparte_canales(data, clip):
-    """Nodo al que pertenece cada canal. Conjetura: por orden.
-
-    Se asignan en el mismo orden en que aparecen a los nodos que tienen
-    transform, que son los unicos que se pueden mover. Si sobran canales se
-    quedan sin nodo; si sobran nodos, se quedan quietos.
-    """
-    try:
-        records = sections(data)
-        nodes, _, _, head = node_hierarchy(data, records)
-    except ValueError:
-        return {}
-    if not nodes:
-        return {}
-    candidatos = [i for i, (_, kind, _, _) in enumerate(nodes) if kind == CON_TRANSFORM]
+    """Compatibility map for callers; axes and factors live in curve_bindings."""
     return {
-        canal: nodo
-        for canal, nodo in enumerate(candidatos[: len(clip["channels"])])
+        binding["channel"]: binding["node"] for binding in curve_bindings(data, clip)
     }
 
 
-def _giro(angulo):
-    matriz = np.eye(4)
-    c, s = math.cos(angulo), math.sin(angulo)
-    matriz[:3, :3] = ((c, -s, 0.0), (s, c, 0.0), (0.0, 0.0, 1.0))
-    return matriz
+class PropAnimator:
+    """Compile once per selection, then evaluate local properties per frame."""
+
+    def __init__(self, data, clip=None):
+        self.data = data
+        self.clip = clip if clip is not None else prop_clip(data)
+        self.nodes, self.rest_world, _, _ = node_hierarchy(data, sections(data))
+        self.bindings = curve_bindings(data, self.clip)
+        self.values = {
+            i: transform_values(data, node)
+            for i, node in enumerate(self.nodes)
+            if is_transform(data, node)
+        }
+        self.by_node = {}
+        for binding in self.bindings:
+            self.by_node.setdefault(binding["node"], []).append(binding)
+
+    def world_matrices(self, t, indices):
+        cache, visiting = {}, set()
+
+        def world(index):
+            if index in cache:
+                return cache[index]
+            if index in visiting:
+                raise ValueError("Cyclic animated NODE hierarchy")
+            visiting.add(index)
+            node = self.nodes[index]
+            local = self.local_matrix(index, t)
+            parent = node[2]
+            cache[index] = (
+                world(parent) @ local if 0 <= parent < len(self.nodes) else local
+            )
+            visiting.remove(index)
+            return cache[index]
+
+        return {i: world(i) for i in indices}
+
+    def local_matrix(self, index, t):
+        if index not in self.by_node:
+            return self.nodes[index][3]
+        values = list(self.values[index])
+        for binding in self.by_node[index]:
+            # Curves replace the stored property; they are not extra rotations.
+            values[binding["component"]] = (
+                sample(self.clip["channels"][binding["channel"]], t) * binding["factor"]
+            )
+        return transform_matrix(self.data, self.nodes[index], values)
+
+    def joint_local_matrix(self, bone, by_index, t):
+        matrix = (
+            self.nodes[bone["index"]][3]
+            if t is None
+            else self.local_matrix(bone["index"], t)
+        ).copy()
+        offset = np.eye(4)
+        offset[:3, 3] = bone["pivot"]
+        matrix = matrix @ offset
+        if bone["parent"] in by_index:
+            matrix[:3, 3] -= by_index[bone["parent"]]["pivot"]
+        return matrix
+
+    def pose(self, parts, t, bones=()):
+        indices = {part.get("node", -1) for part in parts} | {
+            bone["index"] for bone in bones
+        }
+        indices.discard(-1)
+        matrices = self.world_matrices(t, indices)
+        output = []
+        for part in parts:
+            index = part.get("node", -1)
+            if index not in matrices:
+                output.append(part)
+                continue
+            if "local_vertices" in part:
+                vertices = transform_vertices(part["local_vertices"], matrices[index])
+            else:
+                delta = matrices[index] @ np.linalg.inv(self.rest_world(index))
+                vertices = transform_vertices(part["vertices"], delta)
+            output.append({**part, "vertices": vertices})
+        positions = {
+            bone["index"]: (matrices[bone["index"]] @ (*bone["pivot"], 1.0))[:3]
+            for bone in bones
+        }
+        return output, positions
 
 
 def pose(parts, data, clip, t, reparto=None):
-    """Partes colocadas en el instante t, y donde queda cada hueso.
-
-    El giro va en el transform local del nodo, para que rotee sobre su propio
-    origen y no sobre el de su padre. Como `parse_rdms` deja las mallas ya
-    colocadas en mundo, lo que se aplica es la diferencia entre la pose y la de
-    reposo.
-    """
-    try:
-        records = sections(data)
-        nodes, world_matrix, _, _ = node_hierarchy(data, records)
-    except ValueError:
-        return parts, {}
-    if not nodes:
-        return parts, {}
-    if reparto is None:
-        reparto = reparte_canales(data, clip)
-    # `reparte_canales` va de canal a nodo; aqui se necesita al reves.
-    por_nodo = {nodo: canal for canal, nodo in reparto.items()}
-
-    def local(index):
-        base = nodes[index][3]
-        if index in por_nodo:
-            base = base @ _giro(sample(clip["channels"][por_nodo[index]], t))
-        return base
-
-    cache = {}
-
-    def compuesta(index):
-        if index not in cache:
-            padre = nodes[index][2]
-            cache[index] = (
-                compuesta(padre) @ local(index)
-                if 0 <= padre < len(nodes)
-                else local(index)
-            )
-        return cache[index]
-
-    matrices = {i: compuesta(i) for i in range(len(nodes))}
-    salida = []
-    for part in parts:
-        indice = part.get("node", -1)
-        if indice not in matrices:
-            salida.append(part)
-            continue
-        try:
-            delta = matrices[indice] @ np.linalg.inv(world_matrix(indice))
-        except (np.linalg.LinAlgError, ValueError):
-            salida.append(part)
-            continue
-        salida.append({**part, "vertices": transform_vertices(part["vertices"], delta)})
-    huesos = {i: matrices[i][:3, 3] for i in matrices}
-    return salida, huesos
+    """Evaluate the actual resource bindings; reparto is kept for older callers."""
+    animator = PropAnimator(data, clip)
+    parts, _ = animator.pose(parts, t)
+    matrices = animator.world_matrices(
+        t, (i for i, node in enumerate(animator.nodes) if is_transform(data, node))
+    )
+    return parts, {i: matrix[:3, 3] for i, matrix in matrices.items()}

@@ -43,4 +43,9 @@ Props now use their shader references, texture palettes, packed coordinates, UV 
 
 See [architecture](docs/architecture.md) and [format notes](docs/formats.md) for the implementation path.
 
+Props preserve the NODE hierarchy, named joints, rotation/scale pivots and linked
+animation channels. Embedded transform animations play in the Objects tab and
+are included in GLB/FBX exports. See [prop rigs](docs/prop-rigs.md) for supported
+tracks, the satellite regression and the validation command.
+
 Character accessories are resolved from their game declarations. Emily Emory's maid hat loads automatically, keeps its lace transparency and follows the head when animated or exported. See `formats/accessories.py` to extend the supported accessory mappings.

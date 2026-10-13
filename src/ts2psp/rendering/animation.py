@@ -70,7 +70,7 @@ def posed_bones(doc, binary, anim, t):
     for ch in anim["channels"]:
         target = ch["target"]
         path = target["path"]
-        if path not in ("rotation", "translation"):
+        if path not in ("rotation", "translation", "scale"):
             continue
         s = anim["samplers"][ch["sampler"]]
         tt = accessor(doc, binary, s["input"]).ravel()
@@ -127,7 +127,7 @@ def posed_meshes(doc, binary, anim, t):
     for ch in anim["channels"]:
         target = ch["target"]
         path = target["path"]
-        if path not in ("rotation", "translation", "weights"):
+        if path not in ("rotation", "translation", "scale", "weights"):
             continue
         s = anim["samplers"][ch["sampler"]]
         tt = accessor(doc, binary, s["input"]).ravel()
