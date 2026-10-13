@@ -1,0 +1,10 @@
+GPU VIEWER NOTES
+================
+
+All four tabs use hardware accelerated OpenGL. The camera redraws while dragging and supports orbit, pan and zoom in every viewport. Textured meshes use UVs, mipmaps and transparency where present; vertex colors can be inspected by hiding textures. A grid and the ground plane help orient props and map parts.
+
+The character and shape key lists use the supplied blue panel texture. The character name search field uses the supplied blue entry texture. Shape key controls use the supplied green button texture, separators use the supplied blue line texture, and the program uses the supplied icon.
+
+Character faces use the CAS archetype named by the character record when available. The base face supplies rig weights and expression morphs but is not drawn with the archetype. The Shape Keys list hides alternative archetypes and shows the 22 supplied CAS brow, chin and nose modifier meshes without the "Face modifier:" prefix. The hidden archetype shape keys remain in the model and GLB export for future use. The arm joints are fitted to the hand mesh in the bind pose, while the legs and body keep their original coordinates; exported GLB inverse bind matrices are updated with the joints. Cowthulu clips use their own transforms and reference pose; the animation viewport renders character textures.
+
+For usage, packaging and data locations, see user-guide.txt. No ISO or game resource is distributed with this program.

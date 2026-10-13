@@ -1,0 +1,24 @@
+THE SIMS 2 PSP VIEWER
+=====================
+
+The Windows release is one file: TS2 PSP Viewer.exe. Double-click it to open the app. The game ISO and extracted game data are not included. Select your own ISO from File > Select ISO on first launch. The imported resources are cached in %LOCALAPPDATA%\TS2 PSP Viewer\data and load automatically on later launches. If all resource archives are already in a data folder beside the EXE, the app loads those instead.
+
+Characters: search by name, inspect bones, textures, UVs and facial shape keys, and export rigged GLB, glTF or FBX. The Shape Keys list shows expressions and CAS brow, chin and nose modifiers. Alternative face archetypes remain in the model and exported data but are hidden from the list. Character exports from the EXE go to Documents\TS2 PSP Viewer\exports.
+
+Objects: browse 3D props, inspect textures and vertex colors, view UVs, and export GLB or FBX.
+
+Maps: browse map resources, textures and 3D parts. Full scene placement and TERN terrain are not yet reconstructed; the map parts can be exported without placement.
+
+Animations: preview human and creature clips, extract BANM resources, and export compatible clips as animated GLB or FBX. Creature clips require the matching creature character.
+
+Mouse: left drag to orbit, middle or right drag to pan, wheel to zoom. Click a viewport and use arrow keys to orbit, WASD to pan, Q/E to zoom, R to reset.
+
+GLB and glTF export directly. FBX export requires Blender installed separately; select blender.exe when prompted. The viewer needs hardware accelerated OpenGL for 3D previews.
+
+SOURCE BUILD
+------------
+Install Python 3.13, then run:
+    python -m pip install -r requirements-build.txt
+    python tools/build.py
+
+The EXE will be created in dist. For source use without packaging, install requirements.txt and run run_viewer.py. No game resources are bundled with the source or EXE.
