@@ -26,6 +26,10 @@ from ts2psp.formats.prop_scene import (
     node_hierarchy,
     rigid_placements,
     transform_vertices,
+    transform_pivot,
+    transform_values,
+    transform_matrix,
+    is_transform,
 )
 
 
@@ -73,104 +77,89 @@ def prop_node_count(data):
 
 
 def prop_joints(data):
-    """Esqueleto del prop y que hueso corresponde a cada malla.
+    """Keep mesh ancestors and their full bind transforms, including pivots."""
+    if b"bmsh" in data[:128] and b"rdms" not in data[:128]:
+        rig = parse_bones(data)
+        return (
+            tuple(
+                {
+                    "index": i,
+                    "parent": bone["parent"],
+                    "name": bone["name"],
+                    "world": bone["world"].T,
+                    "position": bone["world"][3, :3].copy(),
+                    "pivot": np.zeros(3),
+                    "node_world": bone["world"].T,
+                }
+                for i, bone in enumerate(rig)
+            ),
+            {},
+        )
+    records = sections(data)
+    nodes, world_matrix, _, _ = node_hierarchy(data, records)
+    placements = rigid_placements(data, records)
+    carriers = {index for instances in placements.values() for index, _ in instances}
+    kept, anchors = set(), {}
+    for carrier in sorted(carriers):
+        cursor, visited = carrier, set()
+        while 0 <= cursor < len(nodes):
+            if cursor in visited:
+                raise ValueError("Cyclic prop skeleton")
+            visited.add(cursor)
+            if is_transform(data, nodes[cursor]):
+                kept.add(cursor)
+                anchors.setdefault(carrier, cursor)
+            cursor = nodes[cursor][2]
+    bones = []
+    bind_cache = {}
 
-    Devuelve (huesos, anclajes). `huesos` es una lista de dicts con `index` y
-    `parent` en indices originales del recurso, y `anclajes` mapea el indice de
-    nodo original de cada malla al hueso del que cuelga.
+    def bind_world(index):
+        if index not in bind_cache:
+            node = nodes[index]
+            local = node[3]
+            if is_transform(data, node):
+                values = list(transform_values(data, node))
+                # Bind at unit scale. Tiny or zero effect scales otherwise lose
+                # float32 vertex precision when an animation expands the mesh.
+                values[7:10] = [1.0, 1.0, 1.0]
+                local = transform_matrix(data, node, values)
+            parent = node[2]
+            bind_cache[index] = (
+                bind_world(parent) @ local if 0 <= parent < len(nodes) else local
+            )
+        return bind_cache[index]
 
-    El grafo crudo trae muchas mas ramas de las que interesan: el juego encadena
-    localizadores y sus hijos en el mismo punto. Aqui se colapsan las que
-    coinciden con su padre y se podan las hojas que no llevan malla, que en un
-    esqueleto para editar no aportan nada.
-    """
-    try:
-        records = sections(data)
-    except ValueError:
-        return (), {}
-    try:
-        nodes, world_matrix, _, _ = node_hierarchy(data, records)
-    except ValueError:
-        return (), {}
-    crudos = []
-    for index, (_, _, parent, _) in enumerate(nodes):
-        try:
-            world = world_matrix(index)
-        except ValueError:
-            continue
-        crudos.append({
-            "index": index,
-            "parent": parent if 0 <= parent < index else -1,
-            "position": world[:3, 3],
-        })
-    return _limpia(crudos, _nodos_con_malla(data, records))
+    for index in sorted(kept):
+        parent = nodes[index][2]
+        while 0 <= parent < len(nodes) and parent not in kept:
+            parent = nodes[parent][2]
+        pivot = transform_pivot(data, nodes[index])
+        offset = np.eye(4)
+        offset[:3, 3] = pivot
+        node_world = bind_world(index)
+        world = node_world @ offset
+        name_at = nodes[index][0] + 4
+        name_at += struct.unpack_from("<i", data, name_at)[0]
+        name = (
+            data[name_at : name_at + 256].split(b"\0", 1)[0].decode("ascii", "replace")
+        )
+        bones.append(
+            {
+                "index": index,
+                "parent": parent if parent in kept else -1,
+                "name": name or f"node_{index}",
+                "world": world,
+                "position": (world_matrix(index) @ offset)[:3, 3].copy(),
+                "pivot": pivot,
+                "node_world": node_world,
+            }
+        )
+    order = {bone["index"]: index for index, bone in enumerate(bones)}
+    return tuple(bones), {carrier: order[index] for carrier, index in anchors.items()}
 
 
 def prop_skeleton(data):
-    """Solo el esqueleto, sin el mapa de anclajes."""
     return prop_joints(data)[0]
-
-
-def _nodos_con_malla(data, records):
-    """Indices de nodo a los que cuelga alguna malla."""
-    con = set()
-    try:
-        placements = rigid_placements(data, records)
-    except ValueError:
-        return con
-    for anclajes in placements.values():
-        con.update(indice for indice, _ in anclajes)
-    return con
-
-
-def _limpia(bones, con_malla, tolerancia=1e-4):
-    """Esqueleto minimo: lo justo para colgar las mallas.
-
-    El grafo crudo trae de mas. Un nodo que esta justo encima de su padre no
-    aporta nada: en reposo son el mismo punto, asi que sus hijos y su malla se
-    cuelgan del padre sin cambio ninguno. Y un nodo que no sostiene ninguna malla
-    tampoco hace falta: es un manejador o una ancla de colocacion, que al abrir
-    el archivo se ven como huesos vacios colgando de la nada.
-    """
-    representante = {}
-    supervivientes = []
-    posiciones = {}
-    for bone in bones:
-        original = bone["index"]
-        padre = bone["parent"]
-        if padre >= 0 and np.allclose(
-            bone["position"], posiciones.get(padre, bone["position"]),
-            atol=tolerancia,
-        ):
-            representante[original] = representante.get(padre, padre)
-            continue
-        bone = {**bone, "parent": representante.get(padre, -1)}
-        representante[original] = original
-        supervivientes.append(bone)
-        posiciones[original] = bone["position"]
-
-    # la malla pasa al nodo que se queda, asi que es ese el que hay que conservar
-    portadores = {representante.get(nodo, nodo) for nodo in con_malla}
-    if portadores:
-        # esqueleto minimo: los que llevan malla y los que los sostienen
-        padre_de = {bone["index"]: bone["parent"] for bone in supervivientes}
-        utiles = set()
-        for nodo in portadores:
-            while nodo >= 0 and nodo not in utiles:
-                utiles.add(nodo)
-                nodo = padre_de.get(nodo, -1)
-    else:
-        # sin mallas no hay nada que colgar, pero el grafo sigue siendo info
-        utiles = {bone["index"] for bone in supervivientes}
-    filtered = [bone for bone in supervivientes if bone["index"] in utiles]
-
-    puesto = {bone["index"]: i for i, bone in enumerate(filtered)}
-    anclajes = {
-        nodo: puesto[representante[nodo]]
-        for nodo in con_malla
-        if representante[nodo] in puesto
-    }
-    return tuple(filtered), anclajes
 
 
 def prop_bones(data):
@@ -382,6 +371,7 @@ def parse_rdms(data, apply_scene=True):
                         **part,
                         "name": name,
                         "node": node_index,
+                        "local_vertices": vertices,
                         "vertices": transform_vertices(vertices, matrix),
                     }
                 )
@@ -410,27 +400,26 @@ def write_rigid_glb(parts, name, target, bones=(), anclajes=None):
     skin_index = None
     por_nodo = {}
     if bones:
-        # Todo en base glTF: el esqueleto y las mallas tienen que compartirla.
-        orden = {bone["index"]: i for i, bone in enumerate(bones)}
-        joints = [
-            (
-                f'{name}/nodo_{bone["index"]}',
-                orden.get(bone["parent"], -1),
-                convert_vector3(bone["position"]),
-            )
+        order = {bone["index"]: index for index, bone in enumerate(bones)}
+        rig = [
+            {
+                "name": bone["name"],
+                "parent": order.get(bone["parent"], -1),
+                "world": bone["world"].T,
+                "ibm": np.linalg.inv(bone["world"]).T,
+            }
             for bone in bones
         ]
-        skin_index = glb.add_joint_skeleton(joints)
-        skin_joints = glb.doc["skins"][skin_index]["joints"]
-        if anclajes is None:
-            anclajes = orden
-        por_nodo = {
-            nodo: skin_joints[posicion]
-            for nodo, posicion in anclajes.items()
-            if posicion < len(skin_joints)
-        }
+        skin_index = glb.add_skin(rig)
+        # JOINTS_0 stores positions in skin.joints, never document node IDs.
+        por_nodo = anclajes if anclajes is not None else order
     for part in parts:
         vertices = part["vertices"]
+        anchor = por_nodo.get(part.get("node", -1))
+        if anchor is not None and "local_vertices" in part:
+            vertices = transform_vertices(
+                part["local_vertices"], bones[anchor]["node_world"]
+            )
         count = len(vertices)
         # El esqueleto sale ya en base glTF (ver add_skin), asi que las mallas
         # tambien: si no, quedan en el Z del PSP y se ven giradas al abrirlo.
@@ -467,11 +456,18 @@ def write_rigid_glb(parts, name, target, bones=(), anclajes=None):
         articulation = por_nodo.get(part.get("node", -1))
         if skin_index is not None and articulation is not None:
             attrs["JOINTS_0"] = glb.accessor(
-                bytes([articulation]) * (4 * count), 5121, "VEC4", count, 34962
+                struct.pack("<4H", articulation, 0, 0, 0) * count,
+                5123,
+                "VEC4",
+                count,
+                34962,
             )
             attrs["WEIGHTS_0"] = glb.accessor(
                 struct.pack("<4f", 1.0, 0.0, 0.0, 0.0) * count,
-                5126, "VEC4", count, 34962,
+                5126,
+                "VEC4",
+                count,
+                34962,
             )
         indices = part["indices"]
         component = 5123 if count < 65536 else 5125
@@ -544,10 +540,15 @@ def convert_prop(data, name, target):
             raise ValueError(f"No compatible RDMS parts: {rejected[:3]}")
         bones, anclajes = prop_joints(data)
         glb = write_rigid_glb(parts, name, target, bones=bones, anclajes=anclajes)
+        from ts2psp.exporting.prop_animation import add_prop_animation
+
+        animations = add_prop_animation(glb, data, bones, name)
+        glb.save(target)
         return {
             "name": name,
             "format": "RDMS",
             "bones": len(bones),
+            "animations": animations,
             "parts": len(parts),
             "vertices": sum(len(x["vertices"]) for x in parts),
             "triangles": sum(len(x["indices"]) // 3 for x in parts),

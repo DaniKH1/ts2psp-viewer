@@ -14,8 +14,8 @@ from ts2psp.rendering.props import (
     prop_scene,
     render_prop,
 )
-from ts2psp.formats.props import convert_prop, prop_bones, prop_joints
-from ts2psp.formats.prop_anim import pose, prop_animations, prop_clip, reparte_canales
+from ts2psp.formats.props import convert_prop, prop_joints
+from ts2psp.formats.prop_anim import PropAnimator, prop_animations, prop_clip
 from ts2psp.ui.camera import CAMERA_HINT, OrbitController, Viewport
 import ts2psp.rendering.opengl as gl
 from ts2psp.ui.uv import UVWindow
@@ -57,20 +57,20 @@ class PropTab(ttk.Frame):
         ttk.Button(left, text="View texture maps and UVs", command=self.show_uv).pack(
             fill="x", pady=(0, 7)
         )
-        # Provisional: la animacion va dentro del propio prop, asi que la lista
-        # son los props que llevan curvas. Se lee el catalogo entero al abrir,
-        # que tarda unas tres décimas.
+        # Only list clips with supported transform links.
         ttk.Separator(left, orient="horizontal").pack(fill="x", pady=(4, 6))
         self.anim_rows = prop_animations(app.paths["props"], self.rows)
-        ttk.Label(left, text=f"Prop animations ({len(self.anim_rows)})").pack(anchor="w")
+        ttk.Label(left, text=f"Prop animations ({len(self.anim_rows)})").pack(
+            anchor="w"
+        )
         self.anim_list = tk.Listbox(left, width=44, height=8, exportselection=False)
         self.anim_list.pack(fill="both", expand=False, pady=(4, 0))
         self.anim_list.bind("<<ListboxSelect>>", self.select_animation)
         for row in self.anim_rows:
             self.anim_list.insert("end", f'{row["entry"]}  {row["ruta_interna"]}')
         self.clip = None
+        self.animator = None
         self.data = None
-        self.reparto = {}
         self.bone_src = ()
         self.playing = False
         self.playhead = 0.0
@@ -89,7 +89,9 @@ class PropTab(ttk.Frame):
         self.time_label = ttk.Label(controls, text="0:00 / 0:00", anchor="e")
         self.time_label.pack(side="right")
         self.position = tk.DoubleVar(value=0)
-        self.slider = ttk.Scale(left, from_=0, to=1, variable=self.position, command=self.scrub)
+        self.slider = ttk.Scale(
+            left, from_=0, to=1, variable=self.position, command=self.scrub
+        )
         self.slider.pack(fill="x", pady=6)
         self.status = ttk.Label(left, text="", wraplength=300)
         self.status.pack(fill="x")
@@ -172,7 +174,7 @@ class PropTab(ttk.Frame):
             self.bone_src, _ = prop_joints(data)
             self.bones = bones_over(self.parts, self.bone_src)
             self.clip = prop_clip(data)
-            self.reparto = reparte_canales(data, self.clip) if self.clip else {}
+            self.animator = PropAnimator(data, self.clip)
             self.current = row
             gl.forget(("prop", row["entry"]))
             self.objeto = None
@@ -182,6 +184,9 @@ class PropTab(ttk.Frame):
             self.position.set(0)
             self.moving_slider = False
             self.slider.configure(to=self.clip["duration"] if self.clip else 1)
+            supported = bool(self.clip and self.animator.bindings)
+            self.play_button.configure(state="normal" if supported else "disabled")
+            self.slider.configure(state="normal" if supported else "disabled")
             self.time_label.configure(
                 text=self.time_text(0, self.clip["duration"] if self.clip else 0)
             )
@@ -216,7 +221,7 @@ class PropTab(ttk.Frame):
         self.play_button.configure(text="▶ Play")
 
     def toggle_play(self):
-        if not self.clip:
+        if not self.clip or not self.animator.bindings:
             return
         self.playing = not self.playing
         self.play_button.configure(text="❚❚ Pause" if self.playing else "▶ Play")
@@ -237,13 +242,12 @@ class PropTab(ttk.Frame):
         """Las piezas en el instante actual, con las curvas aplicadas."""
         if not self.clip:
             return self.parts
-        partes, huesos = pose(
-            self.parts, self.data, self.clip, self.playhead, self.reparto
+        partes, huesos = self.animator.pose(self.parts, self.playhead, self.bone_src)
+        posed_bones = tuple(
+            {**bone, "position": huesos.get(bone["index"], bone["position"])}
+            for bone in self.bone_src
         )
-        for bone in self.bone_src:
-            if bone["index"] in huesos:
-                bone["position"] = huesos[bone["index"]]
-        self.bones = bones_over(self.parts, self.bone_src)
+        self.bones = bones_over(partes, posed_bones)
         return partes
 
     def tick(self):
@@ -281,7 +285,8 @@ class PropTab(ttk.Frame):
         dos: hay props con el grafo de nodos completo pero sin un solo nombre
         guardado (los de Roberta, entre otros).
         """
-        count, names = prop_bones(data)
+        count = len(self.bone_src)
+        names = tuple(bone["name"] for bone in self.bone_src)
         if count is None:
             return ""
         if not names:
