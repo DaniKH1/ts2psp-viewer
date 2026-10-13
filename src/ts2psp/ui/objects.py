@@ -38,6 +38,9 @@ class PropTab(ttk.Frame):
         self.parts = []
         self.timer = None
         self.last_frame = 0.0
+        self.rendering = False
+        self.redraw_requested = False
+        self.disposed = False
         left = ttk.Frame(self)
         left.pack(side="left", fill="y", padx=(0, 10))
         ttk.Label(left, text=f"Objects and props ({len(self.rows)})").pack(anchor="w")
@@ -221,11 +224,13 @@ class PropTab(ttk.Frame):
         self.play_button.configure(text="▶ Play")
 
     def toggle_play(self):
-        if not self.clip or not self.animator.bindings:
+        if not self.clip or not self.animator.bindings or self.clip["duration"] <= 0:
             return
         self.playing = not self.playing
         self.play_button.configure(text="❚❚ Pause" if self.playing else "▶ Play")
         if self.playing:
+            if self.playhead >= self.clip["duration"]:
+                self.playhead = 0.0
             self.clock_ms = gl.ahora_ms()
             self.schedule()
 
@@ -233,6 +238,8 @@ class PropTab(ttk.Frame):
         if self.moving_slider or not self.clip:
             return
         self.playhead = float(value)
+        if self.playing:
+            self.clock_ms = gl.ahora_ms()
         self.time_label.configure(
             text=self.time_text(self.playhead, self.clip["duration"])
         )
@@ -321,25 +328,32 @@ class PropTab(ttk.Frame):
         return texto
 
     def schedule(self, _event=None):
-        # igual que en Characters: con GPU se dibuja al instante y se limita a 60 Hz
-        if self.timer:
-            self.after_cancel(self.timer)
-            self.timer = None
-        if not gl.disponible():
-            self.timer = self.after(60, self.render)
+        if self.disposed:
             return
-        faltan = gl.faltan_para(self.last_frame, 16)
-        if faltan > 0:
-            self.timer = self.after(faltan, self.render)
-        else:
-            self.render()
+        if self.rendering:
+            self.redraw_requested = True
+            return
+        # Coalesce input events; a pending frame already reads the latest state.
+        if self.timer:
+            return
+        delay = gl.faltan_para(self.last_frame, 16) if gl.disponible() else 60
+        # A slow frame must still return to Tk before starting the next one.
+        self.timer = self.after(max(1, delay), self.render)
 
     def render(self):
         self.timer = None
-        self.last_frame = gl.ahora_ms()
-        if not self.parts:
+        if self.disposed:
             return
+        if self.rendering:
+            self.redraw_requested = True
+            return
+        self.rendering = True
+        self.redraw_requested = False
+        self.last_frame = gl.ahora_ms()
         try:
+            if not self.parts:
+                return
+            self.tick()
             partes = self.posed_parts()
             w, h = self.canvas.view_size()
             # La escena se reutiliza entre fotogramas y solo se le cambian los
@@ -368,11 +382,12 @@ class PropTab(ttk.Frame):
             )
             set_photo(self.canvas, image)
         except Exception as exc:
+            self.stop()
             self.status.configure(text=f"Preview: {exc}")
-        # Mientras suene el clip hay que seguir pidiendo fotogramas; parado, el
-        # refresco lo dispara el raton o el deslizador.
-        if self.tick():
-            self.schedule()
+        finally:
+            self.rendering = False
+            if self.playing or self.redraw_requested:
+                self.schedule()
 
     def export(self, fmt="glb"):
         if not self.current:
@@ -408,6 +423,8 @@ class PropTab(ttk.Frame):
             UVWindow(self, self.parts, self.current["ruta_interna"])
 
     def dispose(self):
+        self.disposed = True
+        self.stop()
         if self.timer:
             self.after_cancel(self.timer)
             self.timer = None

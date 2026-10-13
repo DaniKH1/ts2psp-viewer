@@ -71,3 +71,15 @@ python tools/audit_prop_rigs.py "$env:TS2_PSP_DATA_DIR\sims2_psp_props_recursos.
 The audit checks mesh ownership and invertible binds across the catalogue,
 exports rigid props, and compares sampled exported motion against the preview.
 Results from the development archive are in `prop-rig-validation.json`.
+
+Playback always queues the next frame through Tk, including when rendering takes
+longer than 16 ms. Pending redraws are coalesced, and render errors stop playback.
+The GUI regression runs Play/Pause for two complete satellite loops while
+simulating slow frames and checking that other window events remain responsive:
+
+```powershell
+$env:PYTHONPATH = 'src'
+python tests/test_prop_playback_gui.py --slow-frame
+```
+
+This check is also included in `python tools/check.py --gui`.

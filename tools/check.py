@@ -34,6 +34,17 @@ def main():
                 env=environment,
                 check=True,
             )
+        subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "tests/test_prop_playback_gui.py"),
+                "--slow-frame",
+            ],
+            cwd=ROOT,
+            env=environment,
+            check=True,
+            timeout=45,
+        )
 
 
 if __name__ == "__main__":
