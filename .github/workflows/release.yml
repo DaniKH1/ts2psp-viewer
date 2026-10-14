@@ -1,0 +1,131 @@
+name: Release EXE
+
+# Compila el EXE y lo publica en una release, pero solo si lo apruebas tu.
+#
+# Va aparte del de la nightly a proposito. Aqui no hay ningun `if`: el workflow
+# solo arranca cuando lo lanzas tu desde la pestana de Actions, y entonces los
+# dos jobs se ejecutan siempre. Por eso no aparece nunca uno como "skipped":
+# en la nightly no hay nada que saltarse porque no hay nada condicional, y aqui
+# no hay condicion que pueda fallar.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version de la release. Vacio = v<fecha de hoy>, como v2026.10.14'
+        required: false
+        default: ''
+        type: string
+
+# Compilar no necesita escribir en el repo; el job de publicar si.
+permissions:
+  contents: read
+
+concurrency:
+  group: exe-release
+  # Si pulsas dos veces, se cancela la anterior. Publicar dos veces la misma
+  # release a la vez daria una de las dos a medias.
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Compilar el EXE
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # El que dice el README con el que se compila en local.
+          python-version: '3.13'
+          cache: pip
+
+      # Antes de compilar una hora, que una errata no llegue hasta el final.
+      - name: Comprobar la etiqueta pedida
+        if: ${{ inputs.tag != '' && !startsWith(inputs.tag, 'v') }}
+        shell: pwsh
+        run: |
+          Write-Error "La etiqueta tiene que empezar por 'v', como v1.0.0. Recibido: $env:INPUT_TAG"
+          exit 1
+
+      - name: Instalar dependencias de compilacion
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-build.txt
+
+      - name: Compilar
+        run: python tools/build.py
+
+      - name: Comprobar el EXE
+        run: |
+          # Un solo hijo en Join-Path: la version 5.1 no acepta un tercero
+          # posicional, aunque en Actions corra pwsh 7.
+          $exe = Join-Path $PWD 'dist\TS2 PSP Viewer.exe'
+          if (-not (Test-Path -LiteralPath $exe)) {
+            throw "PyInstaller no dejo el EXE en dist/"
+          }
+          $mb = [math]::Round((Get-Item -LiteralPath $exe).Length / 1MB, 1)
+          if ($mb -lt 5) {
+            throw "el EXE sale demasiado pequeno ($mb MB): le falta algo dentro"
+          }
+          Write-Host "EXE listo: $mb MB"
+          python tools/package_source.py
+        shell: pwsh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TS2-PSP-Viewer-EXE
+          # Entrecomillado: el nombre del EXE lleva espacios y `:` forma parte de
+          # su nombre de fichero en Windows.
+          path: 'dist/TS2 PSP Viewer.exe'
+          if-no-files-found: error
+
+  release:
+    name: Publicar release
+    needs: build
+    runs-on: ubuntu-latest
+    # La puerta. GitHub deja el job en "esperando aprobacion" y no lo arranca
+    # hasta que alguien de la lista de revisores lo aprueba. Ese entorno se crea
+    # a mano en Settings > Environments, con "Required reviewers" puesto a tu
+    # cuenta. Sin ese paso la aprobacion no la pide nadie y el job arranca
+    # directo, que es justo lo que no queremos.
+    environment:
+      name: release
+      url: ${{ steps.publicar.outputs.url }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: TS2-PSP-Viewer-EXE
+          path: exe
+
+      # Sin etiqueta se usa la de hoy. Asi tambien se puede publicar sin tener
+      # que escribir nada. La etiqueta se lee de INPUT_TAG, que es la variable
+      # que GitHub pone para cada input: meterla con ${{ }} dentro del `run`
+      # dejaria que una comilla en el texto rompiera el script.
+      - name: Decidir la etiqueta
+        id: etiqueta
+        shell: pwsh
+        run: |
+          # Con comillas: si la variable no llega a existir, "$env:INPUT_TAG" es
+          # cadena vacia, mientras que $env:INPUT_TAG.Trim() reventaria con un
+          # null. Y lo de Trim quita los espacios que se cuelan al escribir.
+          $tag = "$env:INPUT_TAG".Trim()
+          if (-not $tag) {
+            $tag = "v$(Get-Date -Format 'yyyy.M.d')"
+          }
+          if (-not $tag.StartsWith('v')) {
+            $tag = "v$tag"
+          }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          Write-Host "Publicando como $tag"
+
+      - name: Publicar
+        id: publicar
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.etiqueta.outputs.tag }}
+          files: 'exe/TS2 PSP Viewer.exe'
+          generate_release_notes: true

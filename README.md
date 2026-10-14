@@ -35,7 +35,7 @@ The EXE and source ZIP go to `dist/`. For checks using your own game data, set `
 
 `.github/workflows/build-exe.yml` compiles the EXE on `windows-latest` every
 night and leaves it as an artifact, alongside the source ZIP. It never publishes
-anything on its own.
+anything, and you can also start it by hand just to rebuild.
 
 The schedule is `17 22 * * *`, which is 00:17 in Spain during summer time and
 23:17 in winter: GitHub cron is always UTC and does not follow daylight saving.
@@ -44,14 +44,14 @@ each other at the top of the hour.
 
 ### Publishing a release
 
-Pushing a `v*` tag does nothing. To publish, run the workflow by hand from the
-Actions tab, type the tag you want in the `tag` input, and approve the *Publicar
-release* job when GitHub asks.
+Publishing lives in its own workflow, `release.yml`, which only ever runs when
+you start it from the Actions tab. It compiles the EXE and puts it in a release,
+but the release job is pinned to an environment called `release`, so GitHub
+leaves it in *waiting for approval* until somebody on that environment's
+reviewer list clicks approve. Nobody but you can be on that list.
 
-That approval is the whole point, and it comes from an environment: the release
-job is pinned to `release`, and whoever is listed as a required reviewer for that
-environment has to click approve before the job starts. Until somebody sets that
-up, the job runs straight through and anyone with push access can publish.
+Leave the `tag` input empty and it publishes as `v<today's date>`, or type a
+version like `v1.0.0` to choose it yourself.
 
 One-time setup, in **Settings > Environments > New environment**:
 
@@ -59,8 +59,12 @@ One-time setup, in **Settings > Environments > New environment**:
 2. Under *Required reviewers*, add your account.
 3. Save.
 
-Once the environment exists, `Publicar release` sits in *waiting for approval*
-instead of *skipped* whenever you leave the tag empty.
+Without that step nobody is asked to approve anything and the job starts
+straight away, which is the opposite of what this is for.
+
+Neither workflow has a conditional job, so neither can show one as *skipped*:
+`build-exe.yml` either runs or it does not, and `release.yml` runs both jobs or
+none. Pushing a `v*` tag does nothing at all.
 
 Game resources are never part of the build, and neither is `data/`: the user
 picks their own ISO at runtime. The job checks that the EXE exists and is a
