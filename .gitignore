@@ -6,6 +6,8 @@ dist/
 *.egg-info/
 data/
 exports/
+# Estado interno del editor: no es del proyecto.
+.opencode/
 *.iso
 *.cso
 *.glb
