@@ -1,8 +1,9 @@
 # The Sims 2 PSP Viewer
 
-Windows app for characters, facial shape keys, props and maps. The UI is in
-English. Open `TS2 PSP Viewer.exe`, then choose your own ISO from **File > Select
-ISO**. Game resources are not included.
+Windows app for characters, facial shape keys, props and maps. Game resources are not included.
+
+<img width="1919" height="985" alt="image" src="https://github.com/user-attachments/assets/b650eefa-ab89-480c-9bf7-4fdba72d03ad" />
+
 
 Three tabs: **Characters**, **Props** and **Maps**.
 
