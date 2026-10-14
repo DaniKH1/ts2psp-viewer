@@ -1,4 +1,4 @@
-name: Release EXE
+name: Release Manual Executable
 
 # Compila el EXE y lo publica en una release, pero solo si lo apruebas tu.
 #
@@ -29,7 +29,7 @@ concurrency:
 
 jobs:
   build:
-    name: Compilar el EXE
+    name: Manual Windows Build
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
@@ -75,7 +75,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: TS2-PSP-Viewer-EXE
+          name: TS2PSP-Viewer
           # Entrecomillado: el nombre del EXE lleva espacios y `:` forma parte de
           # su nombre de fichero en Windows.
           path: 'dist/TS2 PSP Viewer.exe'
@@ -98,7 +98,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: TS2-PSP-Viewer-EXE
+          name: TS2PSP-Viewer
           path: exe
 
       # Sin etiqueta se usa la de hoy. Asi tambien se puede publicar sin tener
