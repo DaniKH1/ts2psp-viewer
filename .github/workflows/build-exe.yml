@@ -1,7 +1,8 @@
 name: Build EXE
 
-# La nightly compila el EXE y lo deja como artefacto. No lleva los recursos del
-# juego: el usuario elige su propio ISO desde File > Select ISO.
+# La nightly compila el EXE y lo deja como artefacto. Nunca publica nada: eso
+# es a mano y con tu aprobacion. No lleva los recursos del juego, el usuario
+# elige su propio ISO desde File > Select ISO.
 
 on:
   schedule:
@@ -14,13 +15,17 @@ on:
     # El minuto es 17 y no 0 a proposito: las ejecuciones programadas se
     # retrasan, y a las 22:00 en punto la cola de Actions esta llena.
     - cron: '17 22 * * *'
-  # Para compilar a mano sin esperar a la noche.
   workflow_dispatch:
-  # Una etiqueta v1.2.3 ademas corta una release con el EXE dentro.
-  push:
-    tags:
-      - 'v*'
+    inputs:
+      tag:
+        description: 'Publicar una release con esta etiqueta (v1.0.0). Vacio = solo compilar'
+        required: false
+        default: ''
+        type: string
 
+# Deliberadamente no hay `push: tags`. Empujar una etiqueta no puede publicar
+# nada por su cuenta; quien publica lanza el workflow y aprueba el job.
+#
 # Lo de menos permisos que hace falta para compilar. El job de la release los
 # pide de nuevo porque si no tiene que poder escribir.
 permissions:
@@ -50,6 +55,17 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements-build.txt
+
+      # Antes de compilar, que una etiqueta mal escrita no llegue al final.
+      - name: Comprobar la etiqueta pedida
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.tag != '' }}
+        shell: pwsh
+        run: |
+          if (-not $env:INPUT_TAG.StartsWith('v')) {
+            Write-Error "La etiqueta tiene que empezar por 'v', como v1.0.0. Recibido: $($env:INPUT_TAG)"
+            exit 1
+          }
+          Write-Host "Se publicara como $($env:INPUT_TAG)"
 
       - name: Compilar
         run: python tools/build.py
@@ -88,10 +104,19 @@ jobs:
 
   release:
     name: Publicar release
-    # Solo cuando alguien empuja una etiqueta vX.
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Solo si alguien lo pide a mano con una etiqueta. En la nightly, y en un
+    # "Run workflow" sin etiqueta, este job se salta: es lo normal, no un fallo.
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.tag != '' }}
     needs: build
     runs-on: ubuntu-latest
+    # La puerta. GitHub deja el job en "esperando aprobacion" y no lo arranca
+    # hasta que alguien de la lista de revisores lo aprueba. Ese entorno se crea
+    # a mano en Settings > Environments, con "Required reviewers" puesto a tu
+    # cuenta. Sin ese paso, la aprobacion no la pide nadie y el job arranca
+    # directo, que es justo lo que no queremos.
+    environment:
+      name: release
+      url: ${{ steps.publicar.outputs.url }}
     permissions:
       contents: write
     steps:
@@ -101,7 +126,9 @@ jobs:
           path: exe
 
       - name: Publicar
+        id: publicar
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.tag }}
           files: 'exe/TS2 PSP Viewer.exe'
           generate_release_notes: true

@@ -1,9 +1,8 @@
 # The Sims 2 PSP Viewer
 
-Windows app for characters, facial shape keys, props and maps. Game resources are not included.
-
-<img width="1919" height="985" alt="image" src="https://github.com/user-attachments/assets/ae8f4d42-5b50-4469-ba5a-4eb54eb42e7a" />
-
+Windows app for characters, facial shape keys, props and maps. The UI is in
+English. Open `TS2 PSP Viewer.exe`, then choose your own ISO from **File > Select
+ISO**. Game resources are not included.
 
 Three tabs: **Characters**, **Props** and **Maps**.
 
@@ -35,14 +34,33 @@ The EXE and source ZIP go to `dist/`. For checks using your own game data, set `
 ## Nightly build
 
 `.github/workflows/build-exe.yml` compiles the EXE on `windows-latest` every
-night and leaves it as an artifact, alongside the source ZIP. It also runs on
-demand from the Actions tab, and pushes a `v*` tag to cut a release with the EXE
-attached.
+night and leaves it as an artifact, alongside the source ZIP. It never publishes
+anything on its own.
 
 The schedule is `17 22 * * *`, which is 00:17 in Spain during summer time and
 23:17 in winter: GitHub cron is always UTC and does not follow daylight saving.
 The minute is 17 rather than 0 on purpose, because scheduled runs queue behind
 each other at the top of the hour.
+
+### Publishing a release
+
+Pushing a `v*` tag does nothing. To publish, run the workflow by hand from the
+Actions tab, type the tag you want in the `tag` input, and approve the *Publicar
+release* job when GitHub asks.
+
+That approval is the whole point, and it comes from an environment: the release
+job is pinned to `release`, and whoever is listed as a required reviewer for that
+environment has to click approve before the job starts. Until somebody sets that
+up, the job runs straight through and anyone with push access can publish.
+
+One-time setup, in **Settings > Environments > New environment**:
+
+1. Name it exactly `release`.
+2. Under *Required reviewers*, add your account.
+3. Save.
+
+Once the environment exists, `Publicar release` sits in *waiting for approval*
+instead of *skipped* whenever you leave the tag empty.
 
 Game resources are never part of the build, and neither is `data/`: the user
 picks their own ISO at runtime. The job checks that the EXE exists and is a
