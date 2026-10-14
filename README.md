@@ -31,6 +31,27 @@ python tools/check.py
 
 The EXE and source ZIP go to `dist/`. For checks using your own game data, set `TS2_PSP_DATA_DIR`. Add `--gui` to `tools/check.py` for the GPU and window checks; that is the only mode that opens real windows and needs your resources.
 
+## Nightly build
+
+`.github/workflows/build-exe.yml` compiles the EXE on `windows-latest` every
+night and leaves it as an artifact, alongside the source ZIP. It also runs on
+demand from the Actions tab, and pushes a `v*` tag to cut a release with the EXE
+attached.
+
+The schedule is `17 22 * * *`, which is 00:17 in Spain during summer time and
+23:17 in winter: GitHub cron is always UTC and does not follow daylight saving.
+The minute is 17 rather than 0 on purpose, because scheduled runs queue behind
+each other at the top of the hour.
+
+Game resources are never part of the build, and neither is `data/`: the user
+picks their own ISO at runtime. The job checks that the EXE exists and is a
+plausible size, but it does not launch it — the app needs your ISO to get past
+the import screen, which is what `tools/smoke_exe.py --data` is for locally.
+
+Two things worth knowing: a scheduled workflow only runs from the default
+branch, and GitHub turns scheduled workflows off after 60 days without activity
+in the repository.
+
 ## Characters
 
 One viewport, two views. The **Animation View** button in the top left swaps the
@@ -116,15 +137,5 @@ multiple export asks for a folder and writes one file per animation into it.
 Props use their shader references, texture palettes, packed coordinates, UV transforms and static scene hierarchy. Vertex colors and repeating UVs are preserved. Maps still expose mesh parts; complete terrain and playable scene placement are not reconstructed.
 
 See [architecture](docs/architecture.md) and [format notes](docs/formats.md) for the implementation path.
-
-Props preserve the NODE hierarchy, named joints, rotation/scale pivots and linked
-animation channels. Embedded transform animations play in the Objects tab and
-are included in GLB/FBX exports. See [prop rigs](docs/prop-rigs.md) for supported
-tracks, the satellite regression and the validation command.
-
-The Objects tab hides authoring and picking geometry by default; **Show helper
-meshes / effect templates** restores it for inspection and export. Material
-status distinguishes textured parts, stored solid colors and unresolved references.
-Use `tools/review_prop_catalog.py` to review your entire extracted prop catalogue.
 
 Character accessories are resolved from their game declarations. Emily Emory's maid hat loads automatically, keeps its lace transparency and follows the head when animated or exported. See `formats/accessories.py` to extend the supported accessory mappings.

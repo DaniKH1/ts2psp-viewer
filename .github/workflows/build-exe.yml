@@ -1,0 +1,107 @@
+name: Build EXE
+
+# La nightly compila el EXE y lo deja como artefacto. No lleva los recursos del
+# juego: el usuario elige su propio ISO desde File > Select ISO.
+
+on:
+  schedule:
+    # GitHub no tiene zona horaria en los cron: siempre UTC.
+    #   22:17 UTC = 00:17 en Espana con horario de verano (CEST, UTC+2),
+    #            = 23:17 en invierno (CET, UTC+1).
+    # El desajuste de una hora con el cambio de hora es inevitable con un solo
+    # cron; si prefieres medianoche UTC en vez de medianoche local, usa
+    # '17 0 * * *'.
+    # El minuto es 17 y no 0 a proposito: las ejecuciones programadas se
+    # retrasan, y a las 22:00 en punto la cola de Actions esta llena.
+    - cron: '17 22 * * *'
+  # Para compilar a mano sin esperar a la noche.
+  workflow_dispatch:
+  # Una etiqueta v1.2.3 ademas corta una release con el EXE dentro.
+  push:
+    tags:
+      - 'v*'
+
+# Lo de menos permisos que hace falta para compilar. El job de la release los
+# pide de nuevo porque si no tiene que poder escribir.
+permissions:
+  contents: read
+
+concurrency:
+  group: exe-build-${{ github.ref }}
+  # Una nightly que se solape con la anterior se va: no vale la pena gastar dos
+  # horas de runner corriendo la misma compilacion dos veces.
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Compilar el EXE
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # El que dice el README con el que se compila en local.
+          python-version: '3.13'
+          cache: pip
+
+      - name: Instalar dependencias de compilacion
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-build.txt
+
+      - name: Compilar
+        run: python tools/build.py
+
+      - name: Comprobar el EXE
+        run: |
+          # Un solo hijo en Join-Path: la version 5.1 no acepta un tercero
+          # posicional, aunque en Actions corra pwsh 7.
+          $exe = Join-Path $PWD 'dist\TS2 PSP Viewer.exe'
+          if (-not (Test-Path -LiteralPath $exe)) {
+            throw "PyInstaller no dejo el EXE en dist/"
+          }
+          $mb = [math]::Round((Get-Item -LiteralPath $exe).Length / 1MB, 1)
+          if ($mb -lt 5) {
+            throw "el EXE sale demasiado pequeno ($mb MB): le falta algo dentro"
+          }
+          Write-Host "EXE listo: $mb MB"
+          python tools/package_source.py
+        shell: pwsh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TS2-PSP-Viewer-EXE
+          # Entrecomillado: el nombre del EXE lleva espacios y `:` forma parte de
+          # su nombre de fichero en Windows.
+          path: 'dist/TS2 PSP Viewer.exe'
+          if-no-files-found: error
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TS2-PSP-Viewer-source
+          path: dist/*.zip
+          if-no-files-found: warn
+          retention-days: 14
+
+  release:
+    name: Publicar release
+    # Solo cuando alguien empuja una etiqueta vX.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: TS2-PSP-Viewer-EXE
+          path: exe
+
+      - name: Publicar
+        uses: softprops/action-gh-release@v2
+        with:
+          files: 'exe/TS2 PSP Viewer.exe'
+          generate_release_notes: true
