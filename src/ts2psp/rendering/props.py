@@ -107,23 +107,23 @@ def bones_over(parts, bones, margen=1.3):
         bone
         for bone in bones
         if all(
-            lo[k] - margen_caja[k]
-            <= bone["position"][k]
-            <= hi[k] + margen_caja[k]
+            lo[k] - margen_caja[k] <= bone["position"][k] <= hi[k] + margen_caja[k]
             for k in range(3)
         )
     ]
     # Al quitar nodos los indices dejan de valer: se remapean, y el que se
     # queda sin padre dibujado se dibuja como raiz suelta.
     nuevo = {bone["index"]: i for i, bone in enumerate(dentro)}
-    return tuple(
-        {**bone, "parent": nuevo.get(bone["parent"], -1)} for bone in dentro
-    )
+    return tuple({**bone, "parent": nuevo.get(bone["parent"], -1)} for bone in dentro)
 
 
-def load_parts(data):
+def load_parts(data, include_helpers=False):
     if b"rdms" in data[:128]:
-        return parse_rdms(data)[0]
+        return [
+            part
+            for part in parse_rdms(data)[0]
+            if include_helpers or not part.get("helper")
+        ]
     parts = []
     for part in parse_prop_bmsh(data):
         vertices = [

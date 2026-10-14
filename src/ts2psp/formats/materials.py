@@ -2,6 +2,9 @@
 
 import math
 import struct
+import io
+
+from PIL import Image
 
 from ts2psp.formats.surfaces import decode_surface
 
@@ -35,11 +38,23 @@ def prop_materials(data, records):
         rgb = struct.unpack_from("<3f", data, head + 8)
         if not all(math.isfinite(v) and 0 <= v <= 1 for v in rgb):
             rgb = (1, 1, 1)
+        opacity = struct.unpack_from("<f", data, head + 0x40)[0]
+        if not math.isfinite(opacity) or not -1e-6 <= opacity <= 1 + 1e-6:
+            raise ValueError("Invalid prop material opacity")
+        opacity = min(1.0, max(0.0, opacity))
         material = {
             "texture": texture,
             "surface_address": surface_address,
-            "base_color": (*rgb, 1.0),
+            "base_color": (*rgb, opacity),
             "shader_index": index,
+            "texture_alpha": bool(
+                texture
+                and Image.open(io.BytesIO(texture[1]))
+                .convert("RGBA")
+                .getchannel("A")
+                .getextrema()[0]
+                < 255
+            ),
         }
         for prefix in (0, 32):
             shaders[off + 128 + prefix] = material
@@ -50,12 +65,15 @@ def assign_material(part, material, uvs):
     """Store one material per mesh part; repeating UVs stay repeating on the GPU."""
     material = material or {}
     part["texture"] = material.get("texture")
-    part["base_color"] = (
-        (1, 1, 1, 1) if part["texture"] else material.get("base_color", (1, 1, 1, 1))
-    )
+    part["base_color"] = material.get("base_color", (1, 1, 1, 1))
+    part["material_kind"] = "texture" if part["texture"] else "solid_color"
+    if part["base_color"][3] < 1 or material.get("texture_alpha"):
+        part["alpha_mode"] = "BLEND"
     part["color"] = tuple(round(v * 255) for v in part["base_color"])
     part["repeat_texture"] = any(
         uv is not None and any(v < -0.001 or v > 1.001 for v in uv) for uv in uvs
     )
     if material.get("surface_address") is not None and part["texture"] is None:
         part["texture_warning"] = "Referenced SURF could not be decoded"
+    if not material:
+        part["texture_warning"] = "Mesh shader could not be resolved"

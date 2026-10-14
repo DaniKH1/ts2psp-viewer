@@ -30,6 +30,7 @@ from ts2psp.formats.prop_scene import (
     transform_values,
     transform_matrix,
     is_transform,
+    mesh_is_helper,
 )
 
 
@@ -76,7 +77,7 @@ def prop_node_count(data):
     return len(skeleton) or None
 
 
-def prop_joints(data):
+def prop_joints(data, include_helpers=False):
     """Keep mesh ancestors and their full bind transforms, including pivots."""
     if b"bmsh" in data[:128] and b"rdms" not in data[:128]:
         rig = parse_bones(data)
@@ -97,8 +98,11 @@ def prop_joints(data):
         )
     records = sections(data)
     nodes, world_matrix, _, _ = node_hierarchy(data, records)
-    placements = rigid_placements(data, records)
-    carriers = {index for instances in placements.values() for index, _ in instances}
+    carriers = {
+        part["node"]
+        for part in parse_rdms(data)[0]
+        if part["node"] >= 0 and (include_helpers or not part.get("helper"))
+    }
     kept, anchors = set(), {}
     for carrier in sorted(carriers):
         cursor, visited = carrier, set()
@@ -237,6 +241,7 @@ def parse_rdms(data, apply_scene=True):
     records = sections(data)
     materials = prop_materials(data, records)
     placements = rigid_placements(data, records) if apply_scene else {}
+    nodes = node_hierarchy(data, records)[0] if apply_scene else []
     for i, (tag, off, size, _, _) in enumerate(records):
         if tag != b"rdms":
             continue
@@ -358,6 +363,8 @@ def parse_rdms(data, apply_scene=True):
             shader = shader_at + struct.unpack_from("<i", data, shader_at)[0]
             assign_material(part, materials.get(shader), [v[2] for v in vertices])
             anclajes = placements.get(off + 128, [])
+            if off + 128 in placements and not anclajes:
+                continue
             if not anclajes:
                 anclajes = [(-1, np.eye(4))]
             for instance, (node_index, matrix) in enumerate(anclajes):
@@ -371,6 +378,10 @@ def parse_rdms(data, apply_scene=True):
                         **part,
                         "name": name,
                         "node": node_index,
+                        "helper": mesh_is_helper(
+                            data, nodes, node_index, textured=bool(part["texture"])
+                        )
+                        or (bool(nodes) and node_index < 0),
                         "local_vertices": vertices,
                         "vertices": transform_vertices(vertices, matrix),
                     }
@@ -487,12 +498,15 @@ def write_rigid_glb(parts, name, target, bones=(), anclajes=None):
             "roughnessFactor": 1,
         }
         texture = part.get("texture")
-        has_alpha = all(v[3] is not None for v in vertices) and any(
-            v[3][3] < 0.999 for v in vertices
+        has_alpha = pbr["baseColorFactor"][3] < 1 or (
+            all(v[3] is not None for v in vertices)
+            and any(v[3][3] < 0.999 for v in vertices)
         )
         if texture and "TEXCOORD_0" in attrs:
             pbr["baseColorTexture"] = {
-                "index": glb.add_texture(texture[0], texture[1]),
+                "index": glb.add_texture(
+                    texture[0], texture[1], part.get("repeat_texture")
+                ),
                 "texCoord": 0,
             }
             with Image.open(io.BytesIO(texture[1])) as image:
@@ -533,12 +547,14 @@ def write_rigid_glb(parts, name, target, bones=(), anclajes=None):
     return glb
 
 
-def convert_prop(data, name, target):
+def convert_prop(data, name, target, include_helpers=False):
     if b"rdms" in data[:128]:
         parts, rejected = parse_rdms(data)
+        if not include_helpers:
+            parts = [part for part in parts if not part.get("helper")]
         if not parts:
             raise ValueError(f"No compatible RDMS parts: {rejected[:3]}")
-        bones, anclajes = prop_joints(data)
+        bones, anclajes = prop_joints(data, include_helpers=include_helpers)
         glb = write_rigid_glb(parts, name, target, bones=bones, anclajes=anclajes)
         from ts2psp.exporting.prop_animation import add_prop_animation
 

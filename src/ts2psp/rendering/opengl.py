@@ -274,11 +274,12 @@ class Escena:
         self.UV = None
         self.colores = None
         self.dibujos = []
+        self.alpha_modes = []
         self.transparentes = 0
         self.tipo = tipo
         self.mostrar_grid = True
-        # False en los modelos que necesitan verse sin recortar caras traseras.
-        self.sin_culling = False
+        # Props use two-sided materials, just as their exported GLB does.
+        self.sin_culling = tipo == "prop"
         self._grid_vertices = None
         self._grid_colores = None
         self._grid_indices = None
@@ -288,6 +289,7 @@ class Escena:
     # -- subida ---------------------------------------------------------------
     def _cargar(self, piezas, texturas):
         posiciones, uvs, colores, indices, tramos = [], [], [], [], []
+        self.alpha_modes = []
         ids_textura = {}
         alpha_textura = {}
         escala_pos, normaliza_uv = (
@@ -307,11 +309,12 @@ class Escena:
             inicio_vertices, inicio_indices = len(posiciones), len(indices)
             ruta = self._clave_textura(ruta, parte)
             textura = texturas.get(ruta)
-            if textura is not None and ruta not in ids_textura:
-                ids_textura[ruta] = self._subir_textura(
+            texture_state = (ruta, bool(parte.get("repeat_texture")))
+            if textura is not None and texture_state not in ids_textura:
+                ids_textura[texture_state] = self._subir_textura(
                     textura, voltear, bool(parte.get("repeat_texture"))
                 )
-                alpha_textura[ruta] = self._tiene_alpha(textura)
+                alpha_textura[texture_state] = self._tiene_alpha(textura)
             color = parte.get("color")
             tiene_uv = all(v[2] is not None for v in parte["vertices"])
             vertex_alpha = False
@@ -352,13 +355,20 @@ class Escena:
                 (
                     inicio_indices,
                     len(parte["indices"]),
-                    ids_textura.get(ruta, 0),
+                    ids_textura.get(texture_state, 0),
                     bool(alfa)
                     or vertex_alpha
-                    or alpha_textura.get(ruta, False)
+                    or alpha_textura.get(texture_state, False)
                     or es_peinado,
                     es_peinado,
                 )
+            )
+            transparent = tramos[-1][3]
+            self.alpha_modes.append(
+                "BLEND"
+                if transparent
+                and (self.tipo == "prop" or parte.get("alpha_mode") == "BLEND")
+                else "MASK" if transparent else "OPAQUE"
             )
         if not posiciones or not indices:
             raise SinOpenGL("the scene has no geometry")
@@ -765,9 +775,15 @@ class Escena:
         gl.punteros(3, GL_FLOAT, 0, ojo.ctypes.data)
         gl.punteros_uv(2, GL_FLOAT, 0, self.UV.ctypes.data)
         gl.punteros_color(4, GL_FLOAT, 0, self.colores.ctypes.data)
-        primero, despues = [], []
-        for indices, textura, alfa, es_peinado in self.dibujos:
-            (despues if alfa else primero).append((indices, textura, es_peinado))
+        primero, recortados, mezclados = [], [], []
+        for draw, mode in zip(self.dibujos, self.alpha_modes):
+            indices, textura, alfa, es_peinado = draw
+            group = (
+                mezclados
+                if mode == "BLEND"
+                else recortados if mode == "MASK" else primero
+            )
+            group.append((indices, textura, es_peinado))
         culling_activo = not sin_culling
 
         def dibujar_grupos(grupos):
@@ -791,14 +807,26 @@ class Escena:
         if not culling_activo and not sin_culling:
             gl.activar(GL_CULL_FACE)
             culling_activo = True
-        if despues:
+        if recortados:
             gl.desactivar(GL_BLEND)
             gl.activar(GL_ALPHA_TEST)
             gl.funcion_alfa(GL_GREATER, 0.5)
-            dibujar_grupos(despues)
+            dibujar_grupos(recortados)
             if not culling_activo and not sin_culling:
                 gl.activar(GL_CULL_FACE)
             gl.desactivar(GL_ALPHA_TEST)
+        if mezclados:
+            # Draw glass, water and shadows after opaque geometry, back to front.
+            mezclados.sort(key=lambda group: float(ojo[group[0], 2].mean()))
+            gl.activar(GL_BLEND)
+            gl.mezcla(GL_BLEND_SRC_ALPHA, GL_BLEND_DST_ONE_MINUS_SRC_ALPHA)
+            gl.activar(GL_ALPHA_TEST)
+            gl.funcion_alfa(GL_GREATER, 0.001)
+            gl.mascara_profundidad(0)
+            dibujar_grupos(mezclados)
+            gl.mascara_profundidad(1)
+            gl.desactivar(GL_ALPHA_TEST)
+            gl.desactivar(GL_BLEND)
         gl.fin()
         gl.leer(0, 0, ancho, alto, GL_RGBA, GL_UNSIGNED_BYTE, self.lectura.ctypes.data)
         # glReadPixels devuelve las filas de abajo arriba. frombytes y no frombuffer:
@@ -856,7 +884,7 @@ def escena(clave, piezas, texturas=None, tipo="personaje", fondo=(27, 31, 42)):
         nombre = (
             clave[1] if isinstance(clave, (tuple, list)) and len(clave) > 1 else clave
         )
-        escena_nueva.sin_culling = str(nombre) in SIN_CULLING
+        escena_nueva.sin_culling = tipo == "prop" or str(nombre) in SIN_CULLING
         _escenas[clave] = escena_nueva
     return _escenas[clave]
 

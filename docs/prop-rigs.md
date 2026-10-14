@@ -10,14 +10,44 @@ as `arm_set`, `arm` and `dish`.
 
 A transform has its value payload at the relative pointer in `node + 8`:
 visibility, translation XYZ, Euler rotation XYZ and scale XYZ. The node record
-also contains rotation pivot XYZ at `+32`, rotation pivot offset at `+44`,
-scale pivot at `+56` and scale pivot offset at `+68`. Rotations are in radians.
+also contains scale pivot XYZ at `+32`, scale pivot offset at `+44`,
+rotation pivot at `+56` and rotation pivot offset at `+68`. Rotations are in radians.
 The matrix uses column vectors:
 
 `T(t) T(rpt) T(rp) Rz Ry Rx T(-rp) T(spt) T(sp) S T(-sp)`
 
 The type string is checked as well as numeric type 10: light records can use
 the same number and their payload is different.
+
+`joint` records are spatial nodes too. Their additional payload stores segment
+scale compensation at `+84`, rotate-axis quaternion XYZW at `+88` and
+joint-orient quaternion XYZW at `+104`. For column vectors the joint matrix is
+`T IS JO R RO S`, where `IS` cancels the parent's local scale when enabled.
+These orientations are required by bathtubs, cake and the mind-control device.
+
+See Autodesk's [joint matrix documentation](https://help.autodesk.com/cloudhelp/2022/ENU/Maya-SDK/cpp_ref/class_m_fn_ik_joint.html)
+for the authoring convention. The binary offsets above were checked against
+the local game resources.
+
+## Helper meshes and materials
+
+Meshes beneath `__maya_only__`, untextured footprint polygons and pickable polygons
+are authoring or interaction geometry. Textured footprints are preserved because
+some carry ground shadows. Unreferenced RDMS meshes are effect templates.
+They stay available in the parser and through **Show helper meshes / effect
+templates**, but are excluded from the default preview and export. The checkbox
+also controls export. Seven catalogue entries contain only such helpers.
+
+Each GSHD resolves its own SURF reference. Diffuse RGB and opacity multiply the
+bitmap and vertex colors. No SURF reference means a stored solid-color material;
+it does not mean that a texture failed to load. Some animation resources contain
+only untextured deformation templates or water planes, without the base object.
+The viewer reports bitmap coverage and unresolved references separately.
+
+The GPU caches textures by bitmap **and** repeat/clamp state. GLB exports retain
+separate samplers while sharing the image bytes. Props render both face directions,
+matching their exported two-sided materials. Glass, water and shadows use alpha
+blending; low opacity is not discarded by the character hair cutout threshold.
 
 ## Curve links
 
@@ -71,3 +101,27 @@ python tools/audit_prop_rigs.py "$env:TS2_PSP_DATA_DIR\sims2_psp_props_recursos.
 The audit checks mesh ownership and invertible binds across the catalogue,
 exports rigid props, and compares sampled exported motion against the preview.
 Results from the development archive are in `prop-rig-validation.json`.
+
+To decode all source textures and generate two views of every prop:
+
+```powershell
+python tools/review_prop_catalog.py "$env:TS2_PSP_DATA_DIR\sims2_psp_props_recursos.zip" review-output
+```
+
+The command writes contact sheets and a per-resource JSON report. It does not
+reproduce game lighting, reflections, particles or script-controlled scene setup.
+The numerical audit compares the reader with its exported animation; it is not
+a comparison against footage from the game. See `prop-catalog-validation.json`
+for the complete material/geometry coverage from the local development archive.
+
+Playback always queues the next frame through Tk, including when rendering takes
+longer than 16 ms. Pending redraws are coalesced, and render errors stop playback.
+The GUI regression runs Play/Pause for two complete satellite loops while
+simulating slow frames and checking that other window events remain responsive:
+
+```powershell
+$env:PYTHONPATH = 'src'
+python tests/test_prop_playback_gui.py --slow-frame
+```
+
+This check is also included in `python tools/check.py --gui`.

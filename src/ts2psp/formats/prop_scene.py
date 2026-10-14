@@ -51,33 +51,88 @@ def transform_values(data, node):
 def is_transform(data, node):
     at = _relative(data, node[0])
     # Type 10 is also used by light records, whose payload is not a transform.
-    return node[1] == 10 and data[at : at + 10] == b"transform\0"
+    return node[1] == 10 and data[at : at + 16].split(b"\0", 1)[0] in (
+        b"transform",
+        b"joint",
+    )
+
+
+def is_joint(data, node):
+    at = _relative(data, node[0])
+    return data[at : at + 6] == b"joint\0"
+
+
+def node_name(data, node):
+    at = _relative(data, node[0] + 4)
+    return data[at : at + 256].split(b"\0", 1)[0].decode("ascii", "replace")
+
+
+def _quaternion_matrix(values):
+    x, y, z, w = values
+    norm = x * x + y * y + z * z + w * w
+    if not math.isfinite(norm) or norm < 1e-12:
+        raise ValueError("Invalid NODE joint quaternion")
+    k = 2.0 / norm
+    return np.array(
+        (
+            (1 - k * (y * y + z * z), k * (x * y - z * w), k * (x * z + y * w)),
+            (k * (x * y + z * w), 1 - k * (x * x + z * z), k * (y * z - x * w)),
+            (k * (x * z - y * w), k * (y * z + x * w), 1 - k * (x * x + y * y)),
+        )
+    )
+
+
+def mesh_is_helper(data, nodes, index, textured=False):
+    seen = set()
+    while 0 <= index < len(nodes):
+        if index in seen:
+            raise ValueError("Cyclic helper ancestry")
+        seen.add(index)
+        name = node_name(data, nodes[index]).rsplit(":", 1)[-1].casefold()
+        if (
+            name == "__maya_only__"
+            or name.startswith("pickablepolys")
+            or (not textured and name.startswith("footprintpolygon"))
+        ):
+            return True
+        index = nodes[index][2]
+    return False
 
 
 def transform_pivot(data, node):
-    return np.array(struct.unpack_from("<3f", data, node[0] + 32))
+    return np.array(struct.unpack_from("<3f", data, node[0] + 56))
 
 
-def transform_matrix(data, node, values=None):
+def transform_matrix(data, node, values=None, parent_scale=None):
     at = node[0]
     if values is None:
         values = transform_values(data, node)
     pivots = struct.unpack_from("<12f", data, at + 32)
     if not all(math.isfinite(value) for value in (*values, *pivots)):
         raise ValueError("Nonfinite NODE transform")
-    return _transform(values, pivots[:3], pivots[6:9], pivots[3:6], pivots[9:12])
+    if is_joint(data, node):
+        # Joint records store rotate-axis and joint-orient quaternions separately.
+        rotate_axis = _quaternion_matrix(struct.unpack_from("<4f", data, at + 88))
+        orient = _quaternion_matrix(struct.unpack_from("<4f", data, at + 104))
+        rotation_values = (*values[:7], 1.0, 1.0, 1.0)
+        rotation = _transform(rotation_values)[:3, :3]
+        matrix = np.eye(4)
+        matrix[:3, :3] = (orient @ rotation @ rotate_axis) * values[7:10]
+        if parent_scale is not None and struct.unpack_from("<I", data, at + 84)[0]:
+            scale = np.asarray(parent_scale)
+            inverse = np.divide(1.0, scale, out=np.zeros(3), where=scale != 0)
+            matrix[:3, :3] = inverse[:, None] * matrix[:3, :3]
+        matrix[:3, 3] = values[1:4]
+        return matrix
+    # Stored order is scale pivot/offset, then rotate pivot/offset. Rotation
+    # compensation belongs outside R; swapping them separates handles/panels.
+    return _transform(values, pivots[6:9], pivots[:3], pivots[9:12], pivots[3:6])
 
 
 def node_hierarchy(data, records):
-    """Nodos del prop y como composed en mundo.
+    """Return NODE records, lazy world-matrix lookup and section bounds.
 
-    Devuelve (nodes, world_matrix, head, end). `nodes` es una lista de
-    (at, kind, parent, local) en el orden del indice de la seccion `node`, y
-    `world_matrix(index)` da su matriz 4x4 final. Es la misma lectura que usa
-    `rigid_instances`, extraida para poder dibujar el esqueleto.
-
-    `world_matrix` es perezoso a proposito: hay props con ciclos en ramas que
-    solo se recorren si se piden, y recorrerlos todos daria error.
+    Only visited branches are validated: nonspatial records can contain cycles.
     """
     for tag, off, size, _, _ in records:
         if tag != b"node":
@@ -112,6 +167,18 @@ def node_hierarchy(data, records):
                     raise ValueError("NODE pivots outside its section")
                 local = transform_matrix(data, (at, kind, parent, local), values)
             nodes.append((at, kind, parent, local))
+        for index, node in enumerate(nodes):
+            parent = node[2]
+            if (
+                is_joint(data, node)
+                and 0 <= parent < len(nodes)
+                and is_transform(data, nodes[parent])
+            ):
+                scale = transform_values(data, nodes[parent])[7:10]
+                nodes[index] = (
+                    *node[:3],
+                    transform_matrix(data, node, parent_scale=scale),
+                )
         world, visiting = {}, set()
 
         def world_matrix(index):
@@ -132,11 +199,7 @@ def node_hierarchy(data, records):
 
 
 def rigid_placements(data, records):
-    """World transforms por malla, con el nodo al que pertenece cada una.
-
-    Igual que `rigid_instances`, pero devolviendo tambien el indice de nodo:
-    hace falta para colgar cada malla de su articulacion al exportar.
-    """
+    """Return each RDMS instance's owning node and world transform."""
     meshes = {
         off + 128 + prefix: off + 128
         for tag, off, _, _, _ in records

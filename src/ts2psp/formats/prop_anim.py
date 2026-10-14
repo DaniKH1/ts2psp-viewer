@@ -15,6 +15,7 @@ from ts2psp.formats.prop_scene import (
     transform_matrix,
     _relative,
     is_transform,
+    is_joint,
 )
 
 
@@ -195,15 +196,29 @@ class PropAnimator:
         return {i: world(i) for i in indices}
 
     def local_matrix(self, index, t):
-        if index not in self.by_node:
+        joint = is_joint(self.data, self.nodes[index])
+        if index not in self.by_node and not joint:
             return self.nodes[index][3]
         values = list(self.values[index])
-        for binding in self.by_node[index]:
+        for binding in self.by_node.get(index, ()):
             # Curves replace the stored property; they are not extra rotations.
             values[binding["component"]] = (
                 sample(self.clip["channels"][binding["channel"]], t) * binding["factor"]
             )
-        return transform_matrix(self.data, self.nodes[index], values)
+        parent = self.nodes[index][2]
+        scale = None
+        if joint and parent in self.values:
+            parent_values = list(self.values[parent])
+            for binding in self.by_node.get(parent, ()):
+                if 7 <= binding["component"] <= 9:
+                    parent_values[binding["component"]] = (
+                        sample(self.clip["channels"][binding["channel"]], t)
+                        * binding["factor"]
+                    )
+            scale = parent_values[7:10]
+        return transform_matrix(
+            self.data, self.nodes[index], values, parent_scale=scale
+        )
 
     def joint_local_matrix(self, bone, by_index, t):
         matrix = (
