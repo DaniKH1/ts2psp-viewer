@@ -43,9 +43,9 @@ from ts2psp.ui.common import read_character_rows
 class Sims2PSPApp(tk.Tk):
     def __init__(self, base=None):
         super().__init__()
-        # El icono va solo desde el .ico: Tk no lee .ico en un PhotoImage, asÃƒÂ­
-        # que en Windows la vÃƒÂ­a correcta es iconbitmap. Es decorativo, asÃƒÂ­ que
-        # si el fichero no estÃƒÂ¡ la app arranca igual.
+        # El icono va solo desde el .ico: Tk no lee .ico en un PhotoImage, así
+        # que en Windows la vía correcta es iconbitmap. Es decorativo, así que
+        # si el fichero no está la app arranca igual.
         if sys.platform == "win32" and APP_ICON_ICO_PATH.is_file():
             self.iconbitmap(default=str(APP_ICON_ICO_PATH))
             self.iconbitmap(str(APP_ICON_ICO_PATH))
@@ -83,7 +83,7 @@ class Sims2PSPApp(tk.Tk):
             activeforeground=self.sims_colors["foreground"],
             borderwidth=0,
         )
-        file_menu.add_command(label="Select ISOÃ¢â‚¬Â¦", command=self.select_iso)
+        file_menu.add_command(label="Select ISO…", command=self.select_iso)
         file_menu.add_separator()
         file_menu.add_command(label="Exit", command=self.close)
         menu.add_cascade(label="File", menu=file_menu)
@@ -144,7 +144,7 @@ class Sims2PSPApp(tk.Tk):
         ).pack(anchor="w", pady=(0, 18))
         self.import_button = ttk.Button(
             self.welcome,
-            text="Select ISOÃ¢â‚¬Â¦",
+            text="Select ISO…",
             command=self.select_iso,
             style="Primary.TButton",
         )
@@ -231,9 +231,9 @@ class Sims2PSPApp(tk.Tk):
         self.info.set(f"Resources loaded from {folder}")
 
     def reportar_render(self):
-        """Dice en la barra de estado con quÃƒÂ© render se estÃƒÂ¡ trabajando.
+        """Dice en la barra de estado con qué render se está trabajando.
 
-        La GPU es siempre la opciÃƒÂ³n preferida; el rasterizador de CPU solo entra si el
+        La GPU es siempre la opción preferida; el rasterizador de CPU solo entra si el
         equipo no puede crear un contexto acelerado, sin que haya que tocar nada.
         """
         try:
@@ -260,7 +260,7 @@ class Sims2PSPApp(tk.Tk):
         self.importing = True
         if self.welcome:
             self.import_button.configure(state="disabled")
-        self.info.set("Reading ISOÃ¢â‚¬Â¦")
+        self.info.set("Reading ISO…")
 
         def work():
             try:

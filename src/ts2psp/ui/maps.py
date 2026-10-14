@@ -1,4 +1,4 @@
-"""Browse map resources, their mesh pieces, textures, and UVs."""
+﻿"""Browse map resources, their mesh pieces, textures, and UVs."""
 
 import csv
 import io
@@ -126,7 +126,7 @@ class MapTab(ttk.Frame):
         row = self.visible[choice[0]]
         if self.current and self.current["entry"] == row["entry"]:
             return
-        gl.forget_all()  # los recursos del mapa anterior ya no estÃ¡n en pantalla
+        gl.forget_all()  # los recursos del mapa anterior ya no están en pantalla
         try:
             with zipfile.ZipFile(self.app.paths["maps"]) as archive:
                 self.data = archive.read(row["archivo_zip"])
@@ -134,12 +134,12 @@ class MapTab(ttk.Frame):
             self.current = row
             self.part_list.delete(0, "end")
             for part in self.parts:
-                label = f'{part["name"]} Â· {len(part["vertices"])} vertices'
+                label = f'{part["name"]} · {len(part["vertices"])} vertices'
                 self.part_list.insert("end", label)
             self.status.configure(
-                text=f'{row["ruta_interna"]} Â· {len(self.parts)} RDMS parts Â· '
-                f'{row["terrenos"]} TERN sections Â· '
-                f'{row["superficies"]} surfaces Â· '
+                text=f'{row["ruta_interna"]} · {len(self.parts)} RDMS parts · '
+                f'{row["terrenos"]} TERN sections · '
+                f'{row["superficies"]} surfaces · '
                 f"{len(rejected)} skipped parts"
             )
             if self.parts:
@@ -160,10 +160,10 @@ class MapTab(ttk.Frame):
         part = self.selected_part()
         if part:
             self.status.configure(
-                text=f'{self.current["ruta_interna"]} Â· {part["name"]} Â· '
-                f'{len(part["vertices"])} vertices Â· '
-                f'{len(part["indices"]) // 3} triangles Â· '
-                f'{"texture" if part["texture"] else "no texture"} Â· '
+                text=f'{self.current["ruta_interna"]} · {part["name"]} · '
+                f'{len(part["vertices"])} vertices · '
+                f'{len(part["indices"]) // 3} triangles · '
+                f'{"texture" if part["texture"] else "no texture"} · '
                 f'{"Vertex Color" if any(v[3] is not None for v in part["vertices"]) else "no vertex colors"}'
             )
             self.schedule()
