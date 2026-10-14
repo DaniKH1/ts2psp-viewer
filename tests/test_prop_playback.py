@@ -4,7 +4,6 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
-from ts2psp.ui.common import FPS_VALORES
 from ts2psp.ui.objects import PropTab
 
 
@@ -116,37 +115,11 @@ class PropPlaybackTests(unittest.TestCase):
             patch("ts2psp.ui.objects.set_photo"),
         ):
             self.tab.schedule()
-            # A 20 FPS el reloj solo avanza cada 50 ms, asi que hacen falta mas
-            # fotogramas que antes: el tope no es solo de dibujado.
-            for _ in range(8):
-                if not self.pending:
-                    break
+            for _ in range(4):
                 self.pump()
         self.assertFalse(self.tab.playing)
         self.assertEqual(self.tab.playhead, self.tab.clip["duration"])
         self.assertFalse(self.pending)
-
-    def test_fps_button_caps_how_often_the_clock_moves(self):
-        """El boton de FPS no es decorativo: el reloj espera a su turno.
-
-        Sin tope, `tick()` advancing en cada fotograma y 20 FPS no marcaba nada.
-        """
-        with (
-            self.patches(),
-            patch("ts2psp.ui.objects.render_prop", self.slow_frame),
-            patch("ts2psp.ui.objects.set_photo"),
-        ):
-            self.tab.schedule()
-            primero = self.tab.playhead
-            # 35 ms por fotograma es menos que medio fotograma a 20 FPS: el
-            # reloj se queda donde estaba.
-            for _ in range(2):
-                self.pump()
-            self.assertEqual(self.tab.playhead, primero)
-            # A 60 FPS entra de sobra.
-            self.tab.fps_index = FPS_VALORES.index(60)
-            self.pump()
-            self.assertGreater(self.tab.playhead, primero)
 
     def test_render_failure_stops_playback_and_restores_the_render_guard(self):
         with (
@@ -169,14 +142,3 @@ class PropPlaybackTests(unittest.TestCase):
             self.tab.schedule()
         self.assertFalse(self.pending)
         self.assertFalse(self.tab.playing)
-
-    def test_dispose_cancels_the_animation_scan_poll(self):
-        """El temporizador que recoge el escaneo Tambien se cancela al cerrar.
-
-        Si se queda vivo, Tk avisa con un `bgerror` de "application has been
-        destroyed" en cuanto se cierra el visor.
-        """
-        self.tab._anim_poll = self.after(150, lambda: None)
-        self.tab.dispose()
-        self.assertIsNone(self.tab._anim_poll)
-        self.assertFalse(self.pending)

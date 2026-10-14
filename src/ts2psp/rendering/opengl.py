@@ -364,17 +364,12 @@ class Escena:
                 )
             )
             transparent = tramos[-1][3]
-            modo = parte.get("alpha_mode")
-            if self.tipo != "prop":
-                # en los personajes solo se mezcla si el material lo pide; el
-                # resto de las piezas con alfa van a recorte
-                modo = "BLEND" if modo == "BLEND" else ("MASK" if transparent else "OPAQUE")
-            elif not modo and transparent:
-                # los props respetan el grupo que les asigno el material. Sin
-                # material resuelto se cae en mezcla, que es lo que se hacia
-                # antes con cualquier textura que tuviera un pixel de alfa bajo
-                modo = "BLEND"
-            self.alpha_modes.append(modo or "OPAQUE")
+            self.alpha_modes.append(
+                "BLEND"
+                if transparent
+                and (self.tipo == "prop" or parte.get("alpha_mode") == "BLEND")
+                else "MASK" if transparent else "OPAQUE"
+            )
         if not posiciones or not indices:
             raise SinOpenGL("the scene has no geometry")
         self.posiciones = np.ascontiguousarray(posiciones, dtype=np.float32)
@@ -510,26 +505,7 @@ class Escena:
         # 'personaje' y 'personaje_glb' comparten el encuadre de la camara
         if self.tipo.startswith("personaje") and "criatura" not in self.tipo:
             return min(ancho / 2.35, alto / 2.45)
-        if self.radio <= 0 or FOV <= 0 or alto <= 0:
-            return min(ancho, alto) * 0.78
-        # Encajar solo con el tamano del modelo no basta: la camara esta a
-        # `distancia` del pivote, y el punto de la esfera envolvente mas cercano
-        # esta a `distancia - radio`, que la perspectiva agranda. Con una silla
-        # de un metro, lo de delante se salia por arriba de la pantalla.
-        #
-        # Buscamos la escala maxima con la que esa esfera-template entre. Con
-        # `s` los pixeles por unidad en el pivote y `F` la focal en pixeles, el
-        # radio proyectado de la parte de delante es s*radio / (1 - s*radio/F), y
-        # tiene que caber en la mitad del lado mas corto:
-        #
-        #     s <= medio / (radio * (1 + medio / F))
-        #
-        # `medio` va por el lado mas corto porque ahi manda el encuadre; `F` se
-        # calcula con el alto, que es como lo hace `_camara`.
-        medio = min(ancho, alto) / 2.0
-        focal = (alto / 2.0) / math.tan(math.radians(FOV) * 0.5)
-        tope = medio / (self.radio * (1.0 + medio / focal))
-        return min(tope, min(ancho, alto) * 0.78 / self.rango[1])
+        return min(ancho, alto) * 0.78 / self.rango[1]
 
     def distancia(self, punto, ancho, alto, yaw, pitch, zoom):
         """Signed camera-space depth of a model point, in model units."""

@@ -308,11 +308,7 @@ class GLB:
                     material.update(alphaMode="MASK", alphaCutoff=0.5)
             if part.get("alpha_mode"):
                 material["alphaMode"] = part["alpha_mode"]
-                # glTF exige alphaCutoff en MASK y lo prohibe en BLEND
-                if part["alpha_mode"] == "MASK":
-                    material["alphaCutoff"] = 0.5
-                else:
-                    material.pop("alphaCutoff", None)
+                material.pop("alphaCutoff", None)
             self.doc["materials"].append(material)
             primitive = {
                 "attributes": attrs,

@@ -1,4 +1,4 @@
-﻿"""Embedded NODE curves, explicit property links and pivot-aware prop poses."""
+"""Embedded NODE curves, explicit property links and pivot-aware prop poses."""
 
 from bisect import bisect_right
 import math
@@ -59,14 +59,9 @@ def prop_clip(data):
     }
 
 
-def iter_prop_animations(path, rows):
-    """Va soltando cada prop animado en vez de la lista entera.
-
-    Recorrer los 767 .res son un par de segundos. Devolverlos de uno en uno
-    deja que quien lo llame reparta el trabajo y pueda ir pintando la lista sin
-    tener que esperar al final.
-    """
+def prop_animations(path, rows):
     with zipfile.ZipFile(path) as archive:
+        found = []
         for row in rows:
             data = archive.read(row["archivo_zip"])
             clip = prop_clip(data)
@@ -74,11 +69,8 @@ def iter_prop_animations(path, rows):
                 animated = {link["node"] for link in curve_bindings(data, clip)}
                 visible = {bone["index"] for bone in prop_joints(data)[0]}
                 if animated & visible:
-                    yield row
-
-
-def prop_animations(path, rows):
-    return list(iter_prop_animations(path, rows))
+                    found.append(row)
+        return found
 
 
 def sample(channel, t):
