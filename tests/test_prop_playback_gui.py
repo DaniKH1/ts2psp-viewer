@@ -27,6 +27,12 @@ def main():
     tab = app.prop_tab
     app.tabs.select(tab)
     app.update()
+    # La lista de animaciones se escanea en un hilo para no congelar la ventana,
+    # asi que hay que esperar a que termine antes de usarla.
+    waited = time.perf_counter()
+    while time.perf_counter() - waited < 60 and tab._anim_queue is not None:
+        app.update()
+        time.sleep(0.05)
     row = next(
         row
         for row in tab.anim_rows

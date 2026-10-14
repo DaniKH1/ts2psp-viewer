@@ -117,15 +117,17 @@ def bones_over(parts, bones, margen=1.3):
     return tuple({**bone, "parent": nuevo.get(bone["parent"], -1)} for bone in dentro)
 
 
-def load_parts(data, include_helpers=False):
+def load_parts(data, include_helpers=False, opaco=False, ruta=None):
     if b"rdms" in data[:128]:
         return [
             part
-            for part in parse_rdms(data)[0]
+            for part in parse_rdms(data, opaco=opaco, ruta=ruta)[0]
             if include_helpers or not part.get("helper")
         ]
     parts = []
-    for part in parse_prop_bmsh(data):
+    for part in parse_prop_bmsh(data, ruta=ruta):
+        # Los UV llegan en crudo desde `parse_prop_bmsh`, igual que al export,
+        # y se convierten aqui una sola vez.
         vertices = [
             (
                 tuple(x / 1000.0 for x in pos),

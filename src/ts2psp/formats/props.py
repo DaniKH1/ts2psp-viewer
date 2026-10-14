@@ -1,4 +1,4 @@
-"""Read Sims 2 PSP rigid (RDMS) prop meshes and export UV / Vertex Color GLB."""
+﻿"""Read Sims 2 PSP rigid (RDMS) prop meshes and export UV / Vertex Color GLB."""
 
 import argparse
 import csv
@@ -21,7 +21,29 @@ from ts2psp.formats.characters import (
     section,
 )
 from ts2psp.core.coordinates import convert_vector3
-from ts2psp.formats.materials import assign_material, prop_materials
+from ts2psp.formats.materials import (
+    MODO_PIEZAS,
+    assign_material,
+    prop_materials,
+)
+
+# Props cuyo canal alfa no se puede leer y se dibujan casi invisibles.
+#
+# Los BC3 (DXT5) se descifran con el alfa desplazado: de 447 texturas BC3 del
+# catalogo, 326 se quedan sin un solo pixel opaco. Se sabe que el lector va mal,
+# pero la disposicion correcta no esta averiguada, y cambiar las 447 de golpe
+# para tapar dos puertas es jugarsela. Asi que se listan una a una las que se
+# han reportado y se les fuerza el alfa a opaco; el resto sigue con su alfa
+# leido, mejor que antes.
+#
+# Para quitar una entrada de aqui no hay que hacer nada mas: cuando se sepa la
+# disposicion del bloque BC3, `materials.opaca` sobra entero.
+ALFA_ILEGIBLE = frozenset(
+    {
+        "objects/doors/fx_d47mechdoor",
+        "objects/doors/fx_elevatordoors",
+    }
+)
 from ts2psp.formats.prop_scene import (
     node_hierarchy,
     rigid_placements,
@@ -235,11 +257,11 @@ def vertex_layout(vtype):
     return tex_code, color_code, normal_code, pos_code, pos_at, stride
 
 
-def parse_rdms(data, apply_scene=True):
+def parse_rdms(data, apply_scene=True, opaco=False, ruta=None):
     output = []
     rejected = []
     records = sections(data)
-    materials = prop_materials(data, records)
+    materials = prop_materials(data, records, opaco=opaco)
     placements = rigid_placements(data, records) if apply_scene else {}
     nodes = node_hierarchy(data, records)[0] if apply_scene else []
     for i, (tag, off, size, _, _) in enumerate(records):
@@ -361,7 +383,13 @@ def parse_rdms(data, apply_scene=True):
             }
             shader_at = off + 128 + shift
             shader = shader_at + struct.unpack_from("<i", data, shader_at)[0]
-            assign_material(part, materials.get(shader), [v[2] for v in vertices])
+            forzado = MODO_PIEZAS.get(ruta or "", {})
+            assign_material(
+                part,
+                materials.get(shader),
+                [v[2] for v in vertices],
+                modo=forzado.get(f"pieza_{i}", forzado.get("*")),
+            )
             anclajes = placements.get(off + 128, [])
             if off + 128 in placements and not anclajes:
                 continue
@@ -389,11 +417,18 @@ def parse_rdms(data, apply_scene=True):
     return output, rejected
 
 
-def parse_prop_bmsh(data):
-    """Keep BMSH skin weights and bind each part to its own shader."""
+def parse_prop_bmsh(data, ruta=None):
+    """Keep BMSH skin weights and bind each part to its own shader.
+
+    Los vertices se dejan con los UV EN CRUDO a proposito: cada consumidor los
+    convierte una vez, `load_parts` para la vista previa y `GLB.add_mesh` para
+    el export. Si se normalizasen aqui, el export los pasaria por la conversion
+    dos veces y los UV salirian a la mitad.
+    """
     parts = parse_mesh(data)
     materials = prop_materials(data, sections(data))
     off, _, _ = section(data, b"bmsh")
+    forzado = MODO_PIEZAS.get(ruta or "", {})
     for index, part in enumerate(parts):
         part["name"] = "principal" if index == 0 else f"pieza_{index}"
         shader_at = off + 128 + 0x38 + index * 0x30
@@ -402,7 +437,12 @@ def parse_prop_bmsh(data):
             ((v[2][0] + 32768) / 4096.0, 1 - (v[2][1] + 32768) / 4096.0)
             for v in part["vertices"]
         ]
-        assign_material(part, materials.get(shader), uvs)
+        assign_material(
+            part,
+            materials.get(shader),
+            uvs,
+            modo=forzado.get(part["name"], forzado.get("*")),
+        )
     return parts
 
 
@@ -549,7 +589,9 @@ def write_rigid_glb(parts, name, target, bones=(), anclajes=None):
 
 def convert_prop(data, name, target, include_helpers=False):
     if b"rdms" in data[:128]:
-        parts, rejected = parse_rdms(data)
+        parts, rejected = parse_rdms(
+            data, opaco=name in ALFA_ILEGIBLE, ruta=name
+        )
         if not include_helpers:
             parts = [part for part in parts if not part.get("helper")]
         if not parts:
@@ -581,7 +623,7 @@ def convert_prop(data, name, target, include_helpers=False):
             "skipped_parts": rejected,
         }
     if b"bmsh" in data[:128]:
-        parts = parse_prop_bmsh(data)
+        parts = parse_prop_bmsh(data, ruta=name)
         bones = parse_bones(data)
         glb = GLB()
         skin = glb.add_skin(bones)
@@ -625,3 +667,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
