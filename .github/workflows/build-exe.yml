@@ -1,4 +1,4 @@
-name: Build EXE
+name: Automatic Build Executable
 
 # Compila el EXE cada noche y lo deja como artefacto. Esto no publica nada:
 # para eso esta el workflow de release, que se lanza a mano.
@@ -32,7 +32,7 @@ concurrency:
 
 jobs:
   build:
-    name: Compilar el EXE
+    name: Automated Windows Build
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
@@ -70,7 +70,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: TS2-PSP-Viewer-EXE
+          name: TS2PSP-Viewer
           # Entrecomillado: el nombre del EXE lleva espacios y `:` forma parte de
           # su nombre de fichero en Windows.
           path: 'dist/TS2 PSP Viewer.exe'
@@ -79,7 +79,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: TS2-PSP-Viewer-source
+          name: TS2PSP-Viewer-source
           path: dist/*.zip
           if-no-files-found: warn
           retention-days: 14
