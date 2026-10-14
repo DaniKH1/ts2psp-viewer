@@ -9,7 +9,9 @@ from ts2psp.formats.characters import (
     TextureLibrary,
     find_character_mesh,
     align_arm_bind_pose,
+    align_hand_bind_pose,
     arm_bind_offset,
+    hand_bind_offset,
     character_mesh_paths,
     character_mesh_texture,
     character_texture_key,
@@ -46,6 +48,12 @@ def list_characters(z):
     )
 
 
+# Personajes cuyo cuerpo hay que dibujar sin descartar caras. A Lincoln le
+# pasaba solo con la pieza del hover-code; Roberta pide lo mismo. La cara y el
+# pelo se quedan como estan: solo el cuerpo va a dos caras.
+DOBLE_CARA = frozenset({"lincolnbroadsheet", "robertarossum"})
+
+
 def load_character(zip_path, character, archetype=None):
     with zipfile.ZipFile(zip_path) as z:
         rows = load_character_rows(z)
@@ -74,8 +82,8 @@ def load_character(zip_path, character, archetype=None):
                     face_base_path(path) if path.startswith("face/cas/") else path
                 ).casefold()
                 if (
-                    row["personaje"].casefold() == "lincolnbroadsheet"
-                    and path == "body/ambodyhovercodpiece"
+                    row["personaje"].casefold() in DOBLE_CARA
+                    and path.startswith("body/")
                 ):
                     part["double_sided"] = True
                 if (
@@ -92,6 +100,9 @@ def load_character(zip_path, character, archetype=None):
         torso_parts = [part for path, part in parts if path == row.get("bodyTorso")]
         if bones and torso_parts:
             bones = align_arm_bind_pose(bones, arm_bind_offset(bones, torso_parts))
+            bones = align_hand_bind_pose(
+                bones, hand_bind_offset(bones, torso_parts)
+            )
 
     textures = {}
     texture_zip = Path(zip_path).with_name("sims2_psp_personajes_texturas_png.zip")

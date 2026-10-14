@@ -31,7 +31,11 @@ from ts2psp.core.coordinates import convert_quaternion, convert_vector3
 from ts2psp.formats.characters import (
     TextureLibrary,
     convert_character,
+    align_hand_bind_pose,
     arm_bind_offset,
+    descendientes,
+    hand_bind_offset,
+    HUEGO_MANO_FRACCION,
     available_face_archetypes,
     chosen_face_archetype,
     character_mesh_paths,
@@ -47,6 +51,7 @@ from ts2psp.formats.characters import (
     slug_publico,
     parse_bones,
     parse_character_mesh,
+    parse_character_parts,
     parse_mesh,
     select_character_row,
     species_body_single,
@@ -333,6 +338,147 @@ class CharacterListTests(unittest.TestCase):
         np.testing.assert_allclose(
             fitted_bones[pelvis]["world"], raw_bones[pelvis]["world"]
         )
+
+    def test_human_hand_joints_sit_inside_the_hand_skin(self):
+        """Los huesos de la mano caen dentro de la mano que mueven.
+
+        En el fichero vienen tres o cuatro centimetro metidos hacia dentro: el
+        hueso de la muneca queda incluso antes de donde empieza la piel. Es un
+        error distinto del vertical que mide `arm_bind_offset`, y por eso hace
+        falta su propia correccion.
+        """
+        with zipfile.ZipFile(CHARACTERS) as archive:
+            row = select_character_row(load_character_rows(archive), "bellagoth")
+            data = find_character_mesh(archive, row, row["bodyTorso"])
+            raw_bones = parse_bones(data)
+            body_parts = parse_character_mesh(row["bodyTorso"], data)
+
+        hueco = hand_bind_offset(raw_bones, body_parts)
+        self.assertEqual(set(hueco), {"R", "L"})
+        for lado in ("R", "L"):
+            self.assertGreater(hueco[lado], 0.03)
+            self.assertLess(hueco[lado], 0.07)
+
+        _, parts, fitted_bones, _ = load_character(CHARACTERS, "bellagoth")
+        names = {bone["name"]: i for i, bone in enumerate(fitted_bones)}
+        for lado, fuera in (("R", 1.0), ("L", -1.0)):
+            muneca = names[f"__{lado}_Hand__"]
+            rama = descendientes(fitted_bones, muneca)
+            self.assertGreater(len(rama), 5)
+            # solo se mueve la rama de la muneca, no el brazo entero
+            antebrazo = names[f"__{lado}_Forearm__"]
+            self.assertNotIn(antebrazo, rama)
+            self.assertAlmostEqual(
+                fitted_bones[antebrazo]["world"][3, 0],
+                raw_bones[antebrazo]["world"][3, 0],
+                places=6,
+            )
+            # y se mueve hacia fuera la misma distancia en todos, que es lo que
+            # dice el hueco medido por la mitad
+            pasos = {
+                round(
+                    (fitted_bones[i]["world"][3, 0] - raw_bones[i]["world"][3, 0])
+                    * fuera,
+                    6,
+                )
+                for i in rama
+            }
+            self.assertEqual(len(pasos), 1, "la rama se mueve toda por igual")
+            paso = pasos.pop()
+            self.assertGreater(paso, 0.01)
+            self.assertLess(paso, 0.05)
+            for i in rama:
+                # la inversa de enlace se recalcula, para que el GLB siga
+                # teniendo una pose de referencia valida
+                np.testing.assert_allclose(
+                    fitted_bones[i]["world"] @ fitted_bones[i]["ibm"],
+                    np.eye(4),
+                    atol=1e-6,
+                )
+
+            # y con eso el esqueleto queda dentro de la mano: la muneca
+            # entra en el principio y la punta de los dedos antes que la piel.
+            # Todo en coordenadas "hacia fuera del cuerpo", para que las dos
+            # manos se puedan mirar igual.
+            xs = [
+                v[0][0] / 1000.0 * fuera
+                for _, part in parts
+                for v in part["vertices"]
+                if any(b in rama and w for b, w in zip(part["palette"], v[3]))
+            ]
+            largo = max(xs) - min(xs)
+            self.assertGreater(largo, 0.1)
+            muneca = fitted_bones[names[f"__{lado}_Hand__"]]["world"][3, 0] * fuera
+            self.assertGreater(muneca, min(xs))
+            punta = max(fitted_bones[i]["world"][3, 0] * fuera for i in rama)
+            self.assertLess(punta, max(xs))
+            # la ultima falange se queda sin hueso, como debe ser
+            self.assertGreater((punta - min(xs)) / largo, 0.6)
+            self.assertLess((punta - min(xs)) / largo, 0.9)
+
+    def test_hand_correction_needs_both_arms_to_agree(self):
+        """Una medida que solo sale de un brazo no es un error sistematico."""
+        with zipfile.ZipFile(CHARACTERS) as archive:
+            row = select_character_row(load_character_rows(archive), "bellagoth")
+            data = find_character_mesh(archive, row, row["bodyTorso"])
+            bones = parse_bones(data)
+            body_parts = parse_character_mesh(row["bodyTorso"], data)
+
+        self.assertTrue(hand_bind_offset(bones, body_parts))
+        # sin piel que mueva los huesos no hay nada que medir
+        self.assertEqual(hand_bind_offset(bones, []), {})
+        # y con las dos manos en el mismo lado no hay ningun hueco real
+        for bone in bones:
+            if bone["name"].startswith("__L_"):
+                bone["name"] = bone["name"].replace("__L_", "__R_")
+        self.assertEqual(hand_bind_offset(bones, body_parts), {})
+
+    def test_hand_offset_ignores_a_dragged_wrist(self):
+        """La muneca no cuenta para medir el hueco.
+
+        En Doctor Dominion la piel de la muneca derecha cae 62 mm hacia fuera y
+        la de la izquierda 13, cuando los dedos de una y otra coinciden en 2 mm.
+        Medir con la muneca dentro descartaba al personaje entero, y se quedaba
+        sin corregir: es el unico caso del catalogo en el que se veia.
+        """
+        with zipfile.ZipFile(CHARACTERS) as archive:
+            row = select_character_row(load_character_rows(archive), "doctordominion")
+            data = find_character_mesh(archive, row, row["bodyTorso"])
+            bones = parse_bones(data)
+            body_parts = parse_character_parts(row, row["bodyTorso"], data)
+
+        names = {bone["name"]: i for i, bone in enumerate(bones)}
+        for side, fuera in (("R", 1.0), ("L", -1.0)):
+            rama = descendientes(bones, names[f"__{side}_Hand__"]) - {
+                names[f"__{side}_Hand__"]
+            }
+            acumulado = np.zeros(3)
+            peso = 0.0
+            for part in body_parts:
+                for vertex in part["vertices"]:
+                    for bone_id, weight in zip(part["palette"], vertex[3]):
+                        if bone_id in rama and weight:
+                            acumulado += np.asarray(vertex[0]) * weight
+                            peso += weight
+            piel = acumulado / peso / 1000.0
+            centros = sum(bones[i]["world"][3, :3] for i in rama) / len(rama)
+            self.assertGreater((piel[0] - centros[0]) * fuera, 0.02)
+
+        hueco = hand_bind_offset(bones, body_parts)
+        self.assertEqual(set(hueco), {"R", "L"})
+        for lado in ("R", "L"):
+            self.assertGreater(hueco[lado], 0.03)
+            self.assertLess(hueco[lado], 0.06)
+
+        _, _, fitted, _ = load_character(CHARACTERS, "doctordominion")
+        fitted_names = {bone["name"]: i for i, bone in enumerate(fitted)}
+        for side, fuera in (("R", 1.0), ("L", -1.0)):
+            self.assertAlmostEqual(
+                fitted[fitted_names[f"__{side}_Hand__"]]["world"][3, 0]
+                - bones[names[f"__{side}_Hand__"]]["world"][3, 0],
+                hueco[side] * fuera * HUEGO_MANO_FRACCION,
+                places=6,
+            )
 
     def test_cowthulu_is_listed_once_and_loadable(self):
         with zipfile.ZipFile(CHARACTERS) as archive:

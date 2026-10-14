@@ -7,6 +7,11 @@ import zipfile
 from PIL import ImageTk
 from ts2psp.formats.animations import REFERENCE_F, REFERENCE_M
 
+# Los valores a los que cycla el boton de FPS. Van aqui y no en el panel de
+# animaciones porque los usa tambien la reproduccion de los props, que lleva la
+# misma tabla de control.
+FPS_VALORES = (20, 30, 60, 15)
+
 
 def read_character_rows(path):
     with zipfile.ZipFile(path) as z:

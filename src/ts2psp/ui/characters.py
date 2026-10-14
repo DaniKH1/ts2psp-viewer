@@ -1,10 +1,8 @@
-"""Character tab and its controls."""
+﻿"""Character tab and its controls."""
 
 import math
-import numpy as np
 import tkinter as tk
 from tkinter import messagebox, ttk
-from PIL import Image, ImageDraw, ImageOps, ImageTk
 from ts2psp.formats.characters import convert_character, nombre_publico
 from ts2psp.rendering.characters import (
     draw_character,
@@ -15,19 +13,43 @@ from ts2psp.exporting.gltf import export_gltf
 from ts2psp.ui.camera import OrbitController, Viewport
 import ts2psp.rendering.opengl as gl
 from ts2psp.ui.textured_list import TexturedListbox
+from ts2psp.ui.animation_panel import AnimationPanel, AnimationStage
 from ts2psp.ui.floating_button import FloatingButton
-from ts2psp.ui.theme import (
-    LIST_PANEL_PATH,
-    PREVIEW_BORDER_COLOR,
-    PREVIEW_BORDER_WIDTH,
-    PREVIEW_CORNER_RADIUS,
-    _round_window_corners,
-)
+from ts2psp.ui.texture_gallery import TextureGallery
+from ts2psp.ui.theme import ANCHO_TROUGH_CLIPS, ANCHO_TROUGH_SHAPES, LIST_PANEL_PATH
 from ts2psp.ui.common import export_model_name, set_photo
 from ts2psp.exporting.blender import export_path
 
+# La columna de la derecha no mide lo mismo en las dos vistas: el recorrido del
+# pulgar de los Shape Keys es mas estrecho que el de los clips. Cada deslizador
+# lleva un trough hecho del ancho justo, asi que el de la columna sale de ahi, con
+# el margen izquierdo que lleva la propia columna.
+ANCHO_SHAPES = ANCHO_TROUGH_SHAPES + 8
+ANCHO_CLIPS = ANCHO_TROUGH_CLIPS + 8
+
+# Alto de la lista de personajes, en pixeles (la lista es un `tk.Canvas`). El
+# mismo que la de props: las dos columnas se leen igual de un vistazo.
+ALTO_LISTA = 360
+
+
+def ancho_del_boton(top, text):
+    """El ancho de la pastilla de un botón flotante, con el texto que lleva.
+
+    No es un método de la clase a proposito: `_floating_button` se ata sola a
+    mano en las comprobaciones, sin el resto de la clase alrededor.
+    """
+    return top._sims_floating_text_width(text) + 2 * 14
+
 
 class CharacterTab(ttk.Frame):
+    """La pestaña de personajes, con sus dos vistas y el panel de clips.
+
+    Comparten el mismo lienzo: en Character View dibuja el personaje estatico y
+    en Animation View el clip que se haya elegido. Lo que decide cual de los dos
+    esta delante son `animation_view` y, dentro de la vista de animaciones, el
+    boton 'Replace character'.
+    """
+
     def __init__(self, parent, app):
         super().__init__(parent, padding=6)
         self.app = app
@@ -39,34 +61,71 @@ class CharacterTab(ttk.Frame):
         self.textures = {}
         self.timer = None
         self.last_frame = 0.0
-        self.texture_thumbnails = []
-        self.texture_gallery_buttons = []
-        self.selected_texture_key = ""
-        self.texture_preview_photo = None
-        self.texture_preview_window = None
-        self.texture_dimmer = None
+        # Que de las dos columnas esta delante. 'Replace character' solo tiene
+        # sentido en la vista de animaciones, que es donde el clip elige el
+        # personaje por su cuenta.
+        self.animation_view = tk.BooleanVar(value=False)
+        self.replace_character = tk.BooleanVar(value=False)
+
+        # -- columna izquierda: el boton de vista y la lista de personajes ----
         left = ttk.Frame(self, width=250)
         left.pack(side="left", fill="both", padx=(0, 8))
         left.pack_propagate(False)
-        ttk.Label(
+        # La etiqueta del boton dice a donde se va, no donde se esta.
+        self.view_button = ttk.Button(
             left,
+            text="Animation View",
+            style="ViewToggle.TButton",
+            command=self.toggle_view,
+        )
+        self.view_button.pack(fill="x", pady=(0, 4))
+        # Este no se empaqueta aqui: `_repack_left` decide, y tiene que quedar
+        # por encima de la lista, que es donde se lee a quien sustituye.
+        self.replace_button = ttk.Button(
+            left,
+            text="Replace character",
+            style="ViewToggle.TButton",
+            command=self.toggle_replace_character,
+        )
+        self.characters_frame = ttk.Frame(left)
+        ttk.Label(
+            self.characters_frame,
             text="Characters",
             anchor="center",
             font=(self.app._sims_font_family, 12, "bold"),
         ).pack(fill="x")
         self.filter = tk.StringVar()
         self.search_entry = ttk.Entry(
-            left, textvariable=self.filter, width=30, style="CharacterSearch.TEntry"
+            self.characters_frame,
+            textvariable=self.filter,
+            width=30,
+            style="CharacterSearch.TEntry",
         )
-        self.search_entry.pack(fill="x", pady=5)
+        self.search_entry.pack(fill="x", pady=(5, 14))
         self.search_entry.bind("<KeyRelease>", self.refresh)
-        character_list_frame = ttk.Frame(left)
-        character_list_frame.pack(fill="both", expand=True)
+        # Las texturas van en su propio bloque, y no dentro de `characters_frame`:
+        # son de quien esta cargado, y en la vista de animaciones quien esta
+        # cargado es el clip. Se abren y se cierran con la vista.
+        self.textures_frame = ttk.Frame(left)
+        ttk.Separator(self.textures_frame, orient="horizontal").pack(
+            fill="x", pady=(16, 12)
+        )
+        ttk.Label(
+            self.textures_frame,
+            text="Textures",
+            anchor="center",
+            font=(self.app._sims_font_family, 11, "bold"),
+        ).pack(fill="x", pady=(0, 4))
+        self.gallery = TextureGallery(self.textures_frame, app)
+        self.gallery.pack(fill="x", expand=False)
+        character_list_frame = ttk.Frame(self.characters_frame)
+        self.character_list_frame = character_list_frame
+        character_list_frame.pack(fill="both", pady=(3, 0))
         self.listbox = TexturedListbox(
             character_list_frame,
             LIST_PANEL_PATH,
             width=222,
-            height=560,
+            height=ALTO_LISTA,
             font=(self.app._sims_font_family, 10, "bold"),
         )
         character_scroll = ttk.Scrollbar(
@@ -76,16 +135,24 @@ class CharacterTab(ttk.Frame):
         character_scroll.pack(side="right", fill="y")
         self.listbox.pack(side="left", fill="both", expand=True)
         self.listbox.bind("<<ListboxSelect>>", self.select)
-        shapes = ttk.Frame(self, width=190, padding=(8, 0, 0, 0))
+
+        # -- columna derecha: Shape Keys y texturas, o los clips --------------
+        shapes = ttk.Frame(self, width=ANCHO_SHAPES, padding=(8, 0, 0, 0))
         shapes.pack(side="right", fill="y")
         shapes.pack_propagate(False)
+        self.shapes_column = shapes
+        # Las dos vistas de la columna no se apilan: se empaqueta una y la otra
+        # se quita. Con las dos puestas y expand=True, pack reparte segun lo
+        # pedido por cada una y la segunda se queda aplastada a un pixel.
+        self.shapes_view = ttk.Frame(shapes)
+        self.shapes_view.pack(fill="both", expand=True)
         ttk.Label(
-            shapes,
+            self.shapes_view,
             text="Shape Keys",
             anchor="center",
             font=(self.app._sims_font_family, 12, "bold"),
         ).pack(fill="x")
-        shape_list_frame = ttk.Frame(shapes)
+        shape_list_frame = ttk.Frame(self.shapes_view)
         shape_list_frame.pack(fill="x", expand=False, pady=(5, 8))
         self.shape_list = TexturedListbox(
             shape_list_frame,
@@ -102,24 +169,25 @@ class CharacterTab(ttk.Frame):
         self.shape_list.pack(side="left", fill="both", expand=True)
         self.shape_list.bind("<<ListboxSelect>>", self.select_shape)
         ttk.Label(
-            shapes,
+            self.shapes_view,
             text="Strength",
             anchor="center",
             font=(self.app._sims_font_family, 10, "bold"),
         ).pack(fill="x")
         self.shape_weight = tk.DoubleVar(value=0)
+        # Sin `length`: el trough del tema ya esta hecho del ancho justo, y lo
+        # que tiene que medir el widget es lo que mide el.
         self.shape_slider = ttk.Scale(
-            shapes,
+            self.shapes_view,
             from_=-1,
             to=1,
             variable=self.shape_weight,
             command=self.on_shape_slider,
             style="Shape.Horizontal.TScale",
-            length=180,
         )
         self.shape_slider.pack(fill="x", pady=(3, 6))
         self.shape_slider.state(["disabled"])
-        presets = ttk.Frame(shapes)
+        presets = ttk.Frame(self.shapes_view)
         presets.pack(fill="x", pady=(0, 6))
         self.shape_preset_buttons = []
         self.shape_preset_values = (-1, 0, 1)
@@ -145,30 +213,14 @@ class CharacterTab(ttk.Frame):
                 lambda _event, item=button: self._set_shape_preset_hover(item, False),
             )
             self.shape_preset_buttons.append(button)
-        ttk.Separator(shapes, orient="horizontal").pack(fill="x", pady=10)
-        ttk.Label(
-            shapes,
-            text="Textures",
-            anchor="center",
-            font=(self.app._sims_font_family, 11, "bold"),
-        ).pack(fill="x", pady=(0, 4))
-        gallery = ttk.Frame(shapes)
-        gallery.pack(fill="x", expand=False)
-        self.gallery_canvas = tk.Canvas(
-            gallery, width=204, height=196, highlightthickness=0, background="#aeb8e5"
-        )
-        self.gallery_scroll = ttk.Scrollbar(
-            gallery, orient="vertical", command=self.gallery_canvas.yview
-        )
-        self.gallery_canvas.configure(yscrollcommand=self.gallery_scroll.set)
-        self.gallery_canvas.pack(side="left", fill="both", expand=True)
-        self.gallery_grid = ttk.Frame(self.gallery_canvas)
-        self.gallery_window = self.gallery_canvas.create_window(
-            (0, 0), window=self.gallery_grid, anchor="nw"
-        )
-        self.gallery_grid.bind("<Configure>", self._gallery_grid_resized)
-        self.gallery_canvas.bind("<Configure>", self._gallery_canvas_resized)
-        self.gallery_canvas.bind("<MouseWheel>", self._gallery_mousewheel)
+        # El panel de animaciones, movido tal cual de la pestaña de animaciones.
+        # Vive en la misma columna que los Shape Keys pero NO se empaqueta aqui:
+        # se empaqueta al conmutar la vista.
+        self.animation_frame = ttk.Frame(shapes)
+        self.animations = AnimationPanel(self.animation_frame, app)
+        self.animations.pack(fill="both", expand=True)
+
+        # -- el visor, en el centro, con los botones flotantes encima ---------
         center = ttk.Frame(self)
         center.pack(side="left", fill="both", expand=True)
         self.canvas = Viewport(center, minimum=(500, 550))
@@ -176,7 +228,9 @@ class CharacterTab(ttk.Frame):
         self.camera = OrbitController(self.canvas, self.schedule, yaw=math.pi)
         self.floating_buttons = []
         self.camera.ignores = self._over_floating_button
-        self.export_button = self._floating_button("Export as...", self.export)
+        self.export_button = self._floating_button(
+            "Export as...", self.export_segun_vista
+        )
         self.shape = tk.StringVar(value="")
         self.shape_id = None
         self.show_bones = tk.BooleanVar(value=False)
@@ -199,20 +253,205 @@ class CharacterTab(ttk.Frame):
         )
         self.canvas.bind("<Configure>", self._position_viewport_controls, add="+")
         self.after_idle(self._position_viewport_controls)
+
+        # El panel se engancha al lienzo de aqui y avisa de los personajes que
+        # eligen las reglas de cada clip. Va al final porque hasta ahora no
+        # existia el lienzo donde tiene que pintar.
+        self.animations.visor = AnimationStage(
+            self.canvas, self.camera, self.show_grid, self.show_bones, self.status
+        )
+        self.animations.on_character = self._animation_character_changed
+        # La misma bandera que la del boton: con ella marcada, `_auto_character`
+        # deja de imponer el genero del clip y manda lo que elija el usuario.
+        self.animations.replace_character = self.replace_character
+        # De momento esta oculto, asi que no pisa el pie de estado del visor.
+        self.animations.visible_on_screen = False
+
+        self._repack_left()
+        self.animations.start()
         self.refresh()
         if self.visible:
             self.select_name(
                 "bellagoth" if "bellagoth" in self.visible else self.visible[0]
             )
+            # Lo que viene por defecto no es lo primero de la lista, y `select_name`
+            # arrastra hasta el. Arriba del todo es donde se distingue de lo que
+            # elige el usuario, que si se conserva.
+            self.listbox.al_principio()
 
-    def _gallery_grid_resized(self, _event=None):
-        self.gallery_canvas.configure(scrollregion=self.gallery_canvas.bbox("all"))
+    # -- las dos vistas ----------------------------------------------------
 
-    def _gallery_canvas_resized(self, event):
-        self.gallery_canvas.itemconfigure(self.gallery_window, width=event.width)
+    def toggle_view(self):
+        """Conmuta entre la lista de personajes y la de clips.
 
-    def _gallery_mousewheel(self, event):
-        self.gallery_canvas.yview_scroll(-int(event.delta / 120), "units")
+        Cambia tambien el ancho de la columna de la derecha, el boton de
+        exportar y el boton 'Replace character', que solo aparece en la vista de
+        animaciones.
+        """
+        self.animation_view.set(not self.animation_view.get())
+        animacion = self.animation_view.get()
+        self.view_button.configure(
+            text="Character View" if animacion else "Animation View"
+        )
+        self.shapes_column.configure(width=ANCHO_CLIPS if animacion else ANCHO_SHAPES)
+        if animacion:
+            self.shapes_view.pack_forget()
+            self.animation_frame.pack(fill="both", expand=True)
+        else:
+            self.animation_frame.pack_forget()
+            self.shapes_view.pack(fill="both", expand=True)
+        self.animations.visible_on_screen = animacion
+        # Los datos de la esquina son de quien esta en pantalla: al conmutar hay
+        # que reescribirlos, que si no se quedan con los de la otra vista.
+        if animacion:
+            self.animations.refresh_view_status()
+        else:
+            self.restaurar_estado_del_personaje()
+        self.export_button.set_text(
+            "Export clip as..." if animacion else "Export as...",
+            ancho_del_boton(
+                self.winfo_toplevel(),
+                "Export clip as..." if animacion else "Export as...",
+            ),
+        )
+        self._repack_left()
+        # Es la misma lista en las dos vistas y en cada una se ve un personaje
+        # distinto, asi que al conmutar hay que senalar el que toca: el del clip
+        # si la vista es la de animaciones, el del visor si no.
+        self._resaltar_en_la_lista(
+            self.animations.character.get() if animacion else self.current
+        )
+        # Quien repinta el lienzo es el de la vista que ha quedado delante.
+        if animacion:
+            self.animations.redibujar()
+        else:
+            self.schedule()
+
+    def toggle_replace_character(self):
+        """Abre o cierra la lista de personajes en la vista de animaciones.
+
+        En la vista de personajes la lista esta siempre puesta: es la propia
+        vista. Aqui el boton es el que la saca, y mientras este marcado el clip
+        deja de imponer su personaje.
+        """
+        self.replace_character.set(not self.replace_character.get())
+        marcado = self.replace_character.get()
+        # Desactivado: verde al mantener y normal al soltar, como cualquier
+        # boton. Activado: verde fijo, sin resalte al pasar el raton, y algo mas
+        # claro solo mientras se mantiene. Los dos son estilos del tema con el
+        # mismo relleno y la misma fuente, asi que no se mueve nada al cambiar.
+        self.replace_button.configure(
+            style="SelectedHold.TButton" if marcado else "ViewToggle.TButton"
+        )
+        self._repack_left()
+        if marcado:
+            # La lista es la misma que la de la vista de personajes, asi que al
+            # abrirla sale marcado el personaje que esta viendo el clip.
+            self._resaltar_en_la_lista(self.animations.character.get())
+
+    def _repack_left(self):
+        """Vuelve a empaquetar la columna izquierda, y en orden.
+
+        `pack` respeta el orden en que se empaquetaron los hermanos, y eso se
+        conserva entre un `pack_forget` y un `pack` posteriores: un boton que se
+        oculta y reaparece se queda al final, debajo de la lista. Repackando todo
+        cada vez, cada pieza vuelve a su sitio.
+
+        Ademas decide lo que depende de la vista: en la de animaciones no hay
+        galeria (las texturas son del clip, no de quien se mira) y la lista, sin
+        nada debajo, aprovecha la columna entera.
+        """
+        animacion = self.animation_view.get()
+        lista_visible = not animacion or self.replace_character.get()
+        for widget in (
+            self.view_button,
+            self.replace_button,
+            self.characters_frame,
+            self.textures_frame,
+        ):
+            widget.pack_forget()
+        self.view_button.pack(fill="x", pady=(0, 4))
+        if animacion:
+            self.replace_button.pack(fill="x", pady=(0, 4))
+        # Con `side="top"` manda el orden de empaquetado, asi que la lista se
+        # empaqueta antes que el bloque de texturas para que este quede debajo.
+        self._al_mostrar_la_lista(lista_visible, animacion)
+        if not animacion:
+            # Inmediatamente debajo de la lista, sin estirarse: si el bloque
+            # creciera, el separador se iria al final de la columna y entre la
+            # lista y las texturas quedaria un hueco enorme.
+            self.textures_frame.pack(side="top", fill="x")
+
+    def _al_mostrar_la_lista(self, mostrar=None, animacion=None):
+        """Abre o cierra la lista de personajes segun la vista y el boton.
+
+        Cada vez que se abre, arriba del todo: es la misma lista en las dos
+        vistas y en cada una se ve un personaje distinto, y desplazada el
+        resalte puede quedar fuera de la vista.
+        """
+        if mostrar is None:
+            mostrar = (
+                not self.animation_view.get() or self.replace_character.get()
+            )
+        if animacion is None:
+            animacion = self.animation_view.get()
+        if not mostrar:
+            self.characters_frame.pack_forget()
+            return
+        # En la vista de personajes el marco no se estira: si creciera, el hueco
+        # le caeria dentro y las texturas se separarian de la lista. Lo que sobra
+        # se queda al final de la columna.
+        self.characters_frame.pack(fill="both", expand=animacion)
+        self.character_list_frame.pack_forget()
+        self.character_list_frame.pack(
+            fill="both", expand=animacion, pady=(3, 0)
+        )
+        self.listbox.al_principio()
+
+    def _resaltar_en_la_lista(self, name):
+        """Marca un personaje en la lista sin recargarlo ni arrastrarla.
+
+        No se usa `selection_set()`: ademas de recargar el modelo, el gestor
+        mueve la lista hasta el elemento, que deshace el volver al principio.
+        """
+        if not name or name not in self.visible:
+            return
+        self.listbox.marcar(self.visible.index(name))
+
+    def _animation_character_changed(self, name):
+        """Las reglas del clip han cambiado de personaje.
+
+        Con 'Replace character' marcado manda el usuario y la lista ya senala lo
+        suyo. En la vista de personajes el clip no toca la seleccion: es la que
+        recuerda a quien se estaba viendo, y pisarla hacia que al volver de la
+        vista de animaciones apareciera otro personaje.
+        """
+        if (
+            self.animation_view.get()
+            and self.replace_character.get()
+            and self.characters_frame.winfo_manager() == "pack"
+        ):
+            self._resaltar_en_la_lista(name)
+
+    def _llevar_el_personaje_al_clip(self, name):
+        """Con 'Replace character' marcado, lo elegido en la lista pasa al clip.
+
+        El visor de personajes no se toca. Avisar al panel tiene que valer
+        tambien cuando el personaje es el que ya esta cargado, porque `select`
+        sale antes de llegar: si no, hay que pulsarlo dos veces.
+        """
+        if not (
+            self.animation_view.get()
+            and self.replace_character.get()
+            and self.characters_frame.winfo_manager() == "pack"
+        ):
+            return
+        self._resaltar_en_la_lista(name)
+        if self.animations.character.get() != name:
+            self.animations.set_character(name)
+            self.animations.changed_character()
+
+    # -- botones flotantes -------------------------------------------------
 
     def _floating_button(self, text, command, selected=False):
         """Crea un botón flotante dibujado sobre el canvas del visor.
@@ -223,13 +462,12 @@ class CharacterTab(ttk.Frame):
         con el botón verde visible se aclara su base, si no, el borde azul.
         """
         top = self.winfo_toplevel()
-        width = top._sims_floating_text_width(text) + 2 * 14
         button = FloatingButton(
             self.canvas,
             top._sims_floating_button_factory,
             text,
             command,
-            width,
+            ancho_del_boton(top, text),
             32,
             font=top._sims_floating_font,
         )
@@ -288,216 +526,24 @@ class CharacterTab(ttk.Frame):
         self.grid_button.set_selected(enabled)
         self.schedule()
 
+    # -- galeria de texturas ------------------------------------------------
+
+    @property
+    def selected_texture_key(self):
+        """La textura con el borde verde. La lleva la galeria."""
+        return self.gallery.selected_key
+
+    @selected_texture_key.setter
+    def selected_texture_key(self, value):
+        self.gallery.selected_key = value
+
     def _populate_texture_gallery(self):
-        for widget in self.gallery_grid.winfo_children():
-            widget.destroy()
-        self.texture_thumbnails = []
-        self.texture_gallery_buttons = []
-        rows = (len(self.textures) + 2) // 3
-        height = min(max(rows, 1) * 48, 196)
-        self.gallery_canvas.configure(height=height)
-        if rows > 4:
-            self.gallery_scroll.pack(side="right", fill="y")
-        else:
-            self.gallery_scroll.pack_forget()
-        for column in range(3):
-            self.gallery_grid.columnconfigure(column, weight=1)
-        for index, (name, pixels) in enumerate(sorted(self.textures.items())):
-            image = Image.fromarray(np.asarray(pixels, dtype=np.uint8)).convert("RGBA")
-            thumbnail = ImageOps.fit(image, (36, 36), method=Image.Resampling.LANCZOS)
-            photos = {
-                "normal": self._texture_tile_image(thumbnail, selected=False),
-                "selected": self._texture_tile_image(thumbnail, selected=True),
-            }
-            colors = getattr(self.winfo_toplevel(), "_sims_theme_colors", {})
-            gallery_background = self.gallery_canvas.cget("background")
-            button = tk.Button(
-                self.gallery_grid,
-                image=photos[
-                    "selected" if name == self.selected_texture_key else "normal"
-                ],
-                width=44,
-                height=44,
-                padx=0,
-                pady=0,
-                relief="flat",
-                borderwidth=0,
-                highlightthickness=0,
-                background=gallery_background,
-                activebackground=gallery_background,
-                command=lambda key=name: self._show_texture_preview(key),
-            )
-            button.grid(row=index // 3, column=index % 3, padx=2, pady=2)
-            button.image_key = name
-            button.tile_images = photos
-            button.bind(
-                "<Enter>",
-                lambda _event, w=button: self._set_texture_tile_hover(w, True),
-            )
-            button.bind(
-                "<Leave>",
-                lambda _event, w=button: self._set_texture_tile_hover(w, False),
-            )
-            self.texture_gallery_buttons.append(button)
-            self.texture_thumbnails.extend(photos.values())
-
-    def _texture_tile_image(self, thumbnail, selected=False):
-        size = 44
-        tile = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(tile)
-        border = "#20df61" if selected else "#18275d"
-        draw.rounded_rectangle(
-            (1, 1, size - 2, size - 2),
-            radius=7,
-            fill="#374456",
-            outline=border,
-            width=2,
-        )
-        mask = Image.new("L", thumbnail.size, 0)
-        ImageDraw.Draw(mask).rounded_rectangle(
-            (0, 0, thumbnail.width - 1, thumbnail.height - 1), radius=4, fill=255
-        )
-        tile.paste(thumbnail, (4, 4), mask)
-        return ImageTk.PhotoImage(tile, master=self)
-
-    def _set_texture_tile_hover(self, button, hovering):
-        selected = button.image_key == self.selected_texture_key
-        button.configure(
-            image=button.tile_images["selected" if selected or hovering else "normal"]
-        )
-
-    def _refresh_texture_tile_selection(self):
-        for button in self.texture_gallery_buttons:
-            button.configure(
-                image=button.tile_images[
-                    (
-                        "selected"
-                        if button.image_key == self.selected_texture_key
-                        else "normal"
-                    )
-                ]
-            )
-
-    def _show_texture_preview(self, name):
-        pixels = self.textures.get(name)
-        if pixels is None:
-            return
-        self.selected_texture_key = name
-        self._refresh_texture_tile_selection()
-        self._hide_texture_preview()
-        root = self.winfo_toplevel()
-        root.update_idletasks()
-        x, y = root.winfo_rootx(), root.winfo_rooty()
-        width = max(1, root.winfo_width())
-        height = max(1, root.winfo_height())
-
-        self.texture_dimmer = tk.Toplevel(root)
-        self.texture_dimmer.overrideredirect(True)
-        self.texture_dimmer.configure(background="#080910")
-        self.texture_dimmer.attributes("-alpha", 0.62)
-        self.texture_dimmer.geometry(f"{width}x{height}+{x}+{y}")
-        # Cerrar al soltar, y solo si el puntero apenas se movió. Con un
-        # <ButtonPress-1> cualquier arrastre que empezasse sobre el dimmer lo
-        # cerraba, y al redimensionar la ventana el puntero empieza justo
-        # encima del dimmer, que la cubre entera.
-        self.texture_dimmer.bind("<ButtonPress-1>", self._dimmer_press)
-        self.texture_dimmer.bind("<ButtonRelease-1>", self._dimmer_release)
-        self.texture_dimmer.lift()
-
-        self.texture_preview_window = tk.Toplevel(root)
-        self.texture_preview_window.overrideredirect(True)
-        self.texture_preview_window.configure(background=PREVIEW_BORDER_COLOR)
-        self.texture_preview_window.bind(
-            "<Escape>", lambda _event: self._hide_texture_preview(clear_selection=True)
-        )
-        preview_width = min(520, max(240, int(width * 0.5)))
-        preview_height = min(480, max(200, int(height * 0.5)))
-        preview_x = x + (width - preview_width) // 2
-        preview_y = y + (height - preview_height) // 2
-        self.texture_preview_window.geometry(
-            f"{preview_width}x{preview_height}+{preview_x}+{preview_y}"
-        )
-        panel = ttk.Frame(self.texture_preview_window, padding=12)
-        panel.pack(
-            fill="both",
-            expand=True,
-            padx=PREVIEW_BORDER_WIDTH,
-            pady=PREVIEW_BORDER_WIDTH,
-        )
-        ttk.Label(
-            panel,
-            text=name,
-            anchor="center",
-            wraplength=preview_width - 32,
-            font=(self.winfo_toplevel()._sims_font_family, 11, "bold"),
-        ).pack(fill="x", pady=(0, 8))
-        image = Image.fromarray(np.asarray(pixels, dtype=np.uint8)).convert("RGBA")
-        image = ImageOps.contain(
-            image,
-            (preview_width - 32, preview_height - 56),
-            method=Image.Resampling.LANCZOS,
-        )
-        # master explicito: sin el, PhotoImage se crea en el root por defecto y
-        # la etiqueta, que pertenece a otro Toplevel, no lo encuentra.
-        self.texture_preview_photo = ImageTk.PhotoImage(image, master=root)
-        image_area = ttk.Frame(panel)
-        image_area.pack(fill="both", expand=True)
-        ttk.Label(image_area, image=self.texture_preview_photo).place(
-            relx=0.5, rely=0.5, anchor="center"
-        )
-        self.texture_preview_window.lift()
-        self.texture_preview_window.focus_force()
-        # Se recorta al final, cuando la ventana ya tiene su tamaño real.
-        self.texture_preview_window.update_idletasks()
-        _round_window_corners(self.texture_preview_window, PREVIEW_CORNER_RADIUS)
-        # La vista previa sigue a la ventana principal si esta se redimensiona.
-        root.bind("<Configure>", self._preview_moved, add="+")
-
-    def _preview_moved(self, _event=None):
-        """Mantiene el dimmer y la vista previa al redimensionar la ventana."""
-        if self.texture_preview_window is None:
-            return
-        root = self.winfo_toplevel()
-        width, height = root.winfo_width(), root.winfo_height()
-        if width < 2 or height < 2:
-            return
-        x, y = root.winfo_rootx(), root.winfo_rooty()
-        self.texture_dimmer.geometry(f"{width}x{height}+{x}+{y}")
-        window = self.texture_preview_window
-        window.geometry(
-            f"+{x+(width-window.winfo_width())//2}"
-            f"+{y+(height-window.winfo_height())//2}"
-        )
-
-    def _dimmer_press(self, event):
-        self._dimmer_origin = (event.x, event.y)
-
-    def _dimmer_release(self, event):
-        origin = getattr(self, "_dimmer_origin", None)
-        self._dimmer_origin = None
-        if origin is None:
-            return
-        # Un arrastre, como el que redimensiona la ventana, no cierra nada.
-        if abs(event.x - origin[0]) > 4 or abs(event.y - origin[1]) > 4:
-            return
-        self._hide_texture_preview(clear_selection=True)
+        self.gallery.set_textures(self.textures, self.selected_texture_key)
 
     def _hide_texture_preview(self, clear_selection=False):
-        if self.texture_preview_window is not None:
-            if self.texture_preview_window.winfo_exists():
-                self.texture_preview_window.destroy()
-            self.texture_preview_window = None
-        if self.texture_dimmer is not None:
-            if self.texture_dimmer.winfo_exists():
-                self.texture_dimmer.destroy()
-            self.texture_dimmer = None
-        self.texture_preview_photo = None
-        # Cerrar la vista previa a mano deja la textura deseleccionada, así que
-        # el borde verde de la miniatura se va con ella. Las llamadas internas
-        # (abrir otra preview, cambiar de personaje) no deben tocar la selección.
-        if clear_selection and self.selected_texture_key:
-            self.selected_texture_key = ""
-            self._refresh_texture_tile_selection()
+        self.gallery.hide_preview(clear_selection=clear_selection)
+
+    # -- lista y seleccion -------------------------------------------------
 
     def refresh(self, _event=None):
         term = self.filter.get().casefold()
@@ -526,6 +572,13 @@ class CharacterTab(ttk.Frame):
         if not sel:
             return
         name = self.visible[sel[0]]
+        # En la vista de animaciones con 'Replace character' marcado, lo que se
+        # elige en esta lista es el personaje del clip y nada mas. El visor de
+        # personajes no se toca, que esa vista tiene que seguir recordando el
+        # suyo cuando se vuelva a ella.
+        if self.animation_view.get() and self.replace_character.get():
+            self._llevar_el_personaje_al_clip(name)
+            return
         if name == self.current:
             return
         try:
@@ -533,7 +586,6 @@ class CharacterTab(ttk.Frame):
                 self.app.paths["characters"], name
             )
             self.current = name
-            self._hide_texture_preview()
             self.selected_texture_key = ""
             self._populate_texture_gallery()
             gl.forget(("personaje", name))
@@ -575,6 +627,19 @@ class CharacterTab(ttk.Frame):
             self.schedule()
         except Exception as exc:
             messagebox.showerror("Character", str(exc))
+
+    def restaurar_estado_del_personaje(self):
+        """Vuelve a poner los datos del personaje en la esquina del visor.
+
+        En la vista de animaciones los escribe el panel con los del clip, y al
+        volver hay que deshacerlo: si no, la esquina sigue con el nombre del
+        clip y el de otro personaje.
+        """
+        if self.current and self.parts:
+            vertices = sum(len(part["vertices"]) for _, part in self.parts)
+            self.status.configure(
+                text=f"{self.current}\n{len(self.bones)} bones · {vertices} vertices"
+            )
 
     def select_shape(self, _event=None):
         selection = self.shape_list.curselection()
@@ -630,6 +695,8 @@ class CharacterTab(ttk.Frame):
         self._update_shape_preset_styles()
         self.schedule()
 
+    # -- dibujo ------------------------------------------------------------
+
     def schedule(self, _event=None):
         # Con GPU el frame dura ~2 ms: se dibuja de inmediato y solo se recorta a 60 Hz.
         # Reprogramar el temporizador en cada movimiento haría que al girar deprisa
@@ -649,6 +716,13 @@ class CharacterTab(ttk.Frame):
     def render(self):
         self.timer = None
         self.last_frame = gl.ahora_ms()
+        if self.animation_view.get():
+            # El lienzo lo lleva el panel de clips, pero la camara y el
+            # redimensionado entran por aqui. Si este metodo se limitase a no
+            # dibujar, arrastrar dejaria el visor congelado sin que se note por
+            # que.
+            self.animations.redibujar()
+            return
         if not self.parts:
             return
         try:
@@ -674,6 +748,15 @@ class CharacterTab(ttk.Frame):
             set_photo(self.canvas, image)
         except Exception as exc:
             self.status.configure(text=f"Preview: {exc}")
+
+    # -- exportacion -------------------------------------------------------
+
+    def export_segun_vista(self):
+        """El boton flotante exporta el clip o el personaje, segun la vista."""
+        if self.animation_view.get():
+            self.animations.export_as()
+        else:
+            self.export()
 
     def choose_export_format(self):
         dialog = tk.Toplevel(self)
@@ -740,4 +823,5 @@ class CharacterTab(ttk.Frame):
         if self.timer:
             self.after_cancel(self.timer)
             self.timer = None
+        self.animations.dispose()
         self._hide_texture_preview()

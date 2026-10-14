@@ -1,9 +1,16 @@
-"""Animation tab and its controls."""
+﻿"""Panel de animaciones: lista de clips y reproduccion.
+
+Se extrae aparte de la pestaña para que el mismo panel se pueda montar en mas de
+un sitio. Ahora mismo vive en dos: su propia pestaña y, dentro de la de
+personajes, debajo del boton que conmuta a 'Animation View'. Duplicar la logica
+de reproduccion habria sido copiar 800 lineas y que las dos se desincronizasen.
+"""
 
 import json
 import math
 import queue
 import re
+import shutil
 import threading
 import time
 import zipfile
@@ -21,15 +28,17 @@ from ts2psp.rendering.animation import (
     posed_meshes,
     validate_preview_frame,
 )
-from ts2psp.ui.camera import CAMERA_HINT, OrbitController, Viewport
 import ts2psp.rendering.opengl as gl
 from ts2psp.ui.textured_list import TexturedListbox
-from ts2psp.ui.floating_button import FloatingButton
 from ts2psp.ui.theme import LIST_PANEL_PATH
-from ts2psp.ui.common import character_fallback, export_model_name, set_photo
+from ts2psp.ui.common import (
+    FPS_VALORES,
+    character_fallback,
+    export_model_name,
+    set_photo,
+)
 from ts2psp.exporting.blender import export_path
 
-FPS_VALORES = (20, 30, 60, 15)
 PERSONAJES_POR_NOMBRE = (
     ("nightbeast", "nightbeast"),
     ("docdom", "doctordominion"),
@@ -37,7 +46,7 @@ PERSONAJES_POR_NOMBRE = (
     ("sinjin", "sinjinbalani-kine"),
     ("ritualdance", "sinjinbalani-kine"),
     ("player", "tinamansfield"),
-    ("vampire", "virginyafeng_vamp"),
+    ("vampire", "virginiyafeng_vamp"),
     # Al final a proposito: los clips de ghoul que son de fantasma o de player
     # los atrapan antes esas marcas, y solo los sueltos caen en Eadie Butler.
     ("ghoul", "eadiebutler"),
@@ -52,9 +61,72 @@ GENERO_FEMENINO = "tinamansfield"
 GENERO_MASCULINO = "ashtonfelt"
 
 
-class AnimationTab(ttk.Frame):
-    def __init__(self, parent, app):
-        super().__init__(parent, padding=10)
+class AnimationStage:
+    """El lienzo donde un `AnimationPanel` pinta los fotogramas del clip.
+
+    El panel no sabe en que pestaña esta: solo necesita el tamano del lienzo, la
+    camara, que le pinten la imagen y donde escribir el pie de estado. Eso permite
+    que la misma clase de panel funcione en la pestaña de animaciones y en la de
+    personajes sin saber cual es.
+    """
+
+    def __init__(self, canvas, camera, show_grid, show_bones, status_label):
+        self.canvas = canvas
+        self.camera = camera
+        self.show_grid = show_grid
+        self.show_bones = show_bones
+        self.status_label = status_label
+
+    def view_size(self):
+        return self.canvas.view_size()
+
+    def camera_args(self):
+        """Lo que pide `escena.render`: giro, inclinacion, zoom, desplazamiento."""
+        return (
+            self.camera.yaw,
+            self.camera.pitch,
+            self.camera.zoom,
+            self.camera.pan,
+            self.camera,
+        )
+
+    def present(self, imagen):
+        set_photo(self.canvas, imagen)
+
+    def overlay(self, imagen, escena, doc, binary, anim, t, width, height):
+        """Pinta el esqueleto del clip sobre la imagen ya rasterizada."""
+        if not self.show_bones.get():
+            return
+        huesos = posed_bones(doc, binary, anim, t)
+        if not huesos:
+            return
+        dibujo = ImageDraw.Draw(imagen)
+        puntos = [
+            escena.proyectar(h["world"][3, :3], width, height, *self.camera_args())
+            for h in huesos
+        ]
+        for i, hueso in enumerate(huesos):
+            if hueso["parent"] >= 0:
+                dibujo.line(
+                    (puntos[hueso["parent"]], puntos[i]), fill=(88, 235, 220), width=2
+                )
+        for x, y in puntos:
+            dibujo.ellipse((x - 3, y - 3, x + 3, y + 3), fill=(225, 255, 250))
+
+    def set_view_status(self, text):
+        self.status_label.configure(text=text)
+
+
+class AnimationPanel(ttk.Frame):
+    """Lista de clips, controles de reproduccion y exportacion de animaciones.
+
+    No pinta nada por su cuenta: delega en `self.visor`, que es un
+    `AnimationStage` que le pasa quien lo monta. Asi el mismo panel sirve en
+    varias pestañas y solo cambia el lienzo de destino.
+    """
+
+    def __init__(self, parent, app, titulo="Animations", con_personaje=False):
+        super().__init__(parent)
         self.app = app
         with zipfile.ZipFile(app.paths["animations"]) as z:
             self.rows = json.loads(z.read("catalog.json"))
@@ -62,6 +134,8 @@ class AnimationTab(ttk.Frame):
         self.visible = []
         self.loaded = None
         self.preview = None
+        self.preview_character = None
+        self.preview_clip = None
         self.escena = None
         self.buffer = None
         self.playing = False
@@ -75,87 +149,80 @@ class AnimationTab(ttk.Frame):
         self.exporting = False
         self.disposed = False
         self.poll_timer = None
-        # Panel a la izquierda con las listas; el visor 3D ocupa el resto. Se
-        # empaqueta primero el panel para que reserve su ancho y el visor, con
-        # expand, recoja lo que quede. Mismo ancho fijo que el visor de personajes.
-        panel = ttk.Frame(self, width=250)
-        panel.pack(side="left", fill="y", padx=(0, 10))
-        panel.pack_propagate(False)
-        ttk.Label(
-            panel,
-            text="Characters",
-            anchor="center",
-            font=(self.app._sims_font_family, 12, "bold"),
-        ).pack(fill="x")
-        # El personaje se elige solo segun el genero del clip, asi que la lista
-        # se esconde tras un boton y solo sale cuando se quiere cambiar a mano.
+        # Lo inyecta el anfitrion justo despues de crear el panel. Hasta entonces
+        # no se pinta nada, que es lo que hace falta porque el lienzo todavia no
+        # existe cuando se construye.
+        self.visor = None
+        # Callback del anfitrion para que se entere del personaje que ha elegido
+        # el clip. La lista de personajes vive en la pestaña, no aqui.
+        self.on_character = None
+        # False cuando el panel esta montado pero oculto (la vista de animaciones
+        # de la pestaña de personajes). En ese caso no escribe el pie de estado
+        # sobre el lienzo, que lo esta usando otro visor.
+        self.visible_on_screen = True
         self.all_characters = list(app.characters)
         self.character = tk.StringVar(
             value="bellagoth" if "bellagoth" in app.characters else app.characters[0]
         )
-        self.replace_character = tk.BooleanVar(value=False)
-        self.replace_button = ttk.Button(
-            panel,
-            text="Replace character",
-            style="Toggle.TButton",
-            command=self.toggle_replace_character,
-        )
-        self.replace_button.pack(fill="x", pady=(8, 0))
-        self.character_frame = ttk.Frame(panel)
-        self.character_filter = tk.StringVar()
-        char_search = ttk.Entry(
-            self.character_frame,
-            textvariable=self.character_filter,
-            width=30,
-            style="CharacterSearch.TEntry",
-        )
-        char_search.pack(fill="x", pady=(8, 4))
-        char_search.bind("<KeyRelease>", self.filter_characters)
-        char_frame = ttk.Frame(self.character_frame)
-        char_frame.pack(fill="both", expand=True)
-        self.char_list = TexturedListbox(
-            char_frame,
-            LIST_PANEL_PATH,
-            width=222,
-            height=300,
-            font=(self.app._sims_font_family, 10, "bold"),
-        )
-        char_scroll = ttk.Scrollbar(
-            char_frame, orient="vertical", command=self.char_list.yview
-        )
-        self.char_list.configure(yscrollcommand=char_scroll.set)
-        char_scroll.pack(side="right", fill="y")
-        self.char_list.pack(side="left", fill="both", expand=True)
-        for name in self.all_characters:
-            self.char_list.insert("end", nombre_publico(name))
-        self.char_list.bind("<<ListboxSelect>>", self._character_selected)
-        initial_character = self.character.get()
-        if initial_character in self.all_characters:
-            self.char_list.selection_set(self.all_characters.index(initial_character))
+        if con_personaje:
+            self.replace_character = tk.BooleanVar(value=False)
+            self.replace_button = ttk.Button(
+                self,
+                text="Replace character",
+                style="Toggle.TButton",
+                command=self.toggle_replace_character,
+            )
+            self.replace_button.pack(fill="x", pady=(8, 0))
+            self.character_frame = ttk.Frame(self)
+            self.character_filter = tk.StringVar()
+            char_search = ttk.Entry(
+                self.character_frame,
+                textvariable=self.character_filter,
+                width=30,
+                style="CharacterSearch.TEntry",
+            )
+            char_search.pack(fill="x", pady=(8, 4))
+            char_search.bind("<KeyRelease>", self.filter_characters)
+            char_frame = ttk.Frame(self.character_frame)
+            char_frame.pack(fill="both", expand=True)
+            self.char_list = TexturedListbox(
+                char_frame,
+                LIST_PANEL_PATH,
+                width=222,
+                height=300,
+                font=(self.app._sims_font_family, 10, "bold"),
+            )
+            char_scroll = ttk.Scrollbar(
+                char_frame, orient="vertical", command=self.char_list.yview
+            )
+            self.char_list.configure(yscrollcommand=char_scroll.set)
+            char_scroll.pack(side="right", fill="y")
+            self.char_list.pack(side="left", fill="both", expand=True)
+            for name in self.all_characters:
+                self.char_list.insert("end", nombre_publico(name))
+            self.char_list.bind("<<ListboxSelect>>", self._character_selected)
+            inicial = self.character.get()
+            if inicial in self.all_characters:
+                self.char_list.selection_set(self.all_characters.index(inicial))
 
-        # Columna de clips al extremo derecho, con los controles de
-        # reproduccion debajo. El visor queda en medio.
-        clips = ttk.Frame(self, width=250)
-        clips.pack(side="right", fill="y", padx=(10, 0))
-        clips.pack_propagate(False)
         ttk.Label(
-            clips,
-            text="Animations",
+            self,
+            text=titulo,
             anchor="center",
             font=(self.app._sims_font_family, 12, "bold"),
         ).pack(fill="x")
         # Misma textura que el buscador de personajes; la etiqueta 'Search' estorba
-        # con el titulo 'Animations' justo encima.
+        # con el titulo justo encima.
         self.filter = tk.StringVar()
         entry = ttk.Entry(
-            clips, textvariable=self.filter, width=31, style="CharacterSearch.TEntry"
+            self, textvariable=self.filter, width=31, style="CharacterSearch.TEntry"
         )
-        entry.pack(fill="x", pady=(6, 0))
+        entry.pack(fill="x", pady=(6, 14))
         entry.bind("<KeyRelease>", self.refresh)
-        ttk.Label(clips, text="Select multiple clips with Ctrl or Shift").pack(
+        ttk.Label(self, text="Select multiple clips with Ctrl or Shift").pack(
             anchor="w", pady=(6, 0)
         )
-        list_frame = ttk.Frame(clips)
+        list_frame = ttk.Frame(self)
         list_frame.pack(fill="both", expand=True, pady=(3, 6))
         # La altura pedida es pequena a proposito: la columna va con
         # pack_propagate(False), asi que si la suma de lo pedido supera el hueco
@@ -166,7 +233,10 @@ class AnimationTab(ttk.Frame):
             LIST_PANEL_PATH,
             width=222,
             height=150,
-            font=(self.app._sims_font_family, 10),
+            # Negrita, que es lo que mas ayuda a leerla, pero a 10 y no a 11: los nombres
+            # de clip son largos ('a-cas-idle-outgoing-m-start') y a 11 se salian
+            # de la columna mas de la cuenta.
+            font=(self.app._sims_font_family, 10, "bold"),
             selectmode="extended",
         )
         list_scroll = ttk.Scrollbar(
@@ -177,7 +247,7 @@ class AnimationTab(ttk.Frame):
         self.listbox.pack(side="left", fill="both", expand=True)
         self.listbox.bind("<<ListboxSelect>>", self.schedule_prepare)
         ttk.Label(
-            clips,
+            self,
             text="Group",
             anchor="center",
             font=(self.app._sims_font_family, 10, "bold"),
@@ -185,25 +255,25 @@ class AnimationTab(ttk.Frame):
         self.group = tk.StringVar(value="All")
         groups = ["All", "Individual", "Social", "Scenes", "Creatures"]
         group_box = ttk.Combobox(
-            clips, textvariable=self.group, values=groups, state="readonly", width=28
+            self, textvariable=self.group, values=groups, state="readonly", width=28
         )
         group_box.pack(fill="x", pady=(0, 2))
         group_box.bind("<<ComboboxSelected>>", self.refresh)
-        ttk.Separator(clips, orient="horizontal").pack(fill="x", pady=(4, 0))
-        controls = ttk.Frame(clips)
+        ttk.Separator(self, orient="horizontal").pack(fill="x", pady=(4, 0))
+        controls = ttk.Frame(self)
         controls.pack(fill="x", pady=(8, 0))
         self.play_button = ttk.Button(controls, text="▶ Play", command=self.toggle_play)
         self.play_button.pack(side="left")
-        # Boton de FPS: pulsa y va cyclando. Comparte fila con el Play porque
-        # ambos piden 120 px y 120+120 entra justo en los 250 de la columna.
+        # Boton de FPS: pulsa y va cyclando. Comparte fila con el Play. Los botones del
+        # tema piden 120 px por defecto (ttk los crea con 20 caracteres de ancho,
+        # mida lo que mida el texto), asi que en una columna de 222 el FPS se
+        # queda en 102 y sigue mostrando '20 FPS' entero.
         self.fps_index = 0
         self.fps_button = ttk.Button(controls, text="", command=self.ciclar_fps)
         self.fps_button.pack(side="right")
-        # Loop y reloj en una segunda fila. Los botones del tema piden 120 px
-        # con cualquier texto, incluso vacio, asi que en una sola fila solo
-        # caben dos: con el Loop tambien ahi, el FPS se quedaba en 58 px y
-        # mostraba '20 F'.
-        lower = ttk.Frame(clips)
+        # Loop y reloj en una segunda fila. Con el Loop tambien en la de arriba, en una
+        # sola fila el FPS se quedaba en 58 px y mostraba '20 F'.
+        lower = ttk.Frame(self)
         lower.pack(fill="x", pady=(3, 0))
         self.loop = tk.BooleanVar(value=True)
         ttk.Checkbutton(lower, text="Loop", variable=self.loop).pack(side="left")
@@ -218,53 +288,31 @@ class AnimationTab(ttk.Frame):
         self.time_label.pack(side="right")
         self.position = tk.DoubleVar(value=0)
         self.slider = ttk.Scale(
-            clips, from_=0, to=1, variable=self.position, command=self.scrub
+            self,
+            from_=0,
+            to=1,
+            variable=self.position,
+            command=self.scrub,
+            style="Clips.Horizontal.TScale",
         )
         self.slider.pack(fill="x", pady=6)
         self._fps_button_refresh()
         # Solo para avisos y errores de carga o exportacion; el contador de
         # clips ya no se pinta aqui.
-        self.status = ttk.Label(clips, text="", wraplength=230)
+        self.status = ttk.Label(self, text="", wraplength=230)
         self.status.pack(fill="x", pady=(4, 0))
-
-        viewport = ttk.Frame(self)
-        viewport.pack(side="left", fill="both", expand=True)
-        self.canvas = Viewport(viewport, minimum=(380, 500))
-        self.canvas.on_resize = lambda: self.render_frame(self.position.get())
-        self.camera = OrbitController(
-            self.canvas, lambda: self.render_frame(self.position.get()), yaw=math.pi
-        )
-        self.floating_buttons = []
-        self.camera.ignores = self._over_floating_button
-        self.show_grid = tk.BooleanVar(value=True)
-        self.show_bones = tk.BooleanVar(value=False)
-        self.export_button = self._floating_button("Export as...", self.export_as)
-        self.grid_button = self._floating_button(
-            "Grid", self.toggle_grid, selected=True
-        )
-        self.bones_button = self._floating_button("Bones", self.toggle_bones)
-        self.recenter_button = self._floating_button("Reset view", self.camera.reset)
-        # Capa de texto sobre el visor: mismo estilo que el visor de personajes.
-        self.view_status = ttk.Label(
-            self.canvas,
-            text="",
-            padding=(5, 3),
-            wraplength=260,
-            background=self.canvas.cget("background"),
-            foreground="#ffffff",
-        )
-        self.status_toolbar_window = self.canvas.create_window(
-            10, 0, anchor="sw", window=self.view_status
-        )
-        self.canvas.bind("<Configure>", self._position_viewport_controls, add="+")
-        self.after_idle(self._position_viewport_controls)
-        ttk.Label(viewport, text=CAMERA_HINT, wraplength=640).pack(anchor="w")
-        ttk.Label(
-            viewport,
-            text="The preview shows the pose; exported GLB files retain textures and materials.",
-        ).pack(anchor="w")
         self.refresh()
-        initial = next(
+
+    def start(self):
+        """Engancha el visor y selecciona el primer clip.
+
+        Va aparte del constructor porque el anfitrion crea el lienzo despues del
+        panel: sin esto, `prepare()` se pondria a pintar antes de tener donde.
+        """
+        self.poll_timer = self.after(100, self.poll_messages)
+        if not self.visible:
+            return
+        inicial = next(
             (
                 i
                 for i, r in enumerate(self.visible)
@@ -272,22 +320,28 @@ class AnimationTab(ttk.Frame):
             ),
             0,
         )
-        if self.visible:
-            self.listbox.selection_set(initial)
-            self.listbox.see(initial)
-            self.schedule_prepare()
-        self.poll_timer = self.after(100, self.poll_messages)
+        self.listbox.selection_set(inicial)
+        self.listbox.see(inicial)
+        self.schedule_prepare()
+
+    def redibujar(self):
+        """Repinta el fotograma actual; lo llama el anfitrion al cambiar la vista."""
+        self.render_frame(self.position.get())
+
+    def set_character(self, name, avisar=True):
+        """Fija el personaje del clip y avisa al anfitrion si ha cambiado."""
+        if name == self.character.get():
+            return
+        self.character.set(name)
+        if avisar and self.on_character is not None:
+            self.on_character(name)
 
     def _character_selected(self, _event=None):
         """Sincroniza la lista de personajes con el StringVar."""
         selection = self.char_list.curselection()
         if not selection:
             return
-        name = slug_publico(self.char_list.get(selection[0]))
-        if name == self.character.get():
-            return
-        self.character.set(name)
-        self.changed_character()
+        self.set_character(slug_publico(self.char_list.get(selection[0])))
 
     def toggle_replace_character(self):
         """Muestra u oculta la lista de personajes."""
@@ -377,7 +431,9 @@ class AnimationTab(ttk.Frame):
         # Con la lista de personajes abierta manda lo que elija el usuario: si
         # no, al elegir a mano se llamaba changed_character -> schedule_prepare
         # -> aqui, y el automatico le devolvia el suyo enseguida.
-        if self.replace_character.get():
+        if getattr(self, "replace_character", None) is not None and (
+            self.replace_character.get()
+        ):
             return False
         destino = self._character_for_row(rows[0])
         if destino is None:
@@ -386,10 +442,9 @@ class AnimationTab(ttk.Frame):
             return False
         if self.character.get() == destino:
             return False
-        self.character.set(destino)
-        self.char_list.selection_set(self.all_characters.index(destino))
+        self.set_character(destino)
         self.loaded = None
-        self.preview = None
+        self._olvidar_preview()
         self.escena = None
         self.buffer = None
         return True
@@ -408,82 +463,6 @@ class AnimationTab(ttk.Frame):
         # La lista conservaria el desplazamiento anterior, que con menos
         # filas dejaria la vista a medio camino.
         self.char_list.yview("moveto", 0)
-
-    def _floating_button(self, text, command, selected=False):
-        """Botón flotante dibujado sobre el canvas del visor.
-
-        Mismo criterio que en el visor de personajes: se dibuja como item del
-        canvas y no como ttk.Button, porque el widget pinta su fondo en todo el
-        rectángulo y sobre la escena 3D se vería un rectángulo negro alrededor
-        de la textura redondeada.
-        """
-        top = self.winfo_toplevel()
-        width = top._sims_floating_text_width(text) + 2 * 14
-        button = FloatingButton(
-            self.canvas,
-            top._sims_floating_button_factory,
-            text,
-            command,
-            width,
-            32,
-            font=top._sims_floating_font,
-        )
-        button.set_selected(selected)
-        self.floating_buttons.append(button)
-        button.install(
-            lambda event, b=button: self._floating_enter(b, event),
-            lambda event, b=button: self._floating_leave(b, event),
-            lambda event, b=button: self._floating_press(b, event),
-            lambda event, b=button: self._floating_release(b, event),
-        )
-        return button
-
-    def _over_floating_button(self, event):
-        """La cámara no debe arrastrarse si el puntero está sobre un botón."""
-        return any(button.hit(event.x, event.y) for button in self.floating_buttons)
-
-    def _floating_enter(self, button, event):
-        button.hover(True)
-
-    def _floating_leave(self, button, event):
-        button.hover(False)
-        button.press(False)
-
-    def _floating_press(self, button, event):
-        button.press(True)
-
-    def _floating_release(self, button, event):
-        # press() devuelve si estaba pulsado, para no disparar el comando cuando
-        # el puntero entra ya soltado.
-        if button.press(False):
-            button.command()
-
-    def _position_viewport_controls(self, event=None):
-        if event is None:
-            width, height = self.canvas.winfo_width(), self.canvas.winfo_height()
-        else:
-            width, height = event.width, event.height
-        self.export_button.place(10, 10)
-        self.grid_button.place(width - 10 - self.grid_button.reqwidth, 10)
-        self.bones_button.place(
-            width - 10 - self.grid_button.reqwidth - self.bones_button.reqwidth - 12, 10
-        )
-        self.recenter_button.place(width - 10 - self.recenter_button.reqwidth, 56)
-        self.canvas.coords(self.status_toolbar_window, 10, height - 10)
-
-    def toggle_bones(self):
-        enabled = not self.show_bones.get()
-        self.show_bones.set(enabled)
-        self.bones_button.set_selected(enabled)
-        self.render_frame(self.position.get())
-
-    def toggle_grid(self):
-        enabled = not self.show_grid.get()
-        self.show_grid.set(enabled)
-        self.grid_button.set_selected(enabled)
-        if self.escena is not None:
-            self.escena.mostrar_grid = enabled
-        self.render_frame(self.position.get())
 
     def _export_character(self, rows):
         """(esqueleto, personaje) del export, o None si no se pueden mezclar.
@@ -506,7 +485,7 @@ class AnimationTab(ttk.Frame):
         """Dialogo de formato, equivalente al del visor de personajes.
 
         La diferencia es que aqui lo que se exporta es un conjunto de clips
-        selecionados, asi que el dialogo dice cuantos son y con que personaje,
+        seleccionados, asi que el dialogo dice cuantos son y con que personaje,
         y avisa antes si mezclan esqueletos incompatibles.
         """
         rows = self.selected_rows()
@@ -549,12 +528,25 @@ class AnimationTab(ttk.Frame):
             ttk.Radiobutton(content, text=label, value=value, variable=selected).pack(
                 anchor="w", pady=2
             )
+        ttk.Separator(content, orient="horizontal").pack(fill="x", pady=(10, 6))
+        incluir = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            content,
+            text="Export the selected animation",
+            variable=incluir,
+        ).pack(anchor="w")
+        ttk.Label(
+            content,
+            text="Unmarked, only the character model is exported.",
+            wraplength=380,
+        ).pack(anchor="w", pady=(2, 0))
         buttons = ttk.Frame(content)
         buttons.pack(fill="x", pady=(12, 0))
-        choice = {"format": None}
+        choice = {"format": None, "incluir": True}
 
         def accept():
             choice["format"] = selected.get()
+            choice["incluir"] = incluir.get()
             dialog.destroy()
 
         ttk.Button(buttons, text="Cancel", command=dialog.destroy).pack(side="right")
@@ -567,7 +559,7 @@ class AnimationTab(ttk.Frame):
         # Un dialogo que solo avisa no debe lanzar una exportacion imposible.
         if resolved is None:
             return None
-        return choice["format"]
+        return choice
 
     def export_as(self):
         """Punto de entrada del boton flotante 'Export as...'."""
@@ -578,10 +570,10 @@ class AnimationTab(ttk.Frame):
                 "Export animations", "Select one or more clips in the list first."
             )
             return
-        fmt = self.choose_export_format()
-        if not fmt:
+        choice = self.choose_export_format()
+        if not choice:
             return
-        self.export_glb(fmt)
+        self.export_glb(choice["format"], incluir=choice["incluir"])
 
     def refresh(self, _event=None):
         self.cancel_prepare()
@@ -626,7 +618,7 @@ class AnimationTab(ttk.Frame):
     def changed_character(self, _event=None):
         self.cancel_prepare()
         self.loaded = None
-        self.preview = None
+        self._olvidar_preview()
         self.stop()
         self.escena = None
         self.buffer = None  # la escena anterior ya no encaja
@@ -665,8 +657,11 @@ class AnimationTab(ttk.Frame):
         return self._read_clip(reference_row)
 
     def _static_model(self, character):
-        # Regenerate older cached outfits so newly supported accessories appear.
-        path = self.app.cache / ("character_" + character + "_accessories_v2.glb")
+        # Regenerate older cached outfits so newly supported accessories appear, and
+        # older skeletons so the hand joints land on the hand instead of inside
+        # the palm. The number is the cache version: bump it and the GLB is
+        # rebuilt from the corrected bones.
+        path = self.app.cache / ("character_" + character + "_accessories_v3.glb")
         if not path.exists():
             convert_character(self.app.paths["characters"], character, path)
         return path
@@ -736,6 +731,10 @@ class AnimationTab(ttk.Frame):
         try:
             anim = doc["animations"][0]
             self.preview = (doc, binary, anim)
+            # Aparte, para poder reescribir los datos de la esquina al conmutar
+            # la vista. `self.preview` es la escena, no lo que se cuenta.
+            self.preview_character = character
+            self.preview_clip = clip
             self.loaded = key
             # GL resources are created on the Tk thread; frame positions are updated
             # separately without re-uploading topology or textures.
@@ -752,11 +751,7 @@ class AnimationTab(ttk.Frame):
             self.slider.configure(to=clip["duration"])
             # Los datos del clip ya van en la capa de texto sobre el visor; no
             # se repiten en el panel. self.status queda para avisos y errores.
-            self.view_status.configure(
-                text=f'{clip["name"].split("/")[-1]}\n'
-                f'{character} · {clip["duration"]:.2f} s · '
-                f'{len(clip["tracks"])} tracks'
-            )
+            self.refresh_view_status()
             self.render_frame(0)
             # Con Auto Play marcado, cada clip nuevo arranca solo.
             if self.auto_play.get():
@@ -764,20 +759,48 @@ class AnimationTab(ttk.Frame):
         except Exception as exc:
             self._discard_preview()
             self.status.configure(text=f"Could not load: {exc}")
-            self.view_status.configure(text="")
+
+    def _olvidar_preview(self):
+        """Se suelta el clip cargado, con los datos que iba a poner en el visor."""
+        self.preview = None
+        self.preview_character = None
+        self.preview_clip = None
+
+    def refresh_view_status(self):
+        """Escribe en la capa de texto del visor los datos del clip que se ve.
+
+        Se vuelve a llamar al conmutar la vista: si el clip ya estaba cargado no
+        se reinstala y entonces no pasaria por aqui, con lo que la esquina se
+        queda con los datos del personaje de la otra vista.
+        """
+        if self.visor is None or not self.visible_on_screen:
+            return
+        clip = self.preview_clip
+        if self.preview is None or clip is None:
+            self.visor.set_view_status("")
+            return
+        self.visor.set_view_status(
+            f'{clip["name"].split("/")[-1]}\n'
+            f'{self.preview_character} · {clip["duration"]:.2f} s · '
+            f'{len(clip["tracks"])} tracks'
+        )
 
     def _discard_preview(self):
-        self.preview = None
+        self._olvidar_preview()
         self.loaded = None
         self.escena = None
         self.buffer = None
-        self.view_status.configure(text="")
+        self.refresh_view_status()
         # Sin esta llamada el deslizador se queda con el rango del clip
         # anterior, movido sobre una escena que ya no existe.
         self._reset_scrubber()
 
     def render_frame(self, t):
-        if not self.preview:
+        if not self.preview or self.visor is None:
+            return
+        if not self.visible_on_screen:
+            # El clip se carga en segundo plano aunque el panel este tapado; el
+            # fotograma se dibuja cuando se muestra, no mientras esta oculto.
             return
         doc, binary, anim = self.preview
         try:
@@ -789,27 +812,26 @@ class AnimationTab(ttk.Frame):
             ):  # el clip no encaja con la escena
                 self.escena = None
                 raise gl.SinOpenGL("the scene does not match this character")
-            width, height = self.canvas.view_size()
+            width, height = self.visor.view_size()
             # La escena se reutiliza entre clips, así que el estado de la
             # rejilla se reaplica en cada frame en vez de solo al crearla.
-            self.escena.mostrar_grid = self.show_grid.get()
+            self.escena.mostrar_grid = self.visor.show_grid.get()
             self.escena.fijar_poses(aplanar(mallas, self.buffer), (t,))
             self.buffer = self.escena.posiciones
             imagen = self.escena.render(
-                width,
-                height,
-                self.camera.yaw,
-                self.camera.pitch,
-                self.camera.zoom,
-                self.camera.pan,
-                self.camera,
+                width, height, *self.visor.camera_args()
             )
-            if self.show_bones.get():
-                # El esqueleto se dibuja encima de la escena ya rasterizada,
-                # igual que en el visor de personajes.
-                self._draw_bones(imagen, doc, binary, anim, t, width, height)
-            set_photo(self.canvas, imagen)
+            self.visor.overlay(imagen, self.escena, doc, binary, anim, t, width, height)
+            self.visor.present(imagen)
             duration = anim["extras"]["sourceDuration"]
+            # El cursor se mueve con el fotograma que se acaba de dibujar. Si solo
+            # se actualizara el reloj, el pulgar se quedaria donde estuviera y
+            # marcaria un instante distinto del que se ve. El guardia evita que
+            # el ttk.Scale reentree por su propio comando.
+            if not self.updating_slider:
+                self.updating_slider = True
+                self.position.set(t)
+                self.updating_slider = False
             self.time_label.configure(text=self._time_text(t, duration))
         except Exception as exc:
             self._discard_preview()
@@ -834,33 +856,6 @@ class AnimationTab(ttk.Frame):
         self.position.set(0)
         self.slider.configure(to=1)
         self.time_label.configure(text=self._time_text(0, 0))
-
-    def _draw_bones(self, imagen, doc, binary, anim, t, width, height):
-        """Pinta el esqueleto del clip sobre la imagen ya renderizada."""
-        huesos = posed_bones(doc, binary, anim, t)
-        if not huesos:
-            return
-        overlay = ImageDraw.Draw(imagen)
-        puntos = [
-            self.escena.proyectar(
-                h["world"][3, :3],
-                width,
-                height,
-                self.camera.yaw,
-                self.camera.pitch,
-                self.camera.zoom,
-                self.camera.pan,
-                self.camera,
-            )
-            for h in huesos
-        ]
-        for i, hueso in enumerate(huesos):
-            if hueso["parent"] >= 0:
-                overlay.line(
-                    (puntos[hueso["parent"]], puntos[i]), fill=(88, 235, 220), width=2
-                )
-        for x, y in puntos:
-            overlay.ellipse((x - 3, y - 3, x + 3, y + 3), fill=(225, 255, 250))
 
     def scrub(self, value):
         # El ttk.Scale ya mueve la variable al arrastrar, pero no cuando el
@@ -949,7 +944,8 @@ class AnimationTab(ttk.Frame):
                 max(1, round(1000 / FPS_VALORES[self.fps_index])), self.tick
             )
 
-    def export_glb(self, fmt="glb"):
+    def export_glb(self, fmt="glb", incluir=True):
+        """Exporta los clips elegidos, o solo el modelo si `incluir` es False."""
         rows = self.selected_rows()
         if not rows:
             return
@@ -971,7 +967,9 @@ class AnimationTab(ttk.Frame):
         # varios se queda el del personaje y son los clips los que lo distinguen
         # dentro del fichero.
         file_stem = model_name
-        if len(rows) == 1:
+        if not incluir:
+            file_stem = export_model_name(f"{model_name}_model")
+        elif len(rows) == 1:
             clip = export_model_name(rows[0]["name"].rsplit("/", 1)[-1])
             file_stem = export_model_name(f"{model_name}_{clip}")
         target = export_dir / f"{file_stem}.{fmt}"
@@ -982,12 +980,29 @@ class AnimationTab(ttk.Frame):
         if self.exporting:
             return
         self.exporting = True
-        self.status.configure(text=f"Exporting {len(rows)} clips…")
+        self.status.configure(
+            text=f"Exporting {model_name}…" if not incluir
+            else f"Exporting {len(rows)} clips…"
+        )
 
         def work():
             try:
                 with self.model_lock:
                     model = self._static_model(character)
+                if not incluir:
+                    # Solo el modelo: el GLB del personaje tal cual, sin clips.
+                    # Se copia entero en vez de reconstruirlo, porque
+                    # convert_character ya lo deja con texturas y materiales.
+                    destino = target if fmt == "glb" else (
+                        self.app.cache / "model_only_export.glb"
+                    )
+                    shutil.copyfile(model, destino)
+                    if fmt == "fbx":
+                        export_path(destino, target, blender)
+                    elif fmt == "gltf":
+                        export_gltf(destino, target)
+                    self.messages.put(("ok", f"model saved to {target}"))
+                    return
                 with zipfile.ZipFile(self.app.paths["animations"]) as z:
                     clips = [parse_banm(z.read(r["file"])) for r in rows]
                     if character == "cowthulu":
@@ -1065,9 +1080,6 @@ class AnimationTab(ttk.Frame):
         if self.poll_timer:
             self.after_cancel(self.poll_timer)
             self.poll_timer = None
-        for button in self.floating_buttons:
-            button.destroy()
-        self.floating_buttons = []
 
     def export_res(self):
         """Extrae los .res originales; sin boton en la interfaz, se deja como

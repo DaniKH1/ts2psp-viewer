@@ -11,3 +11,9 @@ Character meshes and facial modifiers are in `formats/characters.py`. Animation 
 Asset paths are resolved by `paths.py`. PyInstaller extracts bundled assets to its temporary folder; writable game data stays in the user's cache. Development data and exported game models are excluded from the source ZIP.
 
 Small comments explain format offsets and non-obvious rendering decisions. Longer observations belong in these documents.
+
+For props, `formats/prop_scene.py` composes pivot-aware NODE transforms;
+`formats/prop_anim.py` follows explicit curve links and evaluates motion.
+`exporting/prop_animation.py` bakes that same hierarchy into GLB animation.
+The Objects tab reuses its compiled animator and keeps bind data immutable.
+See [prop rigs](prop-rigs.md) for the binary fields and scope.

@@ -146,6 +146,29 @@ class TexturedListbox(tk.Canvas):
         self._first = max(0, min(self._first, self._max_first()))
         self._redraw()
 
+    def marcar(self, index):
+        """Marca un elemento sin mover la lista y sin avisar.
+
+        Para resaltar lo que ya esta cargado. `selection_set` trae dos cosas
+        que aqui sobran: un `see()` que arrastra la lista hasta el elemento, y
+        el evento `<<ListboxSelect>>`, que recarga el modelo. Marcar no debe
+        hacer ninguna de las dos.
+        """
+        a = self._index(index)
+        self._selected = a
+        self._selected_set = {a}
+        self._redraw()
+
+    def al_principio(self):
+        """Vuelve la lista arriba del todo.
+
+        `see()` deja el elemento a la vista pero conserva el desplazamiento, que
+        no es lo mismo: al abrir la vista de la lista se quiere empezar por el
+        primer personaje, no por el que se hubieramirado antes.
+        """
+        self._first = 0
+        self._redraw()
+
     def _index(self, index):
         return len(self._items) - 1 if index == "end" else int(index)
 
@@ -162,7 +185,6 @@ class TexturedListbox(tk.Canvas):
     def _choose(self, index, extend=False, toggle=False):
         if not 0 <= index < len(self._items):
             return "break"
-        before = self._state()
         if self._selectmode == "extended":
             if toggle:
                 if index in self._selected_set:
@@ -190,8 +212,11 @@ class TexturedListbox(tk.Canvas):
             self._selected = index
             self._selected_set = {index}
         self.see(self._selected)
-        if before != self._state():
-            self.event_generate("<<ListboxSelect>>")
+        # Aqui se avisa siempre, aunque la fila ya estuviera marcada. Un clic es
+        # una orden del usuario y hay que cumplirla: como la lista llega
+        # resaltada con el personaje del clip, pulsar sobre el era un no-op y
+        # parecia que el primer clic no hacia nada.
+        self.event_generate("<<ListboxSelect>>")
         return "break"
 
     def _move(self, delta, extend=False):

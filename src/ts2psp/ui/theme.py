@@ -1,4 +1,4 @@
-"""Textures, fonts and ttk styling."""
+﻿"""Textures, fonts and ttk styling."""
 
 import ctypes
 import math
@@ -46,7 +46,21 @@ SCROLL_TROUGH_CAP_TOP_PATH = UI_ASSET_PATH / "scroll_trough_cap_top.png"
 SCROLL_TROUGH_CAP_BOTTOM_PATH = UI_ASSET_PATH / "scroll_trough_cap_bottom.png"
 SCROLL_TROUGH_CENTER_PATH = UI_ASSET_PATH / "scroll_trough_center.png"
 LIST_PANEL_PATH = UI_ASSET_PATH / "list_panel.png"
-NOTEBOOK_TAB_LABELS = ("Characters", "Animations", "Props", "Maps")
+# Las etiquetas de las pestañas, para construir su textura. La anchura de cada
+# textura sale de lo que mide el texto, así que van por nombre y no por posición:
+# si la lista se queda desfasada con las pestañas que hay, al resaltar sale la
+# textura de otra y la pestaña cambia de ancho al pasar el ratón.
+NOTEBOOK_TAB_LABELS = ("Characters", "Props", "Maps")
+
+# Ancho en pixeles del trough del deslizador, uno por cada sitio donde se usa.
+# El trough es una imagen de ancho fijo: si el widget mide otra cosa, ttk la
+# estira o la recorta y el remate redondeado de un lado se pierde. No se puede
+# arreglar con `border`, porque ese margen es el relleno de los hijos del
+# elemento y el pulgar es hijo del trough: con margen a los lados el pulgar
+# dejaria de llegar al extremo. Asi que la imagen se hace del ancho justo.
+ANCHO_TROUGH_SHAPES = 182
+ANCHO_TROUGH_CLIPS = 272
+ANCHO_TROUGH_PROPS = 250
 
 
 def _register_sims_font(root):
@@ -725,11 +739,33 @@ def _install_sims_theme(root):
         }
     active_button_shadows = {}
     shape_slider_thumb_image = ImageTk.PhotoImage(
-        shape_slider_thumb.resize((25, 13), Image.Resampling.LANCZOS), master=root
+        # Se recorta el margen transparente de la textura original para que lo
+        # opaco llegue al borde de la imagen: sin eso el pulgar se queda a 1 px
+        # de cada extremo del hueco, que es justo lo que feo.
+        #
+        # La altura se deja en 10 px, que es la que salia antes de recortar
+        # (12 filas opacas de 15 encogidas a 13). Estirarlas a 13 hacia el alto
+        # ponia un pulgar 3 px mas grueso de mas.
+        shape_slider_thumb.crop((2, 1, 25, 13)).resize(
+            (25, 10), Image.Resampling.LANCZOS
+        ),
+        master=root,
     )
-    shape_slider_trough_image = ImageTk.PhotoImage(
-        shape_slider_trough.resize((166, 14), Image.Resampling.LANCZOS), master=root
-    )
+    def trough_para(ancho):
+        # Al ancho que de verdad mide el deslizador. Con el borde lateral a 0
+        # ttk estira la imagen entera, y si el widget mide otra cosa se
+        # deforman las tapas redondeadas y se pierde el remate de un lado.
+        return ImageTk.PhotoImage(
+            shape_slider_trough.resize((ancho, 14), Image.Resampling.LANCZOS),
+            master=root,
+        )
+
+    shape_slider_trough_image = trough_para(ANCHO_TROUGH_SHAPES)
+    shape_slider_trough_clips_image = trough_para(ANCHO_TROUGH_CLIPS)
+    shape_slider_trough_props_image = trough_para(ANCHO_TROUGH_PROPS)
+    # Imagen vacia para los elementos intermedios del layout del deslizador, que
+    # solo anadian relleno donde el pulgar no llegaba.
+    vacia = ImageTk.PhotoImage(Image.new("RGBA", (1, 1), (0, 0, 0, 0)), master=root)
     separator_horizontal_image = ImageTk.PhotoImage(separator, master=root)
     separator_vertical_image = ImageTk.PhotoImage(
         separator.rotate(90, expand=True), master=root
@@ -754,6 +790,8 @@ def _install_sims_theme(root):
         shape_preset_images,
         shape_slider_thumb_image,
         shape_slider_trough_image,
+        shape_slider_trough_clips_image,
+        shape_slider_trough_props_image,
         separator_horizontal_image,
         separator_vertical_image,
         character_search_image,
@@ -786,12 +824,40 @@ def _install_sims_theme(root):
         sticky="nsew",
     )
     style.element_create(
+        "Sims.ViewToggleButton",
+        "image",
+        normal_states["normal"],
+        ("disabled", normal_states["disabled"]),
+        # Igual que el boton normal: al pulsar sale la textura verde y se
+        # vuelve sola al soltar o al sacar el raton. Los toggles de verdad
+        # conservan su aspecto de pulsado, que es solo el resaltado.
+        ("pressed", normal_states["pressed"]),
+        ("active", normal_states["active"]),
+        border=(16, 8, 16, 8),
+        width=1,
+        sticky="nsew",
+    )
+    style.element_create(
         "Sims.SelectedToggleButton",
         "image",
         active_states["normal"],
         ("disabled", active_states["disabled"]),
         ("pressed", active_states["pressed"]),
         ("active", active_states["active"]),
+        border=(16, 8, 16, 8),
+        width=1,
+        sticky="nsew",
+    )
+    style.element_create(
+        "Sims.SelectedHoldButton",
+        "image",
+        active_texture,
+        ("disabled", active_states["disabled"]),
+        # El raton por encima no resalta nada: con el boton ya verde, ponerse mas
+        # claro al entrar el raton solo hace que al alejarlo dé un salto. Al
+        # mantener si se aclara, que es lo unico que tiene que verse distinto.
+        ("pressed", active_states["active"]),
+        ("active", active_texture),
         border=(16, 8, 16, 8),
         width=1,
         sticky="nsew",
@@ -882,11 +948,61 @@ def _install_sims_theme(root):
         ],
     )
     style.element_create(
+        "Horizontal.Scale.focus",
+        "image",
+        vacia,
+        border=0,
+        sticky="ew",
+    )
+    style.element_create(
+        "Horizontal.Scale.padding",
+        "image",
+        vacia,
+        border=0,
+        sticky="ew",
+    )
+    def trough_element(nombre, imagen):
+        # Sin borde lateral: en ttk el `border` de un elemento es el relleno de
+        # sus hijos, y el pulgar es hijo del trough, asi que con margen aqui no
+        # llegaba al extremo. Ojo al orden, que en `border` es
+        # (izquierda, arriba, derecha, abajo).
+        #
+        # No se puede llegar a 0 del todo: al componer un elemento de imagen,
+        # ttk redondea el alto y el ancho a pixel entero y siempre queda 1 px.
+        # Se recupera con el margen del pulgar, que es lo que hace la imagen de
+        # mas abajo.
+        #
+        # Con el margen a cero no hay donde anclar las tapas, y la imagen se
+        # estira o se recorta entera segun el ancho del widget: el remate
+        # redondeado se pierde por un lado. Por eso la imagen va ya hecha del
+        # ancho que mide el deslizador.
+        style.element_create(
+            nombre,
+            "image",
+            imagen,
+            ("disabled", imagen),
+            border=(0, 4, 0, 4),
+            sticky="ew",
+        )
+
+    trough_element("ShapeKeys.Scale.trough", shape_slider_trough_image)
+    trough_element("Clips.Scale.trough", shape_slider_trough_clips_image)
+    trough_element("Props.Scale.trough", shape_slider_trough_props_image)
+    style.element_create(
         "Horizontal.Scale.trough",
         "image",
         shape_slider_trough_image,
         ("disabled", shape_slider_trough_image),
-        border=(4, 5, 4, 5),
+        # Sin borde lateral: en ttk el `border` de un elemento es el relleno de
+        # sus hijos, y el pulgar es hijo del trough, asi que con margen aqui no
+        # llegaba al extremo. Ojo al orden, que en `border` es
+        # (izquierda, arriba, derecha, abajo).
+        #
+        # No se puede llegar a 0: al componer un elemento de imagen, ttk
+        # redondea el alto y el ancho a pixel entero y siempre queda 1 px. Se
+        # recupera con el margen del pulgar, que es lo que hace la imagen de mas
+        # abajo.
+        border=(0, 4, 0, 4),
         sticky="ew",
     )
     style.element_create(
@@ -921,6 +1037,15 @@ def _install_sims_theme(root):
         ],
     )
     style.layout(
+        "ViewToggle.TButton",
+        [
+            (
+                "Sims.ViewToggleButton",
+                {"sticky": "nsew", "children": [("Button.label", {"sticky": "nsew"})]},
+            )
+        ],
+    )
+    style.layout(
         "Selected.Toggle.TButton",
         [
             (
@@ -929,10 +1054,19 @@ def _install_sims_theme(root):
             )
         ],
     )
-    style.layout("ShapePreset.TButton", [("Button.label", {"sticky": "nsew"})])
     style.layout(
-        "Shape.Horizontal.TScale",
+        "SelectedHold.TButton",
         [
+            (
+                "Sims.SelectedHoldButton",
+                {"sticky": "nsew", "children": [("Button.label", {"sticky": "nsew"})]},
+            )
+        ],
+    )
+    style.layout("ShapePreset.TButton", [("Button.label", {"sticky": "nsew"})])
+
+    def scale_layout(trough):
+        return [
             (
                 "Horizontal.Scale.focus",
                 {
@@ -944,7 +1078,7 @@ def _install_sims_theme(root):
                                 "sticky": "nswe",
                                 "children": [
                                     (
-                                        "Horizontal.Scale.trough",
+                                        trough,
                                         {
                                             "sticky": "nswe",
                                             "children": [
@@ -961,8 +1095,11 @@ def _install_sims_theme(root):
                     ],
                 },
             )
-        ],
-    )
+        ]
+
+    style.layout("Shape.Horizontal.TScale", scale_layout("ShapeKeys.Scale.trough"))
+    style.layout("Clips.Horizontal.TScale", scale_layout("Clips.Scale.trough"))
+    style.layout("Props.Horizontal.TScale", scale_layout("Props.Scale.trough"))
     vertical_scrollbar_layout = [
         (
             "Sims.Vertical.Scrollbar.trough",
@@ -1011,7 +1148,26 @@ def _install_sims_theme(root):
         background=colors["background"],
     )
     style.configure(
+        "ViewToggle.TButton",
+        padding=(10, 5),
+        foreground=colors["foreground"],
+        font=(font_family, 11, "bold"),
+        borderwidth=0,
+        focuscolor="",
+        background=colors["background"],
+    )
+    style.configure(
         "Selected.Toggle.TButton",
+        padding=(10, 5),
+        foreground=colors["foreground"],
+        font=(font_family, 11, "bold"),
+        borderwidth=0,
+        focuscolor="",
+        background=colors["background"],
+        embossed=False,
+    )
+    style.configure(
+        "SelectedHold.TButton",
         padding=(10, 5),
         foreground=colors["foreground"],
         font=(font_family, 11, "bold"),
@@ -1058,6 +1214,16 @@ def _install_sims_theme(root):
         focuscolor=[("focus", "")],
     )
     style.map(
+        "ViewToggle.TButton",
+        background=[
+            ("disabled", colors["background"]),
+            ("pressed", colors["background"]),
+            ("active", colors["background"]),
+        ],
+        foreground=[("disabled", colors["muted"])],
+        focuscolor=[("focus", "")],
+    )
+    style.map(
         "Selected.Toggle.TButton",
         background=[
             ("disabled", colors["background"]),
@@ -1073,21 +1239,46 @@ def _install_sims_theme(root):
         sliderlength=18,
         borderwidth=0,
         focuscolor="",
+        # Relleno negativo para que el pulgar se salga 3 px por cada lado: el
+        # trough va a lo ancho del hueco y el pulgar llega mas alla de el.
+        padding=(-3, 0, -3, 0),
     )
     style.configure(
         "Shape.Horizontal.TScale",
         background=colors["background"],
-        sliderlength=25,
+        sliderlength=27,
         borderwidth=0,
         focuscolor="",
+        padding=(-3, 0, -3, 0),
     )
-    style.map(
+    style.configure(
+        "Clips.Horizontal.TScale",
+        background=colors["background"],
+        sliderlength=27,
+        borderwidth=0,
+        focuscolor="",
+        padding=(-3, 0, -3, 0),
+    )
+    style.configure(
+        "Props.Horizontal.TScale",
+        background=colors["background"],
+        sliderlength=27,
+        borderwidth=0,
+        focuscolor="",
+        padding=(-3, 0, -3, 0),
+    )
+    for _escala in (
         "Shape.Horizontal.TScale",
-        background=[
-            ("disabled", colors["background"]),
-            ("active", colors["background"]),
-        ],
-    )
+        "Clips.Horizontal.TScale",
+        "Props.Horizontal.TScale",
+    ):
+        style.map(
+            _escala,
+            background=[
+                ("disabled", colors["background"]),
+                ("active", colors["background"]),
+            ],
+        )
     style.configure("Vertical.TScrollbar", background=colors["background"])
     style.configure("Horizontal.TScrollbar", background=colors["background"])
     for style_name in ("Vertical.TScrollbar", "Horizontal.TScrollbar"):
@@ -1109,3 +1300,5 @@ def _install_sims_theme(root):
     root.configure(background=colors["background"])
     root._sims_theme_colors = colors
     return colors
+
+

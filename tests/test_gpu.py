@@ -1,4 +1,4 @@
-"""Comprueba el render por GPU: velocidad, tamaño de la imagen, cámara y app completa.
+﻿"""Comprueba el render por GPU: velocidad, tamaño de la imagen, cámara y app completa.
 
 Uso:  py -3 test_gpu.py     (desde esta carpeta, con la carpeta data del nivel superior)
 
@@ -15,6 +15,7 @@ import sys
 import time
 import tkinter as tk
 import zipfile
+from tkinter import ttk
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -23,6 +24,8 @@ from ts2psp.app import Sims2PSPApp
 from ts2psp.ui.camera import OrbitController, Viewport
 from ts2psp.rendering.props import load_parts, render_prop
 from ts2psp.rendering.characters import draw_character, load_character
+from ts2psp.formats.characters import nombre_publico
+from ts2psp.ui.theme import ANCHO_TROUGH_CLIPS, ANCHO_TROUGH_SHAPES, NOTEBOOK_TAB_LABELS
 
 RAIZ = Path(__file__).resolve().parent.parent
 import os
@@ -38,11 +41,22 @@ def comprobar(condicion, mensaje):
 
 
 def cronometrar(fn, veces):
+    """Milisegundos por llamada, por mediana.
+
+    Se usa la mediana y no la media porque la GPU necesita dos pasadas para
+    entrar en regimen: la primera medible sale carisima por el calentamiento de
+    la tuberia y, promediada con las demas, hacia fallar el umbral sin que nada
+    haya cambiado en el codigo.
+    """
     fn()
-    inicio = time.perf_counter()
+    fn()
+    muestras = []
     for _ in range(veces):
+        inicio = time.perf_counter()
         fn()
-    return (time.perf_counter() - inicio) / veces * 1000
+        muestras.append((time.perf_counter() - inicio) * 1000)
+    muestras.sort()
+    return muestras[len(muestras) // 2]
 
 
 def seccion(titulo):
@@ -577,6 +591,240 @@ def prueba_sin_gpu():
     root.destroy()
 
 
+def comprobar_pestanas_no_cambian_de_ancho(app):
+    """Resaltar una pestaña no puede cambiarle el ancho.
+
+    Al pasar el ratón se le cambia la textura por la de resaltado, y la anchura
+    de cada textura sale de lo que mide su texto. Si al buscar la textura se
+    coge la de otra pestaña, sale una mas ancha y la pestaña crece y encoge
+    segun por donde vaya el cursor. Pasa con una lista de etiquetas desfasada
+    respecto a las pestañas que hay: al quitar 'Animations', 'Props' cogia su
+    textura y 'Maps' la de 'Props'.
+    """
+    nb = app.tabs
+    titulos = [nb.tab(i, "text") for i in range(nb.index("end"))]
+    comprobar(titulos, "el cuaderno tiene pestañas")
+    comprobar(
+        tuple(titulos) == tuple(NOTEBOOK_TAB_LABELS),
+        "y son exactamente las que el tema tiene textura",
+    )
+    for i, titulo in enumerate(titulos):
+        normal = app._sims_tab_images.get(titulo)
+        resaltada = app._sims_tab_highlight_images.get(titulo)
+        comprobar(
+            normal is not None and resaltada is not None,
+            f"la pestaña {titulo} tiene las dos texturas",
+        )
+        if normal is None or resaltada is None:
+            continue
+        comprobar(
+            (normal.width(), normal.height()) == (resaltada.width(), resaltada.height()),
+            f"la pestaña {titulo} no cambia de tamaño al resaltarse",
+        )
+
+
+def comprobar_deslizadores(app):
+    """El trough del deslizador va hecho del ancho que mide el deslizador.
+
+    El trough es una imagen de ancho fijo. Si el widget mide otra cosa, ttk la
+    estira o la recorta y el remate redondeado se pierde por un lado: con las
+    columnas estrechas se veía la barra cortada a la derecha. No se arregla con
+    `border`, porque ese margen es el relleno de los hijos y el pulgar es hijo
+    del trough, asi que la imagen se hace del ancho justo.
+
+    Aqui solo se comprueba la medida, que es lo que se puede comprobar sin
+    dependerde de lo que haya en pantalla. Que las dos tapas salgan iguales es
+    cosa de mirar, no de testear: capturar la ventana desde fuera no es fiable
+    si no esta al frente.
+    """
+    tab = app.character_tab
+    app.tabs.select(tab)
+    app.update()
+    for nombre, slider, esperado in (
+        ("Shape Keys", tab.shape_slider, ANCHO_TROUGH_SHAPES),
+        ("Animación", tab.animations.slider, ANCHO_TROUGH_CLIPS),
+    ):
+        if not slider.winfo_ismapped():
+            continue
+        slider.update_idletasks()
+        comprobar(
+            slider.winfo_width() == esperado,
+            f"{nombre}: el deslizador mide {esperado} px, como su trough",
+        )
+        comprobar(
+            str(slider.cget("style"))
+            in ("Shape.Horizontal.TScale", "Clips.Horizontal.TScale"),
+            f"{nombre}: usa su propio estilo de deslizador",
+        )
+
+
+def comprobar_personaje_por_defecto(app):
+    """Abre con Bella Goth, y la lista vuelve arriba cada vez que se abre.
+
+    Lo que viene por defecto tiene que distinguirse de lo que elige el usuario:
+    por eso la lista se reencuadra en su principio al entrar en la vista. El
+    personaje elegido si se conserva, que es lo otro.
+    """
+    tab = app.character_tab
+    app.tabs.select(tab)
+    app.update()
+    panel = tab.animations
+    lista = tab.listbox
+    comprobar(
+        (tab.current or "").casefold() == "bellagoth",
+        "arranca con Bella Goth cargado",
+    )
+    comprobar(
+        lista.curselection() and lista.get(lista.curselection()[0]) == "Bella Goth",
+        "y sale marcada en la lista",
+    )
+    comprobar(lista._first == 0, "con la lista al principio")
+
+    # Se mira otra parte de la lista y se elige a alguien mas.
+    lista.yview("moveto", 0.5)
+    app.update()
+    otro = lista._first + 3
+    lista.selection_clear(0, "end")
+    lista.selection_set(otro)
+    tab.select()
+    app.update()
+    elegido = lista.get(otro)
+    nombre = tab.current
+    comprobar(lista._first > 0, "al elegir otro, la lista se desplaza")
+
+    tab.toggle_view()
+    app.update()
+    tab.toggle_view()
+    app.update()
+    comprobar(lista._first == 0, "al volver a la vista de personajes, la lista arriba")
+    comprobar(
+        lista.get(lista.curselection()[0]) == elegido,
+        "pero el personaje elegido se conserva",
+    )
+    comprobar(tab.current == nombre, "y el visor sigue con el mismo personaje")
+
+    # La lista de 'Replace character' tambien aparece siempre en su principio.
+    tab.toggle_view()
+    app.update()
+    tab.replace_button.invoke()
+    app.update()
+    lista.yview("moveto", 0.6)
+    app.update()
+    comprobar(lista._first > 0, "se puede desplazar la lista de la vista de animaciones")
+    tab.toggle_replace_character()
+    app.update()
+    tab.toggle_replace_character()
+    app.update()
+    comprobar(
+        lista._first == 0,
+        "pero al cerrar y abrirla vuelve a estar en su principio",
+    )
+    # Con el boton ya marcado, cambiar de vista tambien repone el resaltado: en
+    # cada vista se ve un personaje distinto y la lista es la misma.
+    if not tab.animation_view.get():
+        tab.toggle_view()
+        app.update()
+    lista.yview("moveto", 0.7)
+    app.update()
+    clip_actual = nombre_publico(panel.character.get())
+    comprobar(
+        lista.get(lista.curselection()[0]) == clip_actual,
+        "en animation view la lista señala al personaje del clip",
+    )
+    tab.toggle_view()
+    app.update()
+    comprobar(
+        lista.get(lista.curselection()[0]) == elegido and lista._first == 0,
+        "al pasar a character view señala al del visor, y arriba del todo",
+    )
+    tab.toggle_view()
+    app.update()
+    comprobar(
+        lista.get(lista.curselection()[0]) == clip_actual and lista._first == 0,
+        "y al volver a animation view vuelve al del clip",
+    )
+    # Se deja como estaba, que la comprobacion siguiente empieza desde la vista
+    # de personajes y sin 'Replace character' marcado.
+    if tab.replace_character.get():
+        tab.toggle_replace_character()
+        app.update()
+    if tab.animation_view.get():
+        tab.toggle_view()
+        app.update()
+    # Y al volver a la vista de personajes, con el boton aun marcado, la lista
+    # tiene que seguir enseñando el personaje que eligió el usuario. El flag no
+    # se reinicia al cambiar de vista, asi que si solo se mirase ese, el clip
+    # venia a sobreescribir la seleccion.
+    tab.replace_character.set(True)
+    tab._animation_character_changed("johnnysmith")
+    app.update()
+    comprobar(
+        lista.get(lista.curselection()[0]) == elegido,
+        "el clip no pisa la selección de la lista en Character View",
+    )
+    tab.replace_character.set(False)
+    if tab.animation_view.get():
+        tab.toggle_view()
+        app.update()
+
+    # El primer clic tiene que valer tambien cuando el personaje es el que ya
+    # esta cargado en el visor. `select()` sale pronto en ese caso, y si por ahi
+    # no se avisa al panel, hay que pulsar dos veces.
+    if not tab.animation_view.get():
+        tab.toggle_view()
+        app.update()
+    if not tab.replace_character.get():
+        tab.replace_button.invoke()
+        app.update()
+    lista.yview("moveto", 0.0)
+    app.update()
+    sel = lista.curselection()
+    if sel and tab.current in tab.visible:
+        fila = tab.visible.index(tab.current) - lista._first
+        if 0 <= fila < max(1, lista._visible_rows()):
+            alto = lista._row_height
+            y = 6 + fila * alto + alto // 2
+            lista.event_generate("<Button-1>", x=30, y=y)
+            lista.event_generate("<ButtonRelease-1>", x=30, y=y)
+            app.update()
+            comprobar(
+                panel.character.get() == tab.current,
+                "un clic sobre el personaje ya cargado sí lo lleva al clip",
+            )
+
+    # Y al revés: elegir en la lista de animaciones no debe tocar el personaje
+    # del visor, que es el que esa vista tiene que recordar.
+    fila = 2 - lista._first
+    if 0 <= fila < max(1, lista._visible_rows()):
+        alto = lista._row_height
+        y = 6 + fila * alto + alto // 2
+        lista.event_generate("<Button-1>", x=30, y=y)
+        lista.event_generate("<ButtonRelease-1>", x=30, y=y)
+        app.update()
+        comprobar(
+            (tab.current or "").casefold() == (nombre or "").casefold(),
+            "elegir en animaciones no cambia el personaje del visor",
+        )
+        comprobar(
+            panel.character.get() != "ashtonfelt",
+            "pero sí el del clip",
+        )
+    if tab.replace_character.get():
+        tab.toggle_replace_character()
+        app.update()
+    if tab.animation_view.get():
+        tab.toggle_view()
+        app.update()
+    comprobar(
+        not tab.animation_view.get() and not tab.replace_character.get(),
+        "la comprobación deja la vista como la encontró",
+    )
+    comprobar(
+        (tab.current or "").casefold() == (nombre or "").casefold(),
+        "y el visor sigue con el personaje que tenía",
+    )
+
+
 def prueba_app():
     seccion("App completa")
     app = Sims2PSPApp(base=DATOS)
@@ -584,7 +832,9 @@ def prueba_app():
     app.update_idletasks()
     app.update()
     tamano = (app.winfo_width(), app.winfo_height())
-
+    comprobar_pestanas_no_cambian_de_ancho(app)
+    comprobar_deslizadores(app)
+    comprobar_personaje_por_defecto(app)
     def orbit(tab, veces=8):
         canvas = tab.canvas
         canvas.event_generate("<ButtonPress-1>", x=120, y=120)
@@ -599,7 +849,31 @@ def prueba_app():
     for tab in (app.character_tab, app.prop_tab, app.map_tab):
         app.tabs.select(tab)
         app.update()
+        # La primera vez que se abre la pestaña de props se escanean los .res en
+        # un hilo, para no congelar la ventana. Es un trabajo de una vez: se espera
+        # a que termine antes de cronometrar, o lo que se mide es el escaneo de
+        # fondo y no el render.
+        waited = time.perf_counter()
+        while (
+            time.perf_counter() - waited < 30
+            and getattr(tab, "_anim_queue", None) is not None
+        ):
+            app.update()
+            time.sleep(0.05)
+        comprobar(
+            getattr(tab, "_anim_queue", None) is None,
+            f"{type(tab).__name__}: el escaneo de animaciones termina solo",
+        )
         app.update_idletasks()
+        # La camara se prueba sobre algo que se pueda mover. La pestana de
+        # personajes abre con Bella Goth cargado; si no lo estuviera, sin modelo
+        # el foco no cambiaria al orbitar y la comprobacion no diria nada.
+        if tab is app.character_tab and not tab.current:
+            tab.select_name(
+                "bellagoth" if "bellagoth" in tab.visible else tab.visible[0]
+            )
+            app.update()
+            app.update_idletasks()
         antes = (tab.camera.yaw, tab.camera.pitch, tab.camera.zoom)
         foco_antes = tab.camera.focus_offset
         orbit(tab)
@@ -627,6 +901,17 @@ def prueba_app():
         comprobar(estable, f"{type(tab).__name__}: la ventana no crece al girar")
         comprobar(frame < 20, f"{type(tab).__name__}: el frame dura menos de 20 ms")
 
+    # Se guarda el ancho del visor antes de ensanchar la ventana, para comprobar
+    # que CRECE en vez de mirar un numero fijo: las columnas laterales se han
+    # ensanchado (la de Shape Keys comparte hueco con el panel de animaciones) y
+    # un umbral absoluto empezaria a fallar por eso, no porque el render se
+    # adaptase mal.
+    anchos_antes = {}
+    for tab in (app.character_tab, app.prop_tab, app.map_tab):
+        app.tabs.select(tab)
+        app.update()
+        app.update_idletasks()
+        anchos_antes[tab] = tab.canvas.view_size()[0]
     app.geometry("1400x900")
     app.update()
     for tab in (app.character_tab, app.prop_tab, app.map_tab):
@@ -639,9 +924,10 @@ def prueba_app():
         "la ventana se redimensiona y las pestañas repintan",
     )
     for tab in (app.character_tab, app.prop_tab, app.map_tab):
+        ancho = tab.canvas.view_size()[0]
         print(f"  {type(tab).__name__:13} vista {tab.canvas.view_size()}")
         comprobar(
-            tab.canvas.view_size()[0] > 900,
+            ancho > anchos_antes[tab],
             f"{type(tab).__name__}: el render se adapta al tamaño nuevo",
         )
 
@@ -711,43 +997,373 @@ def prueba_app():
         and character_tab.shape_id is not None,
         "el nombre abreviado conserva el Shape Key original",
     )
-    comprobar_animaciones(app)
+    comprobar_vista_animaciones_de_personajes(app)
     app.close()
 
 
-def comprobar_animaciones(app):
-    """La vista previa de animaciones dibuja en la GPU y con texturas."""
+def comprobar_vista_animaciones_de_personajes(app):
+    """La vista 'Animation View' de la pestaña de personajes pinta un clip.
+
+    Comparte el lienzo con el personaje estatico, asi que hay que comprobar las
+    dos cosas: que el clip se dibuja y que al volver se repinta el personaje.
+    """
     import time
 
-    tab = app.animation_tab
+    tab = app.character_tab
     app.tabs.select(tab)
-    app.update()
-    inicio = time.perf_counter()
-    while time.perf_counter() - inicio < 60 and tab.preview is None:
-        app.update()
-        time.sleep(0.05)
-    comprobar(tab.preview is not None, "se carga un clip de animación")
-    comprobar(tab.escena is not None, "la vista previa de animaciones usa la GPU")
-    if tab.escena is not None:
-        texturas = {t for _, t, _, _ in tab.escena.dibujos}
-        print(f"  {len(tab.escena.dibujos)} mallas con {len(texturas)} texturas")
-        comprobar(len(texturas) > 0, "las animaciones se dibujan con texturas")
-        comprobar(
-            len(texturas) < len(tab.escena.dibujos),
-            "las mallas que comparten textura no la suben otra vez",
+    comprobar(
+        tab.view_button.cget("text") == "Animation View",
+        "el botón de la vista de animaciones empieza en 'Animation View'",
+    )
+    comprobar(
+        not tab.animation_view.get(), "arranca en la vista de personajes"
+    )
+    # El boton dice a donde se va, y va centrado en su columna.
+    boton = tab.view_button
+    comprobar(
+        abs(
+            (boton.winfo_x() + boton.winfo_width() // 2)
+            - (boton.master.winfo_width() // 2)
         )
-    tab.render_frame(0.0)
-    app.update()
-    antes = tab.canvas.itemcget(tab.canvas._item, "image")
-    tab.render_frame(1.0)
+        <= 2,
+        "el botón de vista está centrado en su columna",
+    )
+    # El boton se comporta como los demas: verde mientras se mantiene y al
+    # kembali normal solo, nunca fijo por el estado de la vista. El estado de
+    # ttk es lo que cambia; el estilo se queda puesto el mismo.
+    comprobar(
+        boton.cget("style") == "ViewToggle.TButton",
+        "el botón de vista usa su propio estilo de toggle",
+    )
+    comprobar(
+        "pressed" not in boton.state(),
+        "el botón de vista está normal por defecto",
+    )
+    boton.event_generate("<ButtonPress-1>", x=10, y=5)
     app.update()
     comprobar(
-        bool(antes) and bool(tab.canvas.itemcget(tab.canvas._item, "image")),
-        "la animación se repinta al avanzar el tiempo",
+        "pressed" in boton.state(),
+        "el botón de vista se pone verde al mantenerlo",
     )
-    frame = cronometrar(lambda: tab.render_frame(0.5), 6)
-    print(f"  frame de animación {frame:5.2f} ms ({1000 / frame:5.0f} fps)")
-    comprobar(frame < 25, "la animación se reproduce sin que se note")
+    boton.event_generate("<ButtonRelease-1>", x=10, y=5)
+    app.update()
+    comprobar(
+        "pressed" not in boton.state(),
+        "y vuelve a su estado normal al soltar",
+    )
+    waited = time.perf_counter()
+    while time.perf_counter() - waited < 0.3:
+        app.update()
+    comprobar(
+        "pressed" not in boton.state(),
+        "y se queda normal, no verde fijo",
+    )
+    # Ese clic ha conmutado la vista, que es lo que debe hacer.
+    comprobar(tab.animation_view.get(), "el clic cambia de vista")
+    tab.toggle_view()
+    app.update()
+    # Un personaje que el panel de animaciones no elige por las reglas del clip,
+    # para que se note si la otra vista lo pisa.
+    personaje = "ashtonfelt" if "ashtonfelt" in tab.visible else tab.visible[0]
+    tab.select_name(personaje)
+    app.update()
+    # winfo_ismapped no vale aqui: con la ventana sin mapear del todo, ninguna
+    # lista sale como mapeada aunque esten las dos puestas. Lo que se comprueba
+    # es que las dos vistas esten gestionadas por el gestor de geometria.
+    comprobar(
+        tab.characters_frame.winfo_manager() == "pack"
+        and tab.shapes_view.winfo_manager() == "pack",
+        "arranca con la lista de personajes y la de Shape Keys puestas",
+    )
+    comprobar(
+        tab.animation_frame.winfo_manager() == "",
+        "y el panel de animaciones sin empaquetar hasta conmutar",
+    )
+    tab.toggle_view()
+    app.update()
+    comprobar(
+        tab.view_button.cget("text") == "Character View",
+        "el botón pasa a 'Character View' para volver",
+    )
+    comprobar(tab.animation_view.get(), "la conmutación activa la vista de animaciones")
+    panel = tab.animations
+    inicio = time.perf_counter()
+    while time.perf_counter() - inicio < 60 and panel.preview is None:
+        app.update()
+        time.sleep(0.05)
+    comprobar(panel.preview is not None, "la vista de animaciones carga un clip")
+    comprobar(panel.escena is not None, "la vista de animaciones usa la GPU")
+    if panel.escena is not None:
+        texturas = {t for _, t, _, _ in panel.escena.dibujos}
+        print(f"  {len(panel.escena.dibujos)} mallas con {len(texturas)} texturas")
+        comprobar(len(texturas) > 0, "las animaciones se dibujan con texturas")
+        comprobar(
+            len(texturas) < len(panel.escena.dibujos),
+            "las mallas que comparten textura no la suben otra vez",
+        )
+        panel.render_frame(0.3)
+        app.update()
+        antes = tab.canvas.itemcget(tab.canvas._item, "image")
+        panel.render_frame(1.1)
+        app.update()
+        comprobar(bool(antes), "el clip se dibuja en el lienzo de personajes")
+        comprobar(
+            bool(tab.canvas.itemcget(tab.canvas._item, "image")),
+            "y se repinta al avanzar el tiempo",
+        )
+        frame = cronometrar(lambda: panel.render_frame(0.5), 6)
+        print(f"  frame de animación {frame:5.2f} ms ({1000 / frame:5.0f} fps)")
+        comprobar(frame < 25, "la animación se reproduce sin que se note")
+    comprobar(
+        tab.listbox.winfo_ismapped() == 0, "la lista de personajes se oculta"
+    )
+    comprobar(
+        tab.shape_list.winfo_ismapped() == 0, "la lista de Shape Keys se oculta"
+    )
+    comprobar(
+        panel.listbox.winfo_ismapped() == 1, "la lista de clips se ve"
+    )
+    # Lo que se ve tiene que tener alto de verdad. Con las dos vistas
+    # apiladas y expand=True, pack reparte segun lo pedido por cada una y la
+    # segunda se quedaba aplastada a un pixel.
+    alto_clips = panel.listbox.winfo_height()
+    comprobar(alto_clips > 100, f"la lista de clips tiene alto usable ({alto_clips})")
+    comprobar(
+        panel.play_button.winfo_ismapped() == 1, "los controles de Play se ven"
+    )
+    # El visor lo lleva el panel en esta vista, pero la camara y el
+    # redimensionado entran por CharacterTab.render. Si ese metodo se limita a no
+    # dibujar, arrastrar deja el visor congelado sin que se note por que.
+    if panel.escena is not None:
+        antes = tab.canvas.itemcget(tab.canvas._item, "image")
+        yaw = tab.camera.yaw
+        tab.canvas.event_generate("<ButtonPress-1>", x=400, y=400)
+        for paso in range(10):
+            tab.canvas.event_generate("<B1-Motion>", x=400 + paso * 18, y=400)
+            app.update()
+        tab.canvas.event_generate("<ButtonRelease-1>", x=580, y=400)
+        app.update()
+        comprobar(
+            tab.camera.yaw != yaw, "la cámara orbita en la vista de animaciones"
+        )
+        comprobar(
+            tab.canvas.itemcget(tab.canvas._item, "image") != antes,
+            "y el clip se repinta al arrastrar",
+        )
+    comprobar(
+        panel.play_button.winfo_width() >= panel.play_button.winfo_reqwidth(),
+        "el botón de Play no se queda a medias",
+    )
+    comprobar(
+        panel.fps_button.winfo_width() >= panel.fps_button.winfo_reqwidth(),
+        "el botón de FPS no se queda a medias",
+    )
+    comprobar(
+        tab.export_button.text == "Export clip as...",
+        "el botón flotante dice que va a exportar el clip",
+    )
+    comprobar(
+        tab.export_button.command == tab.export_segun_vista,
+        "el botón flotante despacha según la vista",
+    )
+    # 'Replace character' solo tiene sentido en la vista de animaciones, que es
+    # donde el clip elige el personaje por su cuenta.
+    comprobar(
+        tab.replace_button.winfo_ismapped() == 1,
+        "el botón Replace character aparece en la vista de animaciones",
+    )
+    comprobar(
+        not tab.replace_character.get(),
+        "y de salida está desmarcado, para que mande el clip",
+    )
+    comprobar(
+        tab.listbox.winfo_ismapped() == 0,
+        "la lista de personajes sigue oculta sin marcarlo",
+    )
+    # Desactivado: verde entero al mantener y normal al soltar.
+    comprobar(
+        tab.replace_button.cget("style") == "ViewToggle.TButton",
+        "desactivado, el botón se pone verde al mantenerlo",
+    )
+    tab.replace_button.event_generate("<ButtonPress-1>", x=10, y=5)
+    app.update()
+    comprobar(
+        "pressed" in tab.replace_button.state(),
+        "y se pone verde al mantenerlo",
+    )
+    tab.replace_button.event_generate("<ButtonRelease-1>", x=10, y=5)
+    app.update()
+    comprobar(
+        "pressed" not in tab.replace_button.state(),
+        "y al soltar deja de estar pulsado",
+    )
+    # Ese clic lo ha activado: la lista se abre y el boton se queda en verde
+    # fijo. Es la diferencia con el boton de vista, que vuelve siempre a su
+    # color normal porque su estado no se ve en ninguna parte.
+    comprobar(
+        tab.replace_character.get() and tab.listbox.winfo_ismapped() == 1,
+        "al marcarlo se abre la lista de personajes",
+    )
+    # La lista es la misma que la de la vista de personajes, asi que al abrirla
+    # tiene que verse marcado el personaje que esta viendo el clip. No es el de
+    # la vista de personajes: al abrir el boton se ven los dos a la vez.
+    sel = tab.listbox.curselection()
+    comprobar(
+        bool(sel)
+        and tab.listbox.get(sel[0]) == nombre_publico(tab.animations.character.get()),
+        "y sale marcado el personaje que está viendo el clip",
+    )
+    # Y si el clip cambia de personaje por sus reglas, el resaltado le sigue.
+    tab._animation_character_changed("johnnysmith")
+    app.update()
+    sel = tab.listbox.curselection()
+    comprobar(
+        bool(sel) and tab.listbox.get(sel[0]) == "Johnny Smith",
+        "el resaltado sigue al personaje que elige el clip",
+    )
+    # Marcar no puede recargar el modelo: `selection_set` ademas emite el evento
+    # de seleccion, y aqui lo unico que se quiere es pintar la marca.
+    comprobar(
+        (tab.current or "").casefold() == "ashtonfelt",
+        "y marcar no recarga el personaje del visor",
+    )
+    # Con 'Replace character' marcado manda lo que se elija, no las reglas del
+    # clip. Se mira la regla del panel en si, sin tocar el clip cargado: cargar
+    # otro aqui dejaria el panel en un estado que la comprobacion siguiente no
+    # espera.
+    tab.replace_character.set(True)
+    comprobar(
+        not panel._auto_character(),
+        "con Replace character marcado, las reglas del clip no imponen",
+    )
+    tab._animation_character_changed("bellagoth")
+    app.update()
+    comprobar(
+        tab.replace_button.cget("style") == "SelectedHold.TButton",
+        "activado, el botón se queda en verde",
+    )
+    # Activado no se resalta al pasar el raton. ttk sigue poniendo su bandera
+    # 'active' con el raton encima; lo que evita el salto de color es que el
+    # elemento del boton use la misma imagen para 'normal' y para 'active'. Eso
+    # no se puede leer desde ttk, asi que se comprueba que el estilo activo es
+    # el propio del tema y no el de los toggles, que si resaltan.
+    comprobar(
+        "pressed" not in tab.replace_button.state(),
+        "activado, el botón se queda pulsado sin depender del ratón",
+    )
+    comprobar(
+        ttk.Style(tab).layout("SelectedHold.TButton")[0][0]
+        == "Sims.SelectedHoldButton",
+        "y el estilo activo es el del tema que no resalta al pasar el ratón",
+    )
+    tab.replace_button.event_generate("<ButtonPress-1>", x=10, y=5)
+    app.update()
+    comprobar(
+        "pressed" in tab.replace_button.state(),
+        "y estando verde tambien reacciona al mantenerlo",
+    )
+    # El clic lo apaga, y entonces si vuelve al estilo normal: verde solo al
+    # mantener. Este segundo clic es el que lo apaga, porque el de antes lo
+    # encendio.
+    tab.replace_button.event_generate("<ButtonRelease-1>", x=10, y=5)
+    app.update()
+    comprobar(
+        "pressed" not in tab.replace_button.state()
+        and not tab.replace_character.get()
+        and tab.replace_button.cget("style") == "ViewToggle.TButton",
+        "al desactivarlo vuelve al estilo normal, verde solo al mantener",
+    )
+    comprobar(
+        tab.listbox.winfo_ismapped() == 0,
+        "y la lista de personajes se vuelve a cerrar",
+    )
+    # Se deja activado para lo que viene: es el estado que dispara el fallo de
+    # orden, con la lista abierta y el ida y vuelta entre las dos vistas.
+    tab.replace_button.invoke()
+    app.update()
+    tab.toggle_view()
+    app.update()
+    tab.toggle_view()
+    app.update()
+    comprobar(
+        tab.replace_button.winfo_manager() == "pack"
+        and tab.characters_frame.winfo_manager() == "pack",
+        "al volver a la vista de animaciones siguen los dos a la vista",
+    )
+    comprobar(
+        tab.replace_button.winfo_rooty() > 0
+        and tab.replace_button.winfo_rooty() < tab.listbox.winfo_rooty(),
+        "y el botón Replace character sigue encima de la lista, no debajo",
+    )
+    # El ancho del botón se calcula a partir del texto. Si se cambia la etiqueta
+    # sin recalcularlo, 'Export clip as...' se sale de la pastilla.
+    comprobar(
+        tab.export_button.width
+        >= tab.winfo_toplevel()._sims_floating_text_width(
+            tab.export_button.text
+        ),
+        "el botón flotante es lo bastante ancho para su texto",
+    )
+    # El panel de clips tiene que medir lo mismo que en su propia pestaña: si
+    # se queda mas estrecho, el recorrido del pulgar se ve mas corto.
+    # El cursor va con el fotograma que se dibuja. Antes `render_frame` movia el
+    # reloj y dejaba el pulgar donde estuviera, asi que marcaba otro instante.
+    if panel.preview is not None:
+        duracion = panel.preview[2]["extras"]["sourceDuration"]
+        panel.render_frame(duracion)
+        app.update()
+        comprobar(
+            abs(panel.position.get() - duracion) < 1e-6,
+            "el deslizador llega al final del clip",
+        )
+        comprobar(
+            panel.time_label.cget("text").startswith("0:03"),
+            "y el reloj concuerda con el final",
+        )
+        panel.render_frame(0.0)
+        app.update()
+        comprobar(
+            panel.position.get() == 0.0, "y vuelve al principio"
+        )
+    # Al volver, el personaje estatico tiene que volver a pintar su sitio: si
+    # no, el clip se queda pegado en pantalla.
+    tab.toggle_view()
+    app.update()
+    comprobar(
+        not tab.animation_view.get(), "vuelve a la vista de personajes"
+    )
+    # El panel elige personaje por las reglas del clip. Si eso tocara la
+    # seleccion de la vista de personajes, al volver aparecia otro.
+    comprobar(
+        tab.current == personaje,
+        "al volver sigue el personaje que habia en Character View",
+    )
+    comprobar(
+        tab.animations.character.get() != personaje
+        or not tab.animations.all_characters,
+        "el panel de animaciones lleva el suyo sin tocar el de la otra vista",
+    )
+    comprobar(
+        tab.view_button.cget("text") == "Animation View",
+        "y el botón vuelve a poner 'Animation View'",
+    )
+    comprobar(
+        tab.listbox.winfo_ismapped() == 1, "vuelve la lista de personajes"
+    )
+    comprobar(
+        tab.shape_list.winfo_ismapped() == 1, "vuelve la lista de Shape Keys"
+    )
+    tab.render()
+    app.update()
+    comprobar(bool(tab.parts), "el personaje estático sigue cargado")
+    comprobar(
+        tab.export_button.text == "Export as...",
+        "y el botón vuelve a decir 'Export as...'",
+    )
+    comprobar(
+        tab.replace_button.winfo_ismapped() == 0,
+        "y el botón Replace character desaparece en la vista de personajes",
+    )
 
 
 def prueba_arrastre():
@@ -811,3 +1427,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

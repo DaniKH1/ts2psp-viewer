@@ -1,4 +1,4 @@
-"""Convert extracted The Sims 2 PSP .res character meshes to rigged GLB.
+﻿"""Convert extracted The Sims 2 PSP .res character meshes to rigged GLB.
 
 Input: sims2_psp_personajes_recursos.zip generated from the local ISO.
 Optional texture archive: sims2_psp_personajes_texturas_png.zip.
@@ -633,6 +633,108 @@ def align_arm_bind_pose(bones, offset):
     return aligned
 
 
+# Que parte del hueco se corrige en los huesos de la mano. El hueso no esta en
+# el centro de su piel sino en la articulacion, y la articulacion queda hacia
+# dentro de los dedos: llevar el hueso al centroide los deja enterrados en la
+# palma. La mitad es lo que mas se acerca sin pasarse.
+HUEGO_MANO_FRACCION = 0.5
+
+
+def descendientes(bones, raiz):
+    """Indices de `raiz` y de todo lo que cuelga de el."""
+    hijos = {}
+    for i, bone in enumerate(bones):
+        hijos.setdefault(bone["parent"], []).append(i)
+    fuera = set()
+    pila = [raiz]
+    while pila:
+        i = pila.pop()
+        if i in fuera:
+            continue
+        fuera.add(i)
+        pila.extend(hijos.get(i, ()))
+    return fuera
+
+
+def hand_bind_offset(bones, body_parts):
+    """Cuanto hacia dentro de su piel caen los huesos de cada mano, en metros.
+
+    Es un error distinto del vertical que mide `arm_bind_offset`: aqui los
+    huesos salen bien de alto pero metidos en la mano, tres o cuatro
+    centimetro. Se mide por rama comparando el centro de la piel que la mueve
+    con el centro de sus huesos.
+
+    De la rama se saca la muneca y solo quedan los dedos. La muneca pesa
+    mucho en el centro y su piel la arrastra hacia dentro el puño de la manga:
+    en Doctor Dominion eso separaba las dos manos 15 mm (la derecha 62, la
+    izquierda 13) cuando los dedos de una y otra coinciden en 2 mm. Los dedos
+    son las articulaciones que se mueven y los que hay que mirar.
+
+    Devuelve un diccionario lado -> metros a empujar hacia fuera. Vacio si no
+    hay manos, si la piel no las mueve o si las dos manos no coinciden: una
+    medida que solo sale de un brazo no es un error sistematico sino otra malla.
+    """
+    names = {bone["name"]: i for i, bone in enumerate(bones)}
+    offsets = {}
+    for side, fuera in (("R", 1.0), ("L", -1.0)):
+        raiz = f"__{side}_Hand__"
+        if raiz not in names:
+            return {}
+        rama = descendientes(bones, names[raiz]) - {names[raiz]}
+        if not rama:
+            return {}
+        acumulada = np.zeros(3)
+        peso = 0.0
+        for part in body_parts:
+            for vertex in part["vertices"]:
+                for bone_id, weight in zip(part["palette"], vertex[3]):
+                    if bone_id in rama and weight:
+                        acumulada += np.asarray(vertex[0]) * weight
+                        peso += weight
+        if not peso:
+            return {}
+        piel = acumulada / peso / 1000.0
+        centros = sum(bones[i]["world"][3, :3] for i in rama) / len(rama)
+        offsets[side] = float((piel[0] - centros[0]) * fuera)
+    if abs(offsets["R"] - offsets["L"]) > 0.015:
+        return {}
+    hueco = (offsets["R"] + offsets["L"]) / 2
+    return {side: hueco for side in offsets} if 0.01 <= hueco <= 0.10 else {}
+
+
+def align_hand_bind_pose(bones, offsets):
+    """Empuja los huesos de las manos hacia fuera, dentro de la piel que mueven.
+
+    Solo se mueve la rama de la muñeca: el brazo se queda donde lo puso
+    `align_arm_bind_pose`. Como alli, se recalcula la inversa de la enlace para
+    que el GLB siga teniendo una pose de referencia valida.
+    """
+    if not offsets:
+        return bones
+    names = {bone["name"]: i for i, bone in enumerate(bones)}
+    ramas = []
+    for side, fuera in (("R", 1.0), ("L", -1.0)):
+        raiz = f"__{side}_Hand__"
+        if raiz not in names or side not in offsets:
+            return bones
+        paso = offsets[side] * fuera * HUEGO_MANO_FRACCION
+        if paso:
+            ramas.append((descendientes(bones, names[raiz]), paso))
+    if not ramas:
+        return bones
+    pasos = {}
+    for ids, paso in ramas:
+        for i in ids:
+            pasos[i] = paso
+    aligned = []
+    for i, bone in enumerate(bones):
+        world = bone["world"].copy()
+        if i in pasos:
+            world[3, 0] += pasos[i]
+        aligned.append({**bone, "world": world, "ibm": np.linalg.inv(world)})
+    return aligned
+
+
 # Nombre que se ve en las listas de personajes. El slug de la ficha NO cambia:
 # es lo que da nombre a las texturas (`composed_textures/top/<slug>`), a las
 # mallas, al GLB de la cache y a los ficheros exportados. Solo cambia lo que se
@@ -1115,9 +1217,14 @@ def convert_character(
     rigs = [parse_bones(face_sources.get(name, data)) for name, data in resources]
     torso_name = row.get("bodyTorso")
     if torso_name in mesh_parts:
-        torso_rig = rigs[paths.index(torso_name)]
-        offset = arm_bind_offset(torso_rig, mesh_parts[torso_name])
+        torso_index = paths.index(torso_name)
+        offset = arm_bind_offset(rigs[torso_index], mesh_parts[torso_name])
         rigs = [align_arm_bind_pose(rig, offset) for rig in rigs]
+        # El mismo ajuste que al ver el personaje quieto. Sin el, el
+        # esqueleto que se pinta encima del clip sale con los huesos de la
+        # mano metidos dentro de la palma, y al mover los brazos se nota.
+        hueco = hand_bind_offset(rigs[torso_index], mesh_parts[torso_name])
+        rigs = [align_hand_bind_pose(rig, hueco) for rig in rigs]
     glb = GLB()
     skin_rigs = []
     for (name, data), rig in zip(resources, rigs):
@@ -1170,3 +1277,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

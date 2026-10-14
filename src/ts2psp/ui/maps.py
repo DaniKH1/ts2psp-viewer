@@ -102,6 +102,14 @@ class MapTab(ttk.Frame):
         self.refresh()
         if self.visible:
             self.map_list.selection_set(0)
+            # El mapa se carga la primera vez que se abre la pestaña, no al
+            # construirla: parsearlo son varios segundos y hay quien solo quiere
+            # personajes o props.
+
+    def on_shown(self):
+        """Carga el primer mapa la primera vez que se muestra la pestaña."""
+        if self.visible and self.current is None:
+            self.map_list.selection_set(0)
             self.select_map()
 
     def refresh(self, _event=None):

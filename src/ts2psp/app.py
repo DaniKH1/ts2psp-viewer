@@ -1,4 +1,4 @@
-"""Application startup, ISO import and tab coordination."""
+﻿"""Application startup, ISO import and tab coordination."""
 
 import csv
 import io
@@ -27,11 +27,10 @@ from ts2psp.rendering.animation import draw as draw_animation
 from ts2psp.rendering.animation import posed_meshes
 import ts2psp.rendering.opengl as gl
 from ts2psp.ui.maps import MapTab
-from ts2psp.paths import default_data_base
+from ts2psp.paths import beside_app, default_data_base
 from ts2psp.exporting.blender import export_path
 from ts2psp.ui.characters import CharacterTab
 from ts2psp.ui.objects import PropTab
-from ts2psp.ui.animations import AnimationTab
 from ts2psp.ui.theme import (
     APP_ICON_ICO_PATH,
     NOTEBOOK_TAB_LABELS,
@@ -51,17 +50,16 @@ class Sims2PSPApp(tk.Tk):
             self.iconbitmap(default=str(APP_ICON_ICO_PATH))
             self.iconbitmap(str(APP_ICON_ICO_PATH))
         self.sims_colors = _install_sims_theme(self)
-        self.title("The Sims 2 PSP Ã‚Â· Models, maps and animations (GPU)")
+        self.title("TS2PSP Viewer")
         self.geometry("1260x850")
         self.minsize(1080, 740)
         self.base = Path(base) if base is not None else default_data_base()
         self.base.mkdir(parents=True, exist_ok=True)
-        self.export_root = Path.home() / "Documents" / "TS2 PSP Viewer" / "exports"
+        self.export_root = beside_app() / "exports"
         self.data_dir = self.base / "data"
         self.paths = {}
         self.tabs = None
         self.welcome = None
-        self.animation_tab = None
         self.importing = False
         self.import_messages = queue.Queue()
         self.info = tk.StringVar(value="")
@@ -108,6 +106,22 @@ class Sims2PSPApp(tk.Tk):
         self.after(100, self.poll_import)
         self.protocol("WM_DELETE_WINDOW", self.close)
 
+    def _pestana_mostrada(self, _event=None):
+        """Avisa a la pestaña visible de que puede hacer su trabajo perezoso.
+
+        Cada pestaña que tenga `on_shown` la ejecuta al mostrarse la primera vez.
+        Asi el arranque no paga el escaneo de props ni el analisis del mapa, que
+        juntos eran casi todo el tiempo de carga.
+        """
+        try:
+            # `select()` devuelve el nombre del widget, no el widget
+            tab = self.tabs.nametowidget(self.tabs.select())
+        except (tk.TclError, KeyError):
+            return
+        mostrar = getattr(tab, "on_shown", None)
+        if mostrar is not None:
+            mostrar()
+
     def show_welcome(self):
         if self.tabs:
             self.tabs.destroy()
@@ -118,7 +132,7 @@ class Sims2PSPApp(tk.Tk):
         self.welcome.pack(fill="both", expand=True)
         ttk.Label(
             self.welcome,
-            text="The Sims 2 PSP Ã‚Â· Viewer and extractor",
+            text="TS2PSP Viewer",
             font=(self._sims_font_family, 21, "bold"),
         ).pack(anchor="w", pady=(30, 20))
         ttk.Label(
@@ -148,7 +162,6 @@ class Sims2PSPApp(tk.Tk):
             self.character_tab.dispose()
             self.prop_tab.dispose()
             self.map_tab.dispose()
-            self.animation_tab.dispose()
             self.tabs.destroy()
         if self.welcome:
             self.welcome.destroy()
@@ -163,17 +176,10 @@ class Sims2PSPApp(tk.Tk):
         self.character_tab = CharacterTab(self.tabs, self)
         self.prop_tab = PropTab(self.tabs, self)
         self.map_tab = MapTab(self.tabs, self, export_path)
-        self.animation_tab = AnimationTab(self.tabs, self)
         self.tabs.add(
             self.character_tab,
             text="Characters",
             image=self._sims_tab_images["Characters"],
-            compound="center",
-        )
-        self.tabs.add(
-            self.animation_tab,
-            text="Animations",
-            image=self._sims_tab_images["Animations"],
             compound="center",
         )
         self.tabs.add(
@@ -188,19 +194,31 @@ class Sims2PSPApp(tk.Tk):
             image=self._sims_tab_images["Maps"],
             compound="center",
         )
+        # Las pestañas que tienen trabajo perezoso lo hacen la primera vez que
+        # se muestran, para no pagarlo en el arranque.
+        self.tabs.bind("<<NotebookTabChanged>>", self._pestana_mostrada)
         hovered_tab = None
 
         def set_tab_highlight(index):
             nonlocal hovered_tab
             if index == hovered_tab:
                 return
+
+            def poner(indice, imagenes):
+                # Se busca por el nombre de la pestaña, no por su posición. Con
+                # una lista fija, quitar o añadir una pestaña descuadra el
+                # y al pasar el ratón se le cambia la textura por la de
+                # resaltado, que se busca por su nombre.
+                etiqueta = self.tabs.tab(indice, "text")
+                imagen = imagenes.get(etiqueta)
+                if imagen is not None:
+                    self.tabs.tab(indice, image=imagen)
+
             if hovered_tab is not None:
-                label = NOTEBOOK_TAB_LABELS[hovered_tab]
-                self.tabs.tab(hovered_tab, image=self._sims_tab_images[label])
+                poner(hovered_tab, self._sims_tab_images)
             hovered_tab = index
             if hovered_tab is not None:
-                label = NOTEBOOK_TAB_LABELS[hovered_tab]
-                self.tabs.tab(hovered_tab, image=self._sims_tab_highlight_images[label])
+                poner(hovered_tab, self._sims_tab_highlight_images)
 
         def update_tab_highlight(event):
             if self.tabs.identify(event.x, event.y) == "label":
@@ -230,7 +248,7 @@ class Sims2PSPApp(tk.Tk):
     def select_iso(self):
         if self.importing:
             return
-        if self.animation_tab and self.animation_tab.exporting:
+        if self.character_tab.animations.exporting:
             messagebox.showinfo("Import", "Wait for the current export to finish.")
             return
         path = filedialog.askopenfilename(
@@ -320,7 +338,6 @@ class Sims2PSPApp(tk.Tk):
             self.character_tab.dispose()
             self.prop_tab.dispose()
             self.map_tab.dispose()
-            self.animation_tab.dispose()
         # cancela el temporizador de la importacion: si no, Tk avisa de un comando
         # pendiente en el momento de destruir la ventana
         try:

@@ -90,6 +90,20 @@ class FloatingButton:
         """Re-render, e.g. after the text or the selected flag changed."""
         self._build()
 
+    def set_text(self, text, width=None):
+        """Cambia la etiqueta y vuelve a pintar el boton.
+
+        El ancho hay que recalcularlo: la pastilla se dimensiona al construirla
+        con el texto que tenia entonces, y si se alarga sin mas el texto se sale
+        por debajo. Quien llama le pasa el ancho nuevo ya medido.
+        """
+        if self.text == text and (width is None or width == self.width):
+            return
+        self.text = text
+        if width is not None:
+            self.width = int(width)
+        self.refresh()
+
     def set_selected(self, selected):
         if self.selected != selected:
             self.selected = bool(selected)

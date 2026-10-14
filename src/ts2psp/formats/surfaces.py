@@ -46,7 +46,8 @@ def decode_bc(raw, width, height, mode):
             block = raw[at : at + block_size]
             a, b = struct.unpack_from("<HH", block, 4)
             c0, c1 = color565(a), color565(b)
-            if a > b:
+            # BC2/BC3 always use four colors, independently of endpoint order.
+            if mode != 0x1F or a > b:
                 palette = [
                     c0,
                     c1,
@@ -132,7 +133,11 @@ def _decode_surface_at(data, off, section_size, head):
         pixels = decode_bc(raw, width, height, mode)
     else:
         rowbytes = byte_count // height
-        if flags & 0x100:
+        # El bit que marca el swizzle no siempre es el 8: los inodoros lo llevan
+        # en el 9 y sus texturas salian en rayas horizontales. Comparando las
+        # 1005 texturas de 8 y 4 bits del catalogo con y sin la pasada, solo
+        # 7 necesitan un bit que el 8 no cubria, y los tres lo cubren.
+        if flags & 0x700:
             raw = unswizzle(raw, height, rowbytes)
         if mode in (0x1D, 0x1E):
             packed = np.frombuffer(raw, dtype=np.uint8)

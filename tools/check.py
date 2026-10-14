@@ -27,6 +27,8 @@ def main():
             "test_shape_key_preset_textures.py",
             "test_floating_button_wiring.py",
             "test_gpu.py",
+            "test_prop_material_gpu.py",
+            "test_prop_helpers_gui.py",
         ):
             subprocess.run(
                 [sys.executable, str(ROOT / "tests" / name)],
@@ -34,6 +36,17 @@ def main():
                 env=environment,
                 check=True,
             )
+        subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "tests/test_prop_playback_gui.py"),
+                "--slow-frame",
+            ],
+            cwd=ROOT,
+            env=environment,
+            check=True,
+            timeout=45,
+        )
 
 
 if __name__ == "__main__":

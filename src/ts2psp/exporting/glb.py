@@ -25,25 +25,41 @@ class GLB:
         }
         self.bin = bytearray()
         self.texture_cache = {}
+        self.image_cache = {}
 
-    def add_texture(self, name, png_bytes):
-        if name in self.texture_cache:
-            return self.texture_cache[name]
-        while len(self.bin) % 4:
-            self.bin.append(0)
-        at = len(self.bin)
-        self.bin.extend(png_bytes)
-        view_idx = len(self.doc["bufferViews"])
-        self.doc["bufferViews"].append(
-            {"buffer": 0, "byteOffset": at, "byteLength": len(png_bytes)}
-        )
+    def add_texture(self, name, png_bytes, repeat=None):
+        state = (name, repeat)
+        if state in self.texture_cache:
+            return self.texture_cache[state]
         images = self.doc.setdefault("images", [])
-        image_idx = len(images)
-        images.append({"name": name, "bufferView": view_idx, "mimeType": "image/png"})
+        if name not in self.image_cache:
+            while len(self.bin) % 4:
+                self.bin.append(0)
+            at = len(self.bin)
+            self.bin.extend(png_bytes)
+            view_idx = len(self.doc["bufferViews"])
+            self.doc["bufferViews"].append(
+                {"buffer": 0, "byteOffset": at, "byteLength": len(png_bytes)}
+            )
+            self.image_cache[name] = len(images)
+            images.append(
+                {"name": name, "bufferView": view_idx, "mimeType": "image/png"}
+            )
+        image_idx = self.image_cache[name]
         textures = self.doc.setdefault("textures", [])
         texture_idx = len(textures)
-        textures.append({"name": name, "source": image_idx})
-        self.texture_cache[name] = texture_idx
+        texture = {"name": name, "source": image_idx}
+        if repeat is not None:
+            samplers = self.doc.setdefault("samplers", [])
+            sampler = {
+                "wrapS": 10497 if repeat else 33071,
+                "wrapT": 10497 if repeat else 33071,
+            }
+            if sampler not in samplers:
+                samplers.append(sampler)
+            texture["sampler"] = samplers.index(sampler)
+        textures.append(texture)
+        self.texture_cache[state] = texture_idx
         return texture_idx
 
     def accessor(
@@ -133,10 +149,12 @@ class GLB:
                 local = positions[index]
             matrix = np.eye(4)
             matrix[:3, 3] = local
-            self.doc["nodes"].append({
-                "name": name,
-                "translation": [float(v) for v in local],
-            })
+            self.doc["nodes"].append(
+                {
+                    "name": name,
+                    "translation": [float(v) for v in local],
+                }
+            )
         for index, (name, parent, _) in enumerate(joints):
             if 0 <= parent < index:
                 self.doc["nodes"][start + parent].setdefault("children", []).append(
@@ -147,21 +165,28 @@ class GLB:
         ibms = b"".join(
             struct.pack(
                 "<16f",
-                *[float(v) for v in np.array([
-                    [1.0, 0.0, 0.0, 0.0],
-                    [0.0, 1.0, 0.0, 0.0],
-                    [0.0, 0.0, 1.0, 0.0],
-                    [-p[0], -p[1], -p[2], 1.0],
-                ]).reshape(16)],
+                *[
+                    float(v)
+                    for v in np.array(
+                        [
+                            [1.0, 0.0, 0.0, 0.0],
+                            [0.0, 1.0, 0.0, 0.0],
+                            [0.0, 0.0, 1.0, 0.0],
+                            [-p[0], -p[1], -p[2], 1.0],
+                        ]
+                    ).reshape(16)
+                ],
             )
             for _, _, p in joints
         )
         ibm_acc = self.accessor(ibms, 5126, "MAT4", len(joints))
-        self.doc["skins"].append({
-            "joints": list(range(start, start + len(joints))),
-            "inverseBindMatrices": ibm_acc,
-            "skeleton": start,
-        })
+        self.doc["skins"].append(
+            {
+                "joints": list(range(start, start + len(joints))),
+                "inverseBindMatrices": ibm_acc,
+                "skeleton": start,
+            }
+        )
         return len(self.doc["skins"]) - 1
 
     def add_mesh(self, name, parts, skin_index, bone_count, texture=None):
@@ -257,7 +282,7 @@ class GLB:
                 "baseColorFactor": (
                     part.get("base_color", color)
                     if part_texture is None
-                    else [1, 1, 1, 1]
+                    else part.get("base_color", [1, 1, 1, 1])
                 ),
                 "metallicFactor": 0,
                 "roughnessFactor": 1,
@@ -265,7 +290,9 @@ class GLB:
             if part_texture is not None:
                 tex_name, png_bytes = part_texture
                 pbr["baseColorTexture"] = {
-                    "index": self.add_texture(tex_name, png_bytes),
+                    "index": self.add_texture(
+                        tex_name, png_bytes, part.get("repeat_texture")
+                    ),
                     "texCoord": 0,
                 }
             material = {
@@ -279,6 +306,13 @@ class GLB:
                 )
                 if alpha.getextrema()[0] < 255:
                     material.update(alphaMode="MASK", alphaCutoff=0.5)
+            if part.get("alpha_mode"):
+                material["alphaMode"] = part["alpha_mode"]
+                # glTF exige alphaCutoff en MASK y lo prohibe en BLEND
+                if part["alpha_mode"] == "MASK":
+                    material["alphaCutoff"] = 0.5
+                else:
+                    material.pop("alphaCutoff", None)
             self.doc["materials"].append(material)
             primitive = {
                 "attributes": attrs,
