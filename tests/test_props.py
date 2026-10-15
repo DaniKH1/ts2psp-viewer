@@ -108,6 +108,42 @@ class PropResourceTests(unittest.TestCase):
             {part["texture"][0] for part in parts}, {"surface_0", "surface_1"}
         )
 
+    def test_wide_index_buffers_are_read_at_their_real_width(self):
+        """Un rdms con 8 bits de indice no puede tener mas de 128 vertices.
+
+        El fx_fallenbookcase declara indices de un byte en el vtype y tiene 256
+        vertices, que no caben: leidos a un byte solo llegaban a 127 y la mitad de
+        la malla se quedaba sin usar. La tira salia descosida, con triangulos
+        que cruzaban la pieza entera y la estanteria se veia como una plancha.
+        """
+        for name in ("fx_fallenbookcase", "fx_fallenbookcase02", "fx_fallenbookcase03"):
+            with self.subTest(prop=name):
+                parts, rejected = parse_rdms(self.resource(name))
+                self.assertFalse(rejected)
+                carcass = next(p for p in parts if p["name"] == "pieza_10")
+                used = {i for i in carcass["indices"]}
+                self.assertEqual(
+                    len(used),
+                    len(carcass["vertices"]),
+                    "todos los vertices tienen que salir en la tira",
+                )
+                # Y ningun triangulo puede medir mas que la diagonal de la pieza.
+                points = np.array([v[0] for v in carcass["vertices"]])
+                diagonal = float(np.linalg.norm(points.max(axis=0) - points.min(axis=0)))
+                longest = 0.0
+                idx = carcass["indices"]
+                for t in range(0, len(idx), 3):
+                    a, b, c = points[idx[t]], points[idx[t + 1]], points[idx[t + 2]]
+                    longest = max(
+                        longest,
+                        float(np.linalg.norm(a - b)),
+                        float(np.linalg.norm(b - c)),
+                        float(np.linalg.norm(a - c)),
+                    )
+                self.assertLessEqual(
+                    longest, diagonal * 1.01, "no hay triangulos que crucen la pieza"
+                )
+
     def test_single_mip_and_four_bit_palettes_load(self):
         for name in ("fx_counterclub", "fx_espiritu_porch_plant_01"):
             parts, rejected = parse_rdms(self.resource(name))

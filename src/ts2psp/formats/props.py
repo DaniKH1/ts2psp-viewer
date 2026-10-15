@@ -257,6 +257,36 @@ def vertex_layout(vtype):
     return tex_code, color_code, normal_code, pos_code, pos_at, stride
 
 
+def rdms_indices(data, index_at, index_count, vertex_count, index_width, end):
+    """Los indices de una pieza rdms, en el ancho que de verdad tienen.
+
+    El vtype declara el ancho y casi siempre acierta, pero hay piezas que
+    declaran indices de un byte con mas de 128 vertices, que es imposible: un
+    indice de un byte solo llega a 127, asi que la mitad de los vertices se
+    quedan sin usar y la tira sale descosida, con triangulos que cruzan la pieza
+    entera. Ahi el ancho real es el otro.
+
+    Solo se cambia cuando el declarado es manifiestamente imposible y el otro
+    deja indices dentro de rango. Asi las demas piezas, que tambien tienen mas de
+    128 vertices pero si salen bien, se quedan como estaban.
+    """
+    def leer(ancho):
+        total = index_count * ancho
+        if total > end - index_at:
+            return None
+        fmt = "<" + ("B" if ancho == 1 else "H") * index_count
+        return struct.unpack_from(fmt, data, index_at)
+
+    indices = leer(index_width)
+    if indices is None or max(indices) >= vertex_count:
+        return None
+    if vertex_count > 128 and max(indices) < vertex_count - 1:
+        otro = leer(2 if index_width == 1 else 1)
+        if otro is not None and max(otro) < vertex_count:
+            indices = otro
+    return indices
+
+
 def parse_rdms(data, apply_scene=True, opaco=False, ruta=None):
     output = []
     rejected = []
@@ -315,9 +345,10 @@ def parse_rdms(data, apply_scene=True, opaco=False, ruta=None):
                 (i, f"layout vt={vtype:#x} stride={stride} expected={expected}")
             )
             continue
-        fmt = "<" + ("B" if index_width == 1 else "H") * index_count
-        indices = struct.unpack_from(fmt, data, index_at)
-        if max(indices) >= vertex_count:
+        indices = rdms_indices(
+            data, index_at, index_count, vertex_count, index_width, end
+        )
+        if indices is None:
             rejected.append((i, "index range"))
             continue
         vertices = []
