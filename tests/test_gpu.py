@@ -849,14 +849,20 @@ def prueba_app():
     for tab in (app.character_tab, app.prop_tab, app.map_tab):
         app.tabs.select(tab)
         app.update()
-        # La primera vez que se abre la pestaña de props se escanean los .res en
-        # un hilo, para no congelar la ventana. Es un trabajo de una vez: se espera
-        # a que termine antes de cronometrar, o lo que se mide es el escaneo de
-        # fondo y no el render.
+        # La primera vez que se abre una pestaña hay trabajo de fondo: en props se
+        # escanean los .res y en mapas se lee y parsea el nivel entero, los dos
+        # en un hilo para no congelar la ventana. Es trabajo de una vez, asi que se
+        # espera a que termine antes de cronometrar, o lo que se mide es el escaneo
+        # de fondo y no el render.
+        #
+        # En mapas hay que esperar tambien a que el mapa este aplicado, no solo a
+        # que el hilo suelte su cola: si no, el render medido no tiene nada que
+        # dibujar y sale en 0.00 ms sin comprobar nada.
         waited = time.perf_counter()
-        while (
-            time.perf_counter() - waited < 30
-            and getattr(tab, "_anim_queue", None) is not None
+        while time.perf_counter() - waited < 30 and (
+            getattr(tab, "_anim_queue", None) is not None
+            or getattr(tab, "_carga_cola", None) is not None
+            or (tab is app.map_tab and tab.current is None)
         ):
             app.update()
             time.sleep(0.05)
@@ -864,6 +870,19 @@ def prueba_app():
             getattr(tab, "_anim_queue", None) is None,
             f"{type(tab).__name__}: el escaneo de animaciones termina solo",
         )
+        comprobar(
+            getattr(tab, "_carga_cola", None) is None,
+            f"{type(tab).__name__}: la carga de la pestaña termina sola",
+        )
+        if tab is app.map_tab:
+            comprobar(
+                tab.current is not None and len(tab.parts) > 100,
+                "MapTab: el mapa entero queda cargado, con todas sus piezas",
+            )
+            comprobar(
+                len(tab.piezas_visibles()) < len(tab.parts),
+                "MapTab: la cupula del cielo se deja fuera del encuadre",
+            )
         app.update_idletasks()
         # La camara se prueba sobre algo que se pueda mover. La pestana de
         # personajes abre con Bella Goth cargado; si no lo estuviera, sin modelo

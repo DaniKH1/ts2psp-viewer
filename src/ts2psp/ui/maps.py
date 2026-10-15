@@ -3,6 +3,8 @@
 import csv
 import io
 import math
+import queue
+import threading
 import zipfile
 from pathlib import Path
 import tkinter as tk
@@ -10,13 +12,51 @@ from tkinter import filedialog, messagebox, ttk
 
 from ts2psp.ui.camera import CAMERA_HINT, OrbitController, Viewport
 import ts2psp.rendering.opengl as gl
-from ts2psp.rendering.props import render_prop
+from ts2psp.rendering.props import prop_scene, render_prop
 from ts2psp.formats.props import parse_rdms, sections, write_rigid_glb
 from ts2psp.formats.surfaces import decode_surface
 from ts2psp.ui.uv import UVWindow
 
+# La cupula del cielo de los niveles.
+#
+# En los 15 mapas del catalogo que la traen son siempre la misma malla: dos
+# piezas identicas de 392 vertices y 527.8 de lado, las dos mayores de muy lejos
+# (en el cementerio la siguiente pieza mide 100). Se detectan por esa firma y no
+# por su nombre porque los numeros de pieza cambian de un mapa a otro, y solo se
+# quitan del encuadre: sin ellas la escena se abarca desde tan lejos, para que
+# quepa una esfera de 528, que el solar entero queda en un punto de dos pixeles.
+#
+# El visor tiene un boton para volver a enseñarlas.
+CUPULA_VERTICES = 392
+CUPULA_LADO = 527.8
+CUPULA_TOLERANCIA = 0.05
+
+
+def es_cupula(part):
+    """Si una pieza es la cupula del cielo del nivel."""
+    vertices = part["vertices"]
+    if len(vertices) != CUPULA_VERTICES:
+        return False
+    puntos = [v[0] for v in vertices]
+    lado = max(
+        max(p[k] for p in puntos) - min(p[k] for p in puntos) for k in range(3)
+    )
+    return abs(lado - CUPULA_LADO) <= CUPULA_LADO * CUPULA_TOLERANCIA
+
 
 class MapTab(ttk.Frame):
+    # Valores por defecto. La clase se puede montar sin pasar por __init__ (los
+    # tests la levantan a mano) y `dispose` no debe encontrarse con un atributo
+    # que todavia no existe.
+    disposed = False
+    _carga_cola = None
+    _carga_poll = None
+    _carga_generacion = 0
+    _carga_entrada = None
+    _cache = None
+    objeto = None
+    objeto_key = None
+
     def __init__(self, parent, app, fbx_export):
         super().__init__(parent, padding=8)
         self.app = app
@@ -61,8 +101,18 @@ class MapTab(ttk.Frame):
         self.part_list = tk.Listbox(middle, width=29, height=24, exportselection=False)
         self.part_list.pack(fill="both", expand=True)
         self.part_list.bind("<<ListboxSelect>>", self.select_part)
-        ttk.Button(middle, text="View texture and UVs", command=self.show_uv).pack(
+        self.show_sky = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            middle,
+            text="Show sky dome / hide to frame the lot",
+            variable=self.show_sky,
+            command=self.schedule,
+        ).pack(anchor="w", pady=(4, 0))
+        ttk.Button(middle, text="Frame part", command=self.frame_part).pack(
             fill="x", pady=(8, 3)
+        )
+        ttk.Button(middle, text="View texture and UVs", command=self.show_uv).pack(
+            fill="x", pady=3
         )
         ttk.Button(middle, text="Export part as GLB", command=self.export_part).pack(
             fill="x", pady=3
@@ -75,7 +125,12 @@ class MapTab(ttk.Frame):
         right.pack(side="left", fill="both", expand=True)
         self.canvas = Viewport(right, minimum=(450, 500))
         self.canvas.on_resize = self.schedule
-        self.camera = OrbitController(self.canvas, self.schedule, yaw=math.radians(25))
+        # Un nivel se mira desde arriba. Con la inclinacion de 0 que le va bien a
+        # un prop, el mapa se aplasta en una franja en el horizonte y se desperdicia
+        # media pantalla; a 30 grados se ve la planta del solar sin deformarlo.
+        self.camera = OrbitController(
+            self.canvas, self.schedule, yaw=math.radians(25), pitch=math.radians(30)
+        )
         self.show_textures = tk.BooleanVar(value=True)
         ttk.Label(right, text=CAMERA_HINT, wraplength=610).pack(anchor="w")
         ttk.Button(right, text="Reset camera", command=self.camera.reset).pack(
@@ -95,8 +150,9 @@ class MapTab(ttk.Frame):
         self.status.pack(anchor="w", fill="x")
         ttk.Label(
             right,
-            text="Meshes and textures are readable. Full scene placement and TERN terrain "
-            "have not yet been reconstructed.",
+            text="The viewer draws every RDMS piece of the level in its own place, "
+            "sky dome included. The TERN terrain mesh and the level script are not "
+            "shown yet.",
             wraplength=610,
         ).pack(anchor="w", pady=(5, 0))
         self.refresh()
@@ -120,37 +176,109 @@ class MapTab(ttk.Frame):
             self.map_list.insert("end", row["ruta_interna"])
 
     def select_map(self, _event=None):
+        """Elige un mapa. Parsearlo va en un hilo salvo que ya este cacheado.
+
+        Leer el recurso y sacar las piezas son entre 0,8 y 2,4 s de CPU segun el
+        mapa, y hacerlo aqui dejaba la ventana sin responder a nada hasta
+        terminar: al abrir la pestaña se congela. El hilo deja el resultado en
+        una cola y el hilo de la interfaz lo pinta cuando llega, asi que se
+        puede seguir tocando la lista mientras carga.
+
+        El ultimo mapa se guarda ya parseado, para dar y quitar la pestaña no
+        cueste otra vez los dos segundos.
+        """
         choice = self.map_list.curselection()
         if not choice:
             return
         row = self.visible[choice[0]]
         if self.current and self.current["entry"] == row["entry"]:
             return
-        gl.forget_all()  # los recursos del mapa anterior ya no están en pantalla
+        if self._carga_entrada == row["entry"]:
+            return  # este mapa ya esta cargandose
+        if self._cache is not None and self._cache[0] == row["entry"]:
+            _, data, parts, rejected = self._cache
+            self._aplicar_mapa(row, data, parts, rejected)
+            return
+        self._empezar_carga(row)
+
+    def _empezar_carga(self, row):
+        """Lanza el hilo que lee y parsea el mapa."""
+        self._carga_generacion += 1
+        generacion = self._carga_generacion
+        cola = queue.Queue()
+        self._carga_cola = cola
+        self._carga_entrada = row["entry"]
+        self.map_list.configure(cursor="watch")
+        self.part_list.delete(0, "end")
+        self.status.configure(text=f'{row["ruta_interna"]}: loading...')
+        path = self.app.paths["maps"]
+        archivo = row["archivo_zip"]
+
+        def work():
+            try:
+                with zipfile.ZipFile(path) as archive:
+                    data = archive.read(archivo)
+                parts, rejected = parse_rdms(data, apply_scene=False)
+                cola.put((generacion, row, data, parts, rejected, None))
+            except Exception as exc:
+                # Aqui no se toca la interfaz ni se avisa de nada: solo se deja
+                # el resultado y que lo recoja el hilo de la interfaz.
+                cola.put((generacion, row, None, None, None, exc))
+
+        threading.Thread(target=work, daemon=True).start()
+        self._carga_poll = self.after(50, self._poll_carga)
+
+    def _poll_carga(self):
+        """Recoge el mapa en cuanto el hilo lo deja."""
+        self._carga_poll = None
+        if self.disposed or self._carga_cola is None:
+            return
         try:
-            with zipfile.ZipFile(self.app.paths["maps"]) as archive:
-                self.data = archive.read(row["archivo_zip"])
-            self.parts, rejected = parse_rdms(self.data, apply_scene=False)
-            self.current = row
-            self.part_list.delete(0, "end")
-            for part in self.parts:
-                label = f'{part["name"]} · {len(part["vertices"])} vertices'
-                self.part_list.insert("end", label)
-            self.status.configure(
-                text=f'{row["ruta_interna"]} · {len(self.parts)} RDMS parts · '
-                f'{row["terrenos"]} TERN sections · '
-                f'{row["superficies"]} surfaces · '
-                f"{len(rejected)} skipped parts"
+            generacion, row, data, parts, rejected, error = self._carga_cola.get_nowait()
+        except queue.Empty:
+            self._carga_poll = self.after(50, self._poll_carga)
+            return
+        self._carga_cola = None
+        self.map_list.configure(cursor="")
+        if error is not None:
+            self._carga_entrada = None
+            messagebox.showerror("Map", str(error))
+            return
+        if generacion != self._carga_generacion:
+            return  # mientras cargaba se eligio otro mapa: este ya no vale
+        self._cache = (row["entry"], data, parts, rejected)
+        self._aplicar_mapa(row, data, parts, rejected)
+
+    def _aplicar_mapa(self, row, data, parts, rejected):
+        """Pinta las piezas de un mapa ya parseado y dibuja la mas grande."""
+        self._carga_entrada = None
+        # Los recursos del mapa anterior ya no estan en pantalla. Se sueltan
+        # aqui y no al pedir el mapa, para que el anterior siga puesto mientras
+        # carga el nuevo en vez de dejar el visor en negro.
+        gl.forget_all()
+        # `forget_all` acaba de soltar los recursos de la escena anterior, asi
+        # que la referencia se tira con ellos: si se reutilizara, se dibujaria
+        # contra buffers ya liberados.
+        self.objeto = None
+        self.objeto_key = None
+        self.camera.focus_offset = (0.0, 0.0, 0.0)
+        self.data = data
+        self.parts = parts
+        self.current = row
+        self.part_list.delete(0, "end")
+        for part in self.parts:
+            self.part_list.insert(
+                "end", f'{part["name"]} · {len(part["vertices"])} vertices'
             )
-            if self.parts:
-                best = max(
-                    range(len(self.parts)), key=lambda i: len(self.parts[i]["vertices"])
-                )
-                self.part_list.selection_set(best)
-                self.part_list.see(best)
-                self.select_part()
-        except Exception as exc:
-            messagebox.showerror("Map", str(exc))
+        self.status.configure(
+            text=f'{row["ruta_interna"]} · {len(self.parts)} RDMS parts · '
+            f'{row["terrenos"]} TERN sections · '
+            f'{row["superficies"]} surfaces · '
+            f"{len(rejected)} skipped parts"
+        )
+        # No se elige ninguna pieza: el visor pinta el mapa entero, asi que
+        # escolher la mas grande solo tapaba el resumen con el nombre de una
+        # pieza. Elige la que quieras de la lista cuando la busques.
 
     def selected_part(self):
         choice = self.part_list.curselection()
@@ -182,16 +310,40 @@ class MapTab(ttk.Frame):
         else:
             self.render()
 
+    def piezas_visibles(self):
+        """Las piezas que se dibujan: el mapa entero, o tambien la cupula.
+
+        La cupula son dos esferas de 528 de lado que envuelven todo el solar. No
+        son geometria del nivel sino el fondo, y se dejan fuera del encuadre
+        porque `_escala` abarca la escena entera segun su radio: con ellas dentro
+        la camara tiene que alejarse hasta meter 528 y el solar queda en un punto
+        de dos pixeles.
+        """
+        if self.show_sky.get():
+            return self.parts
+        return [p for p in self.parts if not es_cupula(p)]
+
     def render(self):
         self.timer = None
         self.last_frame = gl.ahora_ms()
-        part = self.selected_part()
-        if not part or not self.current:
+        parts = self.piezas_visibles()
+        if not parts or not self.current:
             return
         try:
             width, height = self.canvas.view_size()
+            key = (
+                self.current["entry"],
+                self.show_textures.get(),
+                self.show_sky.get(),
+            )
+            if self.objeto_key != key:
+                # La escena se reutiliza entre fotogramas: montar las 387 piezas
+                # y subir 80 texturas son unos 270 ms, y si se hiciera en cada
+                # redibujado el visor no responderia al arrastrar la camara.
+                self.objeto = prop_scene(parts, ("mapa",) + key)
+                self.objeto_key = key
             image = render_prop(
-                [part],
+                parts,
                 width,
                 height,
                 self.camera.yaw,
@@ -199,13 +351,35 @@ class MapTab(ttk.Frame):
                 self.show_textures.get(),
                 self.camera.pitch,
                 self.camera.pan,
-                key=("mapa", self.current["entry"], part["name"]),
+                key=("mapa",) + key,
                 camara=self.camera,
+                objeto=self.objeto,
                 show_grid=self.show_grid.get(),
             )
             self.canvas.set_image(image)
         except Exception as exc:
             self.status.configure(text=f"Preview: {exc}")
+
+    def frame_part(self):
+        """Centra la camara en la pieza elegida, sin dejar de dibujar el mapa.
+
+        El foco de la camara es un desplazamiento sobre el pivote de la escena,
+        que es el centro de la caja de todo lo dibujado. Por eso hay que restar
+        ese pivote: si se pusiera el centro de la pieza tal cual, la camara se
+        moveria el doble de lo justo.
+        """
+        part = self.selected_part()
+        if not part or self.objeto is None or self.objeto.pivote is None:
+            return
+        puntos = [v[0] for v in part["vertices"]]
+        centro = tuple(
+            (min(p[k] for p in puntos) + max(p[k] for p in puntos)) / 2.0
+            for k in range(3)
+        )
+        self.camera.focus_offset = tuple(
+            float(centro[k]) - float(self.objeto.pivote[k]) for k in range(3)
+        )
+        self.schedule()
 
     def show_uv(self):
         part = self.selected_part()
@@ -297,6 +471,16 @@ class MapTab(ttk.Frame):
             messagebox.showerror("Export map parts", str(exc))
 
     def dispose(self):
+        self.disposed = True
         if self.timer:
             self.after_cancel(self.timer)
             self.timer = None
+        # El poll que recoge el hilo tambien se cancela: si no sigue vivo, Tk
+        # avisa con un "application has been destroyed" al cerrar el visor.
+        if self._carga_poll:
+            self.after_cancel(self._carga_poll)
+            self._carga_poll = None
+        self._carga_cola = None
+        self._cache = None
+        self.objeto = None
+        self.objeto_key = None
