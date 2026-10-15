@@ -287,7 +287,13 @@ def rdms_indices(data, index_at, index_count, vertex_count, index_width, end):
     return indices
 
 
-def parse_rdms(data, apply_scene=True, opaco=False, ruta=None):
+def parse_rdms(data, apply_scene=True, opaco=False, ruta=None, vertex_colors=True):
+    """Las piezas de un rdms.
+
+    Con `vertex_colors=False` se descartan los colores de vertice. En un nivel
+    multiplican el color del material y lo tiñen: muchos materiales llegan con
+    un gris a media luz y el mobiliario sale apagado. El visor de mapas los quita.
+    """
     output = []
     rejected = []
     records = sections(data)
@@ -403,7 +409,7 @@ def parse_rdms(data, apply_scene=True, opaco=False, ruta=None):
             else:
                 pos = struct.unpack_from("<fff", raw, pos_at)
             pos = tuple(origin[k] + pos[k] * position_scale for k in range(3))
-            vertices.append((pos, normal, uv, color))
+            vertices.append((pos, normal, uv, color if vertex_colors else None))
         triangles = triangle_strip(indices)
         if triangles:
             part = {

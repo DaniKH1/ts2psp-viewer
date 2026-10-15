@@ -76,6 +76,7 @@ class MapTab(ttk.Frame):
     _cache = None
     objeto = None
     objeto_key = None
+    _carga_color = False
 
     def __init__(self, parent, app, fbx_export):
         super().__init__(parent, padding=8)
@@ -123,6 +124,7 @@ class MapTab(ttk.Frame):
         self.part_list.bind("<<ListboxSelect>>", self.select_part)
         self.show_sky = tk.BooleanVar(value=False)
         self.show_unplaced = tk.BooleanVar(value=False)
+        self.vertex_colors = tk.BooleanVar(value=False)
         ttk.Checkbutton(
             middle,
             text="Show sky dome / hide to frame the lot",
@@ -134,6 +136,12 @@ class MapTab(ttk.Frame):
             text="Show unplaced furniture / hidden, the level positions it on load",
             variable=self.show_unplaced,
             command=self.schedule,
+        ).pack(anchor="w")
+        ttk.Checkbutton(
+            middle,
+            text="Vertex colours / off, they tint the level's materials",
+            variable=self.vertex_colors,
+            command=self.reload,
         ).pack(anchor="w")
         ttk.Button(middle, text="Frame part", command=self.frame_part).pack(
             fill="x", pady=(8, 3)
@@ -223,11 +231,25 @@ class MapTab(ttk.Frame):
             return
         if self._carga_entrada == row["entry"]:
             return  # este mapa ya esta cargandose
-        if self._cache is not None and self._cache[0] == row["entry"]:
+        if self._cache is not None and self._cache[0] == self._clave_de_cache():
             _, data, parts, rejected = self._cache
             self._aplicar_mapa(row, data, parts, rejected)
             return
         self._empezar_carga(row)
+
+    def _clave_de_cache(self):
+        """La cache del ultimo mapa, con los ajustes que cambian el parseo."""
+        if self.current is None:
+            return None
+        return (self.current["entry"], self.vertex_colors.get())
+
+    def reload(self, _event=None):
+        """Vuelve a parsear el mapa actual, para cuando cambia una opcion."""
+        if self.current is None:
+            return
+        self._cache = None
+        self._carga_entrada = None
+        self._empezar_carga(self.current)
 
     def _empezar_carga(self, row):
         """Lanza el hilo que lee y parsea el mapa."""
@@ -241,12 +263,15 @@ class MapTab(ttk.Frame):
         self.status.configure(text=f'{row["ruta_interna"]}: loading...')
         path = self.app.paths["maps"]
         archivo = row["archivo_zip"]
+        con_color = self._carga_color = self.vertex_colors.get()
 
         def work():
             try:
                 with zipfile.ZipFile(path) as archive:
                     data = archive.read(archivo)
-                parts, rejected = parse_rdms(data, apply_scene=False)
+                parts, rejected = parse_rdms(
+                    data, apply_scene=False, vertex_colors=con_color
+                )
                 cola.put((generacion, row, data, parts, rejected, None))
             except Exception as exc:
                 # Aqui no se toca la interfaz ni se avisa de nada: solo se deja
@@ -274,7 +299,7 @@ class MapTab(ttk.Frame):
             return
         if generacion != self._carga_generacion:
             return  # mientras cargaba se eligio otro mapa: este ya no vale
-        self._cache = (row["entry"], data, parts, rejected)
+        self._cache = (row["entry"], self._carga_color, data, parts, rejected)
         self._aplicar_mapa(row, data, parts, rejected)
 
     def _aplicar_mapa(self, row, data, parts, rejected):

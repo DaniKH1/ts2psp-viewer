@@ -190,6 +190,34 @@ class SkyDomeTests(unittest.TestCase):
         for parte in colocadas[:20]:
             self.assertGreater(max(abs(v) for v in parte["origin"]), 0.99)
 
+    def test_levels_drop_their_vertex_colours(self):
+        """En un nivel los colores de vertice tiñen el material y hay que quitarlos.
+
+        Multiplican el color del shader, y el material del cementerio llega con un
+        gris a media luz: con los colores puestos los arboles salen de oliva
+        oscuro y sin ellos verdes. El visor de mapas los quita de entrada, con un
+        boton para volver a ponerlos.
+        """
+        piezas, _ = parse_rdms(self.datos("levels/deadtree/graveyard"))
+        con_color = sum(
+            1 for p in piezas if any(v[3] is not None for v in p["vertices"])
+        )
+        self.assertGreater(con_color, 50, "el nivel si trae colores de vertice")
+
+        piezas, _ = parse_rdms(
+            self.datos("levels/deadtree/graveyard"), vertex_colors=False
+        )
+        self.assertFalse(
+            [v[3] for p in piezas for v in p["vertices"] if v[3] is not None],
+            "con vertex_colors=False no debe quedar ninguno",
+        )
+        # Y las posiciones no se tocan: solo el color.
+        con_pos, _ = parse_rdms(self.datos("levels/deadtree/graveyard"))
+        self.assertEqual(
+            [p["vertices"][0][0] for p in piezas],
+            [p["vertices"][0][0] for p in con_pos],
+        )
+
     def test_a_level_without_a_dome_keeps_every_piece(self):
         parts = self.parts_of("levels/division_47/barracks")
         self.assertTrue(parts)
