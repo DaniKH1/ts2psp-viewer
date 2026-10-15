@@ -59,6 +59,7 @@ def smoke(exe, data=None):
     ]
     user.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
     user.IsWindowVisible.argtypes = [wintypes.HWND]
+    user.GetClientRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
     user.PostMessageW.argtypes = [
         wintypes.HWND,
         wintypes.UINT,
@@ -76,7 +77,12 @@ def smoke(exe, data=None):
             text = ctypes.create_unicode_buffer(256)
             user.GetWindowTextW(window, text, len(text))
             if text.value.startswith(("TS2PSP Viewer", "The Sims 2 PSP")):
-                found.append(window)
+                rect = wintypes.RECT()
+                user.GetClientRect(window, ctypes.byref(rect))
+                width, height = rect.right - rect.left, rect.bottom - rect.top
+                # Hidden GL hosts and tooltips can inherit the application title.
+                if width >= 500 and height >= 300:
+                    found.append((width * height, window))
         return True
 
     try:
@@ -88,7 +94,7 @@ def smoke(exe, data=None):
             time.sleep(0.5)
         if not found:
             raise RuntimeError(f"EXE window did not appear; exit={process.poll()}")
-        if not user.PostMessageW(found[0], 0x0010, 0, 0):
+        if not user.PostMessageW(max(found)[1], 0x0010, 0, 0):
             raise ctypes.WinError(ctypes.get_last_error())
         process.wait(timeout=20)
         if process.returncode:
@@ -96,7 +102,9 @@ def smoke(exe, data=None):
         print("EXE window opened and closed successfully")
     finally:
         if process.poll() is None:
-            process.terminate()
+            subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"], capture_output=True
+            )
 
 
 if __name__ == "__main__":
