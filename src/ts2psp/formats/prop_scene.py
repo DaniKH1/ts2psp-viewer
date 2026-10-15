@@ -129,73 +129,125 @@ def transform_matrix(data, node, values=None, parent_scale=None):
     return _transform(values, pivots[6:9], pivots[:3], pivots[9:12], pivots[3:6])
 
 
-def node_hierarchy(data, records):
-    """Return NODE records, lazy world-matrix lookup and section bounds.
+def _node_section(data, off, size, end):
+    """Los nodos de una seccion `node`, con su tabla de matrices del mundo."""
+    for prefix in (0, 32):
+        head = off + 128 + prefix
+        if head + 8 > end:
+            continue
+        count = struct.unpack_from("<I", data, head)[0]
+        table = _relative(data, head + 4)
+        if 0 < count <= 4096 and head <= table <= end - 4 * count:
+            break
+    else:
+        return None
+    nodes = []
+    for index in range(count):
+        at = _relative(data, table + index * 4)
+        if not head <= at <= end - 32:
+            # Un registro ilegible no se salta: `parent` es un indice sobre
+            # esta misma lista, asi que quitarlo descuadaria todos los de
+            # abajo. Se deja un marcador sin transformada, que para un nodo
+            # suelto es lo mismo que no colocarlo. Se apunta a `head` y no al
+            # valor leido: una direccion a la basura no la debe desreferenciar
+            # nadie mas abajo.
+            nodes.append((head, 0, -1, np.eye(4)))
+            continue
+        kind = struct.unpack_from("<I", data, at + 20)[0]
+        parent = struct.unpack_from("<i", data, at + 28)[0]
+        local = np.eye(4)
+        if is_transform(data, (at, kind, parent, local)):
+            payload = _relative(data, at + 8)
+            # En un nivel hay unos pocos nodos cuya tabla de transformadas
+            # cae justo detras del final de la seccion de nodos, unos 16
+            # bytes mas alla de donde acaba `size`. Con la comprobacion
+            # estricta, una sola de esas echaba abajo las 361 colocaciones
+            # del nivel entero y el mapa salia entero amontonado en el
+            # origen. Se pasa en vez de reventar: son nodos que no llevan
+            # mallas (las que las llevan son de tipo 25 y si comprueban
+            # bien), y quedarse sin transformada es mejor que perder el
+            # nivel. Si los numeros no son finitos, tambien.
+            if head <= payload <= end - 40 and at + 80 <= end:
+                values = struct.unpack_from("<10f", data, payload)
+                if all(math.isfinite(value) for value in values):
+                    local = transform_matrix(
+                        data, (at, kind, parent, local), values
+                    )
+        nodes.append((at, kind, parent, local))
+    for index, node in enumerate(nodes):
+        parent = node[2]
+        if (
+            head <= node[0] <= end - 32
+            and is_joint(data, node)
+            and 0 <= parent < len(nodes)
+            and is_transform(data, nodes[parent])
+        ):
+            scale = transform_values(data, nodes[parent])[7:10]
+            nodes[index] = (
+                *node[:3],
+                transform_matrix(data, node, parent_scale=scale),
+            )
+    world, visiting = {}, set()
 
-    Only visited branches are validated: nonspatial records can contain cycles.
+    def world_matrix(index):
+        if index in world:
+            return world[index]
+        if index in visiting:
+            raise ValueError("Cyclic NODE hierarchy")
+        visiting.add(index)
+        _, _, parent, local = nodes[index]
+        world[index] = (
+            world_matrix(parent) @ local if 0 <= parent < len(nodes) else local
+        )
+        visiting.remove(index)
+        return world[index]
+
+    return nodes, world_matrix, head, end
+    return None
+
+
+def _node_sections(data, records):
+    """Cada seccion `node` del recurso, con el final que le toca de verdad.
+
+    El tamaño que declara la cabecera se queda corto: en los niveles, la tabla de
+    transformadas de los ultimos nodos cae detras, y con el limite declarado una
+    sola de esas entradas echaba abajo las colocaciones del nivel entero y el
+    mapa salia amontonado en el origen.
     """
+    finales = sorted(off for _, off, _, _, _ in records)
     for tag, off, size, _, _ in records:
         if tag != b"node":
             continue
-        end = min(len(data), off + 128 + size)
-        for prefix in (0, 32):
-            head = off + 128 + prefix
-            if head + 8 > end:
-                continue
-            count = struct.unpack_from("<I", data, head)[0]
-            table = _relative(data, head + 4)
-            if 0 < count <= 4096 and head <= table <= end - 4 * count:
-                break
-        else:
-            continue
-        nodes = []
-        for index in range(count):
-            at = _relative(data, table + index * 4)
-            if not head <= at <= end - 32:
-                raise ValueError("NODE record outside its section")
-            kind = struct.unpack_from("<I", data, at + 20)[0]
-            parent = struct.unpack_from("<i", data, at + 28)[0]
-            local = np.eye(4)
-            if is_transform(data, (at, kind, parent, local)):
-                payload = _relative(data, at + 8)
-                if not head <= payload <= end - 40:
-                    raise ValueError("NODE transform outside its section")
-                values = struct.unpack_from("<10f", data, payload)
-                if not all(math.isfinite(value) for value in values):
-                    raise ValueError("Nonfinite NODE transform")
-                if at + 80 > end:
-                    raise ValueError("NODE pivots outside its section")
-                local = transform_matrix(data, (at, kind, parent, local), values)
-            nodes.append((at, kind, parent, local))
-        for index, node in enumerate(nodes):
-            parent = node[2]
-            if (
-                is_joint(data, node)
-                and 0 <= parent < len(nodes)
-                and is_transform(data, nodes[parent])
-            ):
-                scale = transform_values(data, nodes[parent])[7:10]
-                nodes[index] = (
-                    *node[:3],
-                    transform_matrix(data, node, parent_scale=scale),
-                )
-        world, visiting = {}, set()
+        # `records` no tiene por que venir en orden de archivo, asi que el
+        # siguiente se busca por valor y no por posicion.
+        siguiente = next((o for o in finales if o > off), len(data))
+        end = min(len(data), max(off + 128 + size, siguiente))
+        seccion = _node_section(data, off, size, end)
+        if seccion is not None:
+            yield seccion
 
-        def world_matrix(index):
-            if index in world:
-                return world[index]
-            if index in visiting:
-                raise ValueError("Cyclic NODE hierarchy")
-            visiting.add(index)
-            _, _, parent, local = nodes[index]
-            world[index] = (
-                world_matrix(parent) @ local if 0 <= parent < len(nodes) else local
-            )
-            visiting.remove(index)
-            return world[index]
 
-        return nodes, world_matrix, head, end
+def node_hierarchy(data, records):
+    """Return NODE records, lazy world-matrix lookup and section bounds.
+
+    Solo la primera seccion `node`, que es lo que tiene un prop. Un nivel
+    reparte su grafo en hasta 31, y para esos esta `node_hierarchies`.
+
+    Only visited branches are validated: nonspatial records can contain cycles.
+    """
+    for seccion in _node_sections(data, records):
+        return seccion
     return [], None, None, None
+
+
+def node_hierarchies(data, records):
+    """Todas las secciones `node` del recurso, una por seccion.
+
+    Un nivel reparte su grafo en hasta 31 secciones `node`. Con mirar solo la
+    primera se perdian las 361 colocaciones de las mallas, y las farolas, vallas
+    y bancos del nivel salian todos amontonados en el origen.
+    """
+    return [s for s in _node_sections(data, records) if s is not None]
 
 
 def rigid_placements(data, records):
@@ -207,27 +259,29 @@ def rigid_placements(data, records):
         for prefix in (0, 32)
     }
     instances = {}
-    nodes, world_matrix, head, end = node_hierarchy(data, records)
-    for index, (at, kind, _, _) in enumerate(nodes):
-        if kind != 25 or at + 40 > end:
-            continue
-        group_count = struct.unpack_from("<I", data, at + 32)[0]
-        groups = _relative(data, at + 36)
-        if group_count > 128 or not head <= groups <= end - group_count * 44:
-            continue
-        for group in range(group_count):
-            block = groups + group * 44
-            lod_count = struct.unpack_from("<I", data, block + 36)[0]
-            lods = _relative(data, block + 40)
-            if not 0 < lod_count <= 64 or not head <= lods <= end - lod_count * 8:
+    # Todas las secciones, no solo la primera: un nivel tiene hasta 31 y las
+    # mallas de un solo subgroupo aparecen en varias.
+    for nodes, world_matrix, head, end in node_hierarchies(data, records):
+        for index, (at, kind, _, _) in enumerate(nodes):
+            if kind != 25 or at + 40 > end:
                 continue
-            for lod in range(lod_count):
-                mesh = _relative(data, lods + lod * 8)
-                if mesh in meshes:
-                    placements = instances.setdefault(meshes[mesh], [])
-                    # Keep lower LODs out of the same preview/export.
-                    if lod == 0:
-                        placements.append((index, world_matrix(index)))
+            group_count = struct.unpack_from("<I", data, at + 32)[0]
+            groups = _relative(data, at + 36)
+            if group_count > 128 or not head <= groups <= end - group_count * 44:
+                continue
+            for group in range(group_count):
+                block = groups + group * 44
+                lod_count = struct.unpack_from("<I", data, block + 36)[0]
+                lods = _relative(data, block + 40)
+                if not 0 < lod_count <= 64 or not head <= lods <= end - lod_count * 8:
+                    continue
+                for lod in range(lod_count):
+                    mesh = _relative(data, lods + lod * 8)
+                    if mesh in meshes:
+                        placements = instances.setdefault(meshes[mesh], [])
+                        # Keep lower LODs out of the same preview/export.
+                        if lod == 0:
+                            placements.append((index, world_matrix(index)))
     return instances
 
 

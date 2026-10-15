@@ -3,11 +3,13 @@
 import csv
 import io
 import os
+import struct
 import unittest
 import zipfile
 from pathlib import Path
 
-from ts2psp.formats.props import parse_rdms
+from ts2psp.formats.props import parse_rdms, sections
+from ts2psp.formats.prop_scene import node_hierarchies, rigid_placements
 from ts2psp.ui.maps import CUPULA_LADO, CUPULA_VERTICES, es_cupula
 
 DATA = Path(
@@ -30,11 +32,13 @@ class SkyDomeTests(unittest.TestCase):
                 )
             )
 
-    def parts_of(self, ruta):
+    def datos(self, ruta):
         row = next(r for r in self.rows if r["ruta_interna"] == ruta)
         with zipfile.ZipFile(ARCHIVE) as archive:
-            blob = archive.read(row["archivo_zip"])
-        return parse_rdms(blob, apply_scene=False)[0]
+            return archive.read(row["archivo_zip"])
+
+    def parts_of(self, ruta):
+        return parse_rdms(self.datos(ruta), apply_scene=False)[0]
 
     def lado(self, part):
         return max(
@@ -78,6 +82,80 @@ class SkyDomeTests(unittest.TestCase):
 
         # Si la mitad de los mapas no los sacara, el filtro estaria roto.
         self.assertGreaterEqual(con_cupula, 10)
+
+    def test_the_level_scene_is_read_and_does_not_explode(self):
+        """Un nivel reparte su grafo en hasta 31 secciones `node`.
+
+        Con mirar solo la primera, `apply_scene=True` reventaba ademas con
+        "NODE transform outside its section" y el visor no podia ni intentarlo.
+        """
+        partes, rechazadas = parse_rdms(
+            self.datos("levels/deadtree/graveyard"), apply_scene=True
+        )
+        self.assertFalse(rechazadas)
+        self.assertGreater(len(partes), 300)
+
+        secciones = node_hierarchies(
+            self.datos("levels/deadtree/graveyard"),
+            sections(self.datos("levels/deadtree/graveyard")),
+        )
+        self.assertEqual(len(secciones), 31)
+
+        # Y las colocaciones existen: 361 referencias a mallas.
+        colocaciones = rigid_placements(
+            self.datos("levels/deadtree/graveyard"),
+            sections(self.datos("levels/deadtree/graveyard")),
+        )
+        self.assertGreater(len(colocaciones), 300)
+
+    def test_the_levels_own_props_have_no_transform_to_apply(self):
+        """Por que las farolas y los bancos salen amontonados en el origen.
+
+        Escribo esto porque parece un fallo del parser y no lo es, y se pierde
+        mucho tiempo si no se sabe: el nodo de cada malla del nivel cuelga de
+        una cadena de transformadas que vale la identidad. Los 874 nodos de tipo
+        10 del cementerio tienen numeros de verdad, pero ninguno es ancestro de
+        una malla. La colocacion la pone el Lua del nivel (`graveyard_script.init`)
+        al cargar, y sus coordenadas no estan en este recurso.
+        """
+        import numpy as np
+
+        from ts2psp.formats.prop_scene import _relative
+
+        datos = self.datos("levels/deadtree/graveyard")
+        meshes = {
+            off + 128 + prefix: off + 128
+            for tag, off, _, _, _ in sections(datos)
+            if tag == b"rdms"
+            for prefix in (0, 32)
+        }
+        totales = identidades = 0
+        for nodes, world, head, end in node_hierarchies(datos, sections(datos)):
+            for index, (at, kind, _, _) in enumerate(nodes):
+                if kind != 25 or at + 40 > end:
+                    continue
+                group_count = struct.unpack_from("<I", datos, at + 32)[0]
+                groups = _relative(datos, at + 36)
+                if group_count > 128 or not head <= groups <= end - group_count * 44:
+                    continue
+                for group in range(group_count):
+                    block = groups + group * 44
+                    lod_count = struct.unpack_from("<I", datos, block + 36)[0]
+                    lods = _relative(datos, block + 40)
+                    if not (0 < lod_count <= 64 and head <= lods <= end - lod_count * 8):
+                        continue
+                    if _relative(datos, lods) not in meshes:
+                        continue
+                    totales += 1
+                    if np.allclose(world(index), np.eye(4)):
+                        identidades += 1
+
+        self.assertGreater(totales, 300, "el nivel tiene mallas colocadas")
+        self.assertGreater(
+            identidades,
+            totales * 0.7,
+            "casi todas las mallas del nivel cuelgan de la identidad",
+        )
 
     def test_a_level_without_a_dome_keeps_every_piece(self):
         parts = self.parts_of("levels/division_47/barracks")

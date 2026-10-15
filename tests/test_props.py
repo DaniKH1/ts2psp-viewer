@@ -24,7 +24,7 @@ from ts2psp.formats.props import (
     sections,
 )
 from ts2psp.rendering.props import bones_over, load_parts
-from ts2psp.formats.prop_scene import node_hierarchy, rigid_placements
+from ts2psp.formats.prop_scene import node_hierarchies, rigid_placements
 from ts2psp.formats.prop_anim import (
     pose,
     prop_animations,
@@ -143,6 +143,24 @@ class PropResourceTests(unittest.TestCase):
                 self.assertLessEqual(
                     longest, diagonal * 1.01, "no hay triangulos que crucen la pieza"
                 )
+
+    def test_prop_placements_come_from_every_node_section(self):
+        """Un prop reparte sus instancias en varias secciones `node`.
+
+        Mirando solo la primera se perdian: el estereo salia con 2 piezas de las
+        7 que tiene. La comprobacion es el numero de piezas de la boombox, que es
+        donde mas se nota.
+        """
+        secciones = node_hierarchies(
+            self.resource("fx_stereoboombox"), sections(self.resource("fx_stereoboombox"))
+        )
+        self.assertGreater(len(secciones), 1, "el fixture deberia traer varias")
+        piezas, rechazadas = parse_rdms(
+            self.resource("fx_stereoboombox"), apply_scene=True,
+            ruta="objects/stereos/fx_stereoboombox",
+        )
+        self.assertFalse(rechazadas)
+        self.assertEqual(len(piezas), 7)
 
     def test_single_mip_and_four_bit_palettes_load(self):
         for name in ("fx_counterclub", "fx_espiritu_porch_plant_01"):
