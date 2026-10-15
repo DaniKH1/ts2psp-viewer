@@ -1,4 +1,4 @@
-﻿"""Browse map resources, their mesh pieces, textures, and UVs."""
+"""Browse map resources, their mesh pieces, textures, and UVs."""
 
 import csv
 import io
@@ -25,17 +25,39 @@ from ts2psp.ui.uv import UVWindow
 
 # La cupula del cielo de los niveles.
 #
-# En los 15 mapas del catalogo que la traen son siempre la misma malla: dos
-# piezas identicas de 392 vertices y 527.8 de lado, las dos mayores de muy lejos
-# (en el cementerio la siguiente pieza mide 100). Se detectan por esa firma y no
-# por su nombre porque los numeros de pieza cambian de un mapa a otro, y solo se
-# quitan del encuadre: sin ellas la escena se abarca desde tan lejos, para que
-# quepa una esfera de 528, que el solar entero queda en un punto de dos pixeles.
+# En 16 de los 21 mapas del catalogo son siempre la misma malla: dos piezas
+# identicas de 392 vertices y 527.8 de lado, las dos mayores de muy lejos (en el
+# cementerio la siguiente pieza mide 100). Los cinco mapas sin cielo son 123700,
+# 123784, 123808, 123820 y 123868. Se detectan por esa firma y no por su nombre
+# porque los numeros de pieza cambian de un mapa a otro.
 #
-# El visor tiene un boton para volver a enseñarlas.
+# Se dibujan, pero no cuentan para el encuadre: sin ellas la escena se abarca
+# desde tan lejos, para que quepa una esfera de 528, que el solar entero queda en
+# un punto de dos pixeles. Para eso la escena lleva `sin_framing`, que deja sus
+# vertices fuera de la caja sin dejar de pintarlos. Sus 672 triangulos miran
+# todos hacia dentro, asi que con el recorte de caras traseras puesto se ven
+# desde el solar sin tocar nada mas.
+#
+# El visor tiene un boton para volver a apagarlas.
 CUPULA_VERTICES = 392
 CUPULA_LADO = 527.8
 CUPULA_TOLERANCIA = 0.05
+
+# Las piezas que se dibujan sin recortar caras traseras.
+#
+# El recorte esta siempre puesto en los mapas, que es lo que hace que los muros
+# se vean macizos y no por los dos lados. Estas piezas de aqui son de dos caras
+# y con el recorte puesto salen con agujeros: son las dos de 0,92 de lado de la
+# entrada del solar de Deadtree, unas de 28 y 40 vertices con su volumen bien
+# orientado (0,27 y 1,51), o sea que no estan del reves sino que son huecas por
+# un lado y con el recorte se ve el hueco.
+#
+# No se les da la vuelta con `CARAS_AL_REVES`: esa funcion invierte el sentido de
+# los triangulos, y aqui ya apuntan hacia fuera. Lo que hace falta es dibujarlas
+# sin recortar, que para eso tiene la escena el conjunto `sin_recorte`.
+SIN_RECORTAR = {
+    "levels/deadtree/hub": ("pieza_292", "pieza_293"),
+}
 
 # Las piezas que el nivel coloca al cargar y no al leer.
 #
@@ -49,13 +71,13 @@ CUPULA_TOLERANCIA = 0.05
 # No se borran: el boton del visor las vuelve a ensenar.
 SIN_COLOCAR = 1.0
 
-# Alturas de las listas del panel de capas, en pixeles. Son canvas, no filas.
-# La de mapas es bajita a proposito: debajo va la galeria de texturas, que con
-# 21 niveles competian por el alto de la columna.
-ALTO_LISTA_MAPS = 356
+# Tamano de la columna de la izquierda. La lista va al ancho de la galeria de
+# texturas que tiene debajo, para que no se queden dos medidas distintas en la
+# misma columna. Las alturas van en pixeles porque las listas son canvas.
+ALTO_LISTA_MAPS = 178
+ANCHO_LISTA_MAPS = 214
 ALTO_LISTA_CAPAS = 300
-ANCHO_LISTA_MAPS = 250
-ANCHO_LISTA_CAPAS = 244
+ANCHO_LISTA_CAPAS = 178
 # Holgura entre el borde redondeado del panel y lo que va dentro, en pixeles.
 MARGEN_CAPAS = 9
 
@@ -83,16 +105,6 @@ def es_cupula(part):
         max(p[k] for p in puntos) - min(p[k] for p in puntos) for k in range(3)
     )
     return abs(lado - CUPULA_LADO) <= CUPULA_LADO * CUPULA_TOLERANCIA
-
-
-def firma_de_piezas(ocultas):
-    """La parte de la clave de escena que depende de que piezas estan apagadas.
-
-    Van los NOMBRES y no la cuenta. Con la cuenta, apagar una pieza y luego otra
-    deja el mismo numero que al principio: la escena se creia la misma, no se
-    remitaba a construir y al volver a encender la primera seguia sin verse.
-    """
-    return tuple(sorted(ocultas))
 
 
 def nombre_del_mapa(row):
@@ -208,7 +220,7 @@ class MapTab(ttk.Frame):
         # recorte de caras traseras va activo. Los colores de vertice siguen
         # teniendo su boton flotante, que es la unica opcion que cambia el
         # parseo y obliga a recargar el nivel.
-        self.show_sky = tk.BooleanVar(value=False)
+        self.show_sky = tk.BooleanVar(value=True)
         self.show_unplaced = tk.BooleanVar(value=False)
         self.vertex_colors = tk.BooleanVar(value=False)
         self.show_textures = tk.BooleanVar(value=True)
@@ -225,13 +237,17 @@ class MapTab(ttk.Frame):
         entry = ttk.Entry(
             left,
             textvariable=self.filter,
-            width=29,
+            width=ANCHO_LISTA_MAPS // 8,
             style="CharacterSearch.TEntry",
         )
         entry.pack(fill="x", pady=(5, 10))
         entry.bind("<KeyRelease>", self.refresh)
         map_list_frame = ttk.Frame(left)
-        map_list_frame.pack(fill="both", expand=True)
+        # Sin `expand`: si lo tuviera, el marco se estiraria a todo lo que quedase
+        # de la columna y la lista ocuparia el alto entero del visor, que es lo
+        # que hacia que `ALTO_LISTA_MAPS` no sirviera de nada. Lo que se estira es
+        # la galeria de debajo, que es la que puede aprovechar el hueco.
+        map_list_frame.pack(fill="both")
         self.map_list = TexturedListbox(
             map_list_frame,
             LIST_PANEL_PATH,
@@ -257,7 +273,10 @@ class MapTab(ttk.Frame):
             font=(self.app._sims_font_family, 11, "bold"),
         ).pack(fill="x", pady=(0, 4))
         self.gallery = TextureGallery(left, self.app)
-        self.gallery.pack(fill="x", expand=False)
+        # La galeria es la que se estira con el hueco que deja la lista. Lleva
+        # scroll propio, asi que quepa mas o menos no importa: si no cabe entera,
+        # se rueda con la rueda del raton.
+        self.gallery.pack(fill="both", expand=True)
 
         right = ttk.Frame(self)
         right.pack(side="left", fill="both", expand=True)
@@ -266,8 +285,17 @@ class MapTab(ttk.Frame):
         # Un nivel se mira desde arriba y con la rotacion alineada a los ejes: los
         # muros del juego caen en coordenadas exactas, y con la camara en 25
         # grados de guiñada todo el solar va torcido respecto a la rejilla.
+        # De frente y algo por encima: la guiñada a cero, para que los muros del juego,
+        # que caen en coordenadas exactas, salgan rectos y no torsionados contra
+        # la rejilla. Ni cenital, que aplana el solar y quita la sensacion de
+        # altura, ni horizontal, que lo deja en una franja.
+        #
+        # El signo del pitch va al reves que en un visor normal: aqui negativo es
+        # mirar hacia abajo. Con -30 la camara queda por encima del solar y lo
+        # abarca entero, que es como se lee un mapa; en positivo se va por debajo
+        # del terreno y el suelo no se ve, al mirarse su cara de menos.
         self.camera = OrbitController(
-            self.canvas, self.schedule, yaw=0.0, pitch=math.radians(30)
+            self.canvas, self.schedule, yaw=0.0, pitch=math.radians(-30)
         )
         self.show_grid = tk.BooleanVar(value=True)
         # Botones flotantes sobre el visor, como en la pestaña de props.
@@ -402,47 +430,31 @@ class MapTab(ttk.Frame):
             0, 0, anchor="nw", window=self.layers_panel
         )
 
-        cabecera = ttk.Frame(self.layers_panel)
-        cabecera.pack(fill="x")
-        self._titulo_capas = ttk.Label(
-            cabecera,
-            text="Layers",
-            font=(self.app._sims_font_family, 10, "bold"),
-        )
-        self._titulo_capas.pack(side="left")
-        # Los dos signs de la derecha son la equis que cierra y el guion que
-        # pliega la lista. Antes decia "drag" y habia que acertar para arrastrar
-        # la cabecera; asi se ven las dos cosas que se pueden hacer.
-        cerrar = ttk.Label(cabecera, text="\u2715", foreground="#182658")
-        cerrar.pack(side="right", padx=(12, 2))
-        plegar = ttk.Label(cabecera, text="\u2212", foreground="#182658")
-        plegar.pack(side="right")
-        self._signo_cerrar = cerrar
-        self._signo_plegar = plegar
-        cerrar.bind("<Button-1>", lambda event: self.toggle_layers_panel())
-        plegar.bind("<Button-1>", lambda event: self.toggle_minimizar_capas())
-        # El titulo y los dos signs no arrastran; el resto de la cabecera si.
-        cabecera.bind("<ButtonPress-1>", self._capa_press)
-        cabecera.bind("<B1-Motion>", self._arrastrar_capas)
-        self._titulo_capas.bind("<ButtonPress-1>", self._capa_press)
-        self._titulo_capas.bind("<B1-Motion>", self._arrastrar_capas)
         self.layers_pos = [10, 10]
         self._capa_origen = (0, 0)
+        self._capa_gesto = None
+        self._capa_movido = False
         self._capas_minimizado = False
+        self._build_titlebar()
 
-        # Todo lo de debajo de la cabecera se pliega junto: la lista, los dos
+        # Todo lo de debajo de la barra se pliega junto: la lista, los dos
         # botones de encender y apagar y el texto de ayuda.
         self.layers_cuerpo = ttk.Frame(self.layers_panel)
         self.layers_cuerpo.pack(fill="both", expand=True)
 
         botones = ttk.Frame(self.layers_cuerpo)
+        # Los dos botones van centrados y en fila. El ancho hay que ponerlo a mano
+        # porque el boton del tema es una imagen con un ancho minimo de 120 px:
+        # sin esto, dos botones en fila piden 245 y ensanchan la ventana mas que
+        # la lista, que es la que marca su ancho. Ocho caracteres es lo que hace
+        # falta para que quepa "Show All" sin recortarse.
         botones.pack(fill="x", pady=(6, 0))
         ttk.Button(
-            botones, text="Hide everything", command=lambda: self._todas(False)
-        ).pack(side="left", fill="x", expand=True)
+            botones, text="Hide All", width=8, command=lambda: self._todas(False)
+        ).pack(side="left", expand=True, padx=(0, 5))
         ttk.Button(
-            botones, text="Unhide everything", command=lambda: self._todas(True)
-        ).pack(side="left", fill="x", expand=True, padx=(6, 0))
+            botones, text="Show All", width=8, command=lambda: self._todas(True)
+        ).pack(side="left", expand=True)
         ttk.Separator(self.layers_cuerpo).pack(fill="x", pady=6)
         ttk.Label(
             self.layers_cuerpo,
@@ -469,6 +481,134 @@ class MapTab(ttk.Frame):
         self.canvas.itemconfigure(self.layers_fondo, state="hidden")
         self.canvas.itemconfigure(self.layers_window, state="hidden")
 
+    # Alto de la franja de arriba del panel. Lo que se ve en ella son la flecha,
+    # la equis y el rotulo; el fondo es el del panel, no una barra propia.
+    ALTO_BARRA = 24
+    # La esquina de la derecha cierra. La zona es de este ancho, un poco mas que
+    # el de la equis, para no tener que apuntar a la punta de la cruz.
+    HOLGURA_BARRA = 3
+    LADO_BOTON = 17
+
+    def _build_titlebar(self):
+        """La franja de arriba de la ventana de capas.
+
+        Antes era una barra de titulo de verdad: fondo con degradado, el rotulo
+        «Layers» en medio, la flecha que plegaba en la esquina y la equis que
+        cerraba en la otra. Encima del boton flotante «Layers» del visor, ese
+        rectangulo mas claro flotando sobre el panel era lo unico que molestaba:
+        parecian dos barras, una encima de otra.
+
+        Del fondo no queda nada. La franja es del mismo color que el panel, de
+        modo que la flecha, la equis y el rotulo salen directamente sobre el marco
+        y no se ve nada detras. Los gestos se conservan enteros, que no tienen
+        otro sitio donde vivir: un clic en cualquier parte pliega y despliega la
+        ventana, un clic en la esquina de la derecha la cierra, y arrastrando se
+        mueve. Todo eso mira donde ha caido el raton, en `_capa_press`, asi que
+        los signos no son botones.
+        """
+        self.capa_barra = tk.Canvas(
+            self.layers_panel,
+            # El ancho hay que ponerlo a mano: un canvas de Tk pide 378 px de
+            # ancho si no se le dice otro, y como la franja se empaqueta con
+            # fill="x" esa peticion es la que marca el ancho de toda la ventana.
+            width=ANCHO_LISTA_CAPAS,
+            height=self.ALTO_BARRA,
+            highlightthickness=0,
+            borderwidth=0,
+            # El color del panel, no el de la barra: la franja no se distingue del
+            # marco. Tk no tiene lienzos transparentes, asi que el truco es que no
+            # pinte ningun color que el de al lado.
+            background=self.app._sims_theme_colors["background"],
+        )
+        # Con el margen del panel dentro: la franja ocupa el ancho del marco, no
+        # el de la lista, y asi se agarra la ventana por los bordes tambien.
+        self.capa_barra.pack(fill="x", padx=MARGEN_CAPAS, pady=(MARGEN_CAPAS, 0))
+        self.capa_barra.bind("<Configure>", self._pintar_barra)
+        self.capa_barra.bind("<ButtonPress-1>", self._capa_press)
+        self.capa_barra.bind("<B1-Motion>", self._arrastrar_capas)
+        self.capa_barra.bind("<ButtonRelease-1>", self._capa_soltar)
+        self._flecha = self.capa_barra.create_polygon(
+            0, 0, 0, 0, 0, 0, fill="", outline=""
+        )
+        self._equis = self.capa_barra.create_line(0, 0, 0, 0, width=2)
+        self._equis2 = self.capa_barra.create_line(0, 0, 0, 0, width=2)
+        self._rotulo = self.capa_barra.create_text(
+            0,
+            0,
+            text="Layers",
+            anchor="center",
+            font=(self.app._sims_font_family, 9, "bold"),
+        )
+        self._capas_minimizado = False
+        self.after_idle(self._pintar_barra)
+
+    def _pintar_barra(self, event=None):
+        """Coloca la flecha, la equis y el rotulo sobre el marco del panel.
+
+        Solo eso: no se pinta ningun fondo. La franja es del mismo color que el
+        panel, y los tres signos van en el color del texto del tema.
+        """
+        texto = self.app._sims_theme_colors["foreground"]
+        ancho = max(120, self.capa_barra.winfo_width())
+        alto = self.ALTO_BARRA
+        self.capa_barra.itemconfigure(self._flecha, fill=texto, outline="")
+        self.capa_barra.itemconfigure(self._equis, fill=texto)
+        self.capa_barra.itemconfigure(self._equis2, fill=texto)
+        self.capa_barra.itemconfigure(self._rotulo, fill=texto)
+        self.capa_barra.coords(self._rotulo, ancho / 2, alto / 2)
+
+        # La flecha: abajo apuntando cuando esta desplegada, a la derecha cuando
+        # esta plegada. Es la misma flecha de los arboles de carpeta.
+        centro_x = self.HOLGURA_BARRA + self.LADO_BOTON / 2
+        centro_y = alto / 2
+        if self._capas_minimizado:
+            puntos = [
+                centro_x - 3,
+                centro_y - 5,
+                centro_x - 3,
+                centro_y + 5,
+                centro_x + 5,
+                centro_y,
+            ]
+        else:
+            puntos = [
+                centro_x - 5,
+                centro_y - 3,
+                centro_x + 5,
+                centro_y - 3,
+                centro_x,
+                centro_y + 5,
+            ]
+        self.capa_barra.coords(self._flecha, *puntos)
+
+        x = ancho - self.HOLGURA_BARRA - self.LADO_BOTON / 2
+        brazo = 4
+        self.capa_barra.coords(
+            self._equis,
+            x - brazo,
+            centro_y - brazo,
+            x + brazo,
+            centro_y + brazo,
+        )
+        self.capa_barra.coords(
+            self._equis2,
+            x - brazo,
+            centro_y + brazo,
+            x + brazo,
+            centro_y - brazo,
+        )
+
+    def _zona_de_la_barra(self, x):
+        """Donde se ha pulsado en la franja: la esquina que cierra, o el resto.
+
+        La esquina de la equis reserva un ancho de zona, no el del signo, para no
+        tener que apuntar a la punta de la cruz. El resto de la franja pliega.
+        """
+        ancho = max(120, self.capa_barra.winfo_width())
+        if x >= ancho - self.HOLGURA_BARRA - self.LADO_BOTON:
+            return "equis"
+        return "titulo"
+
     def _pintar_panel_capas(self):
         """Da al panel el alto de su contenido y pinta el fondo redondeado.
 
@@ -486,23 +626,18 @@ class MapTab(ttk.Frame):
         )
 
     def toggle_minimizar_capas(self):
-        """Pliega la lista de piezas dejando solo la cabecera del panel."""
+        """Pliega la lista dejando solo la franja de arriba, y la vuelve a abrir."""
         self._capas_minimizado = not self._capas_minimizado
         if self._capas_minimizado:
             self.layers_cuerpo.pack_forget()
-            for hijo in self._signos_capas():
-                hijo.configure(text="\u25b8")
         else:
             self.layers_cuerpo.pack(fill="both", expand=True)
-            for hijo in self._signos_capas():
-                hijo.configure(text="\u2212")
         self.layers_panel.update_idletasks()
+        # La flecha gira al cambiar el estado, y el fondo redondeado se vuelve a
+        # medir porque el alto del panel lo marca su contenido.
+        self._pintar_barra()
         self._pintar_panel_capas()
         self._colocar_panel_capas()
-
-    def _signos_capas(self):
-        """Los dos etiquetas de la cabecera: la equis y el guion del pliegue."""
-        return self._signo_plegar, self._signo_cerrar
 
     def _todas(self, mostrar):
         """Enciende o apaga todas las piezas de golpe."""
@@ -523,11 +658,49 @@ class MapTab(ttk.Frame):
         self.canvas.coords(self.layers_window, x + MARGEN_CAPAS, y + MARGEN_CAPAS)
 
     def _capa_press(self, event):
-        """Marca donde se ha pulsado la cabecera, para medir el arrastre desde ahi."""
+        """Pulsar la barra: la equis cierra y el resto empieza un arrastre.
+
+        Pulsar el resto no pliega todavia: hasta que no se suelta no se sabe si
+        el raton estaba para plegar o arrastrando para mover. Lo decide
+        `_capa_soltar`, segun `_capa_gesto`.
+        """
+        if self._zona_de_la_barra(event.x) == "equis":
+            # El gesto ya esta gastado en cerrar. Sin esto, al soltar se plegaria
+            # tambien y la ventana se abriria la vez siguiente ya plegada.
+            self._capa_gesto = "cerrar"
+            return self.toggle_layers_panel()
+        return self._capa_origen_de(event)
+
+    def _capa_soltar(self, event):
+        """Al soltar: si el raton no se ha movido, el gesto fue un clic.
+
+        Un clic en cualquier parte de la barra pliega la ventana, no solo en la
+        flecha: es lo que se espera de una barra de titulo. Y como al soltar se
+        mira cuanto se ha movido, el arrastre para mover la ventana sigue siendo
+        el otro gesto.
+        """
+        if self._capa_gesto == "arrastrar" and not self._capa_movido:
+            self.toggle_minimizar_capas()
+
+    def _capa_origen_de(self, event):
+        """Marca donde se ha pulsado la barra, para medir el arrastre desde ahi."""
         self._capa_origen = (event.x_root, event.y_root)
+        self._capa_gesto = "arrastrar"
+        self._capa_movido = False
 
     def _arrastrar_capas(self, event):
         x, y = self.layers_pos
+        desplazamiento = max(
+            abs(event.x_root - self._capa_origen[0]),
+            abs(event.y_root - self._capa_origen[1]),
+        )
+        # A partir de un par de pixeles se da por arrastrado. Es lo que separa el
+        # gesto de mover la ventana del gesto de pulsar la barra para plegarla: la
+        # mano tiembla al pulsar y si no, cualquier clic moveria el panel.
+        if desplazamiento > 3:
+            self._capa_movido = True
+        if not self._capa_movido:
+            return
         self.layers_pos = [
             x + event.x_root - self._capa_origen[0],
             y + event.y_root - self._capa_origen[1],
@@ -835,14 +1008,47 @@ class MapTab(ttk.Frame):
         archivo y es el panel de capas el que apaga lo que sobre, una a una o de
         golpe.
 
-        La cupula si se sigue dejando fuera del encuadre: son dos esferas de 528
-        de lado que envuelven el solar, y con ellas dentro la escena se abarca
-        desde tan lejos que el nivel entero queda en un punto de dos pixeles.
+        La cupula va aparte: son dos esferas de 528 de lado que envuelven el
+        solar, y no entran en el encuadre de la camara. Se dibujan si el boton
+        del cielo esta encendido, pero la escena las deja fuera de la caja, que
+        si no se abarca el nivel desde tan lejos que queda en un punto.
         """
         partes = [p for p in self.parts if p["name"] not in self.ocultas]
         if self.show_sky.get():
             return partes
         return [p for p in partes if not es_cupula(p)]
+
+    def piezas_de_la_escena(self):
+        """Las piezas que se suben a la GPU: el nivel entero, con el cielo si esta.
+
+        Van todas, tambien las apagadas. Apagar una no quita su malla de la
+        escena, solo deja de pintarse: asi la caja del encuadre no cambia y la
+        camara no se reajusta cada vez que se enciende o apaga una pieza.
+        """
+        if self.show_sky.get():
+            return list(self.parts)
+        return [p for p in self.parts if not es_cupula(p)]
+
+    def nombres_sin_recorte(self):
+        """Las piezas del nivel que hay que dibujar sin recortar caras traseras.
+
+        Salen de la lista a mano `SIN_RECORTAR`, que va por nivel porque los
+        numeros de pieza cambian de un mapa a otro. Los cinco niveles que no
+        estan en la tabla no devuelven ninguna.
+        """
+        return SIN_RECORTAR.get(self.current["ruta_interna"], ())
+
+    def nombres_del_cielo(self):
+        """Los nombres de las piezas de cielo del nivel, si las tiene.
+
+        Se le pasan a la escena como `sin_framing`: se dibujan, pero sus vertices
+        no cuentan para la caja. Los 16 niveles que traen cielo tienen dos
+        esferas iguales de 392 vertices y 528 de lado; en los otros 5 no hay
+        ninguna y esta lista sale vacia.
+        """
+        if not self.show_sky.get():
+            return ()
+        return tuple(p["name"] for p in self.parts if es_cupula(p))
 
     def render(self):
         self.timer = None
@@ -879,23 +1085,41 @@ class MapTab(ttk.Frame):
                 )
                 return
             culling = self.culling.get()
-            # La escena se vuelve a montar cuando cambia el CONJUNTO de piezas,
-            # y por eso en la clave va quais son las apagadas y no cuantas hay.
+            # La escena se monta una vez por nivel y no se toca al apagar nada:
+            # el unico motivo para rehacerla es cambiar de nivel o de ajustes que
+            # cambian lo que se dibuja de verdad.
             key = (
                 self.current["entry"],
                 self.show_textures.get(),
                 self.show_sky.get(),
-                self.show_unplaced.get(),
                 culling,
-                firma_de_piezas(self.ocultas),
             )
             if self.objeto_key != key:
                 # La escena se reutiliza entre fotogramas: montar las 387 piezas
                 # y subir 80 texturas son unos 270 ms, y si se hiciera en cada
                 # redibujado el visor no responderia al arrastrar la camara.
-                self.objeto = prop_scene(parts, ("mapa",) + key, culling=culling)
+                self.objeto = prop_scene(
+                    self.piezas_de_la_escena(),
+                    ("mapa",) + key,
+                    culling=culling,
+                    sin_framing=self.nombres_del_cielo(),
+                )
                 self.objeto_key = key
             self.objeto.sin_mallas = False
+            # Las apagadas se marcan por nombre y la escena las busca una vez.
+            self.objeto.ocultas_mallas = frozenset(
+                indice
+                for indice, nombre in enumerate(self.objeto.nombres)
+                if nombre in self.ocultas
+            )
+            # Lo mismo con las de dos caras: se dibujan sin recortar, pero sin
+            # mezclarse, que es distinto de como se dibuja el pelo.
+            sin_recorte = self.nombres_sin_recorte()
+            self.objeto.sin_recorte = frozenset(
+                indice
+                for indice, nombre in enumerate(self.objeto.nombres)
+                if nombre in sin_recorte
+            )
             image = render_prop(
                 parts,
                 width,

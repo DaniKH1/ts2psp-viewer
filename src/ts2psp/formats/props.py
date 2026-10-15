@@ -301,6 +301,10 @@ CARAS_AL_REVES = {
     # no dice nada de un plano: el signo depende de lo lejos que este el origen.
     "levels/deadtree/graveyard": {"pieza_581"},
     "levels/deadtree/hub": {"pieza_588"},
+    # La cupula interior del monumento: 22 vertices, 475 x 452 m de nubes. Los
+    # 20 triangulos miran hacia FUERA, y una cupula se ve desde dentro, con lo
+    # que al recortar las caras traseras el cielo salia vacio.
+    "levels/the_monument": {"pieza_96"},
 }
 
 

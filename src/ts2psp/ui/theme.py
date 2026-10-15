@@ -1,4 +1,4 @@
-﻿"""Textures, fonts and ttk styling."""
+"""Textures, fonts and ttk styling."""
 
 import ctypes
 import math
@@ -663,6 +663,7 @@ def _install_sims_theme(root):
     root._sims_floating_button_factory = floating_button_factory
     root._sims_floating_font = floating_pil_font
     root._sims_floating_text_width = floating_text_width
+
     tab_rasters = {label: tab_texture(label) for label in NOTEBOOK_TAB_LABELS}
     tab_images = {
         label: ImageTk.PhotoImage(image, master=root)

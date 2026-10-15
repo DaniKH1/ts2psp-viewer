@@ -13,3 +13,12 @@ exports/
 *.glb
 *.fbx
 *.banm
+salida_caras/
+salida_capas/
+chk.txt
+cielo.txt
+s3.txt
+sonda_caras.py
+sonda_cielo.py
+sonda_piezas.py
+sonda3.py

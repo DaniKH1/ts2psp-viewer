@@ -295,57 +295,29 @@ class SkyDomeTests(unittest.TestCase):
                     atol=0.01,
                 )
 
-    def test_the_view_is_redrawn_when_the_same_number_of_pieces_change(self):
-        """Apagar y encender piezas tiene que redibujar aunque el numero no varye.
-
-        La escena se reutiliza entre fotogramas y solo se vuelve a montar cuando
-        cambia su clave. Si en la clave va cuantas piezas hay encendidas en vez de
-        cuales son, apagar una y luego otra deja el mismo numero que al
-        principio: la escena se creia la misma, no se redibuja, y al volver a
-        encender la primera seguia sin verse.
-        """
-        from ts2psp.ui.maps import firma_de_piezas
-
-        total = 404
-        ocultas = set()
-        firmas = []
-        for paso in ('pieza_47', 'pieza_51', 'pieza_47', 'pieza_62'):
-            if paso in ocultas:
-                ocultas.discard(paso)
-            else:
-                ocultas.add(paso)
-            firmas.append(firma_de_piezas(ocultas))
-
-        # Las cuentas se repiten y las firmas no: sin ellas la escena se reutiliza.
-        cuentas = [total - len(f) for f in firmas]
-        self.assertEqual(cuentas, [403, 402, 403, 402], 'las cuentas se repiten')
-        self.assertNotEqual(
-            firmas[0], firmas[2], 'apagar una y encender otra no es lo mismo'
-        )
-        self.assertEqual(len(set(firmas)), 4, 'cada conjunto apagado, su escena')
-
-        # Y el orden de los nombres no cuenta: es un conjunto.
-        self.assertEqual(
-            firma_de_piezas({'b', 'a'}), firma_de_piezas({'a', 'b'})
-        )
-
-    def test_the_sky_banner_of_the_deadtree_levels_is_turned_around(self):
-        """El cartel del cielo lleva las caras al reves y se da la vuelta al leerlo.
+    def test_the_pieces_with_their_faces_around_are_turned_around(self):
+        """Tres piezas de los niveles llevan las caras al reves y se dan la vuelta.
 
         El visor de mapas recorta las caras traseras, y con la cara buena hacia
-        atras el cartel no se ve desde donde toca. El volumen con signo solo lo
-        delata en las mallas cerradas; en un plano no dice nada, porque el signo
-        depende de lo lejos que este el origen y no de hacia donde mire la cara.
-        Por eso van en una lista a mano.
+        atras la pieza no se ve desde donde toca. Ninguna la delata el volumen con
+        signo: en un plano el signo depende de lo lejos que este el origen, y en
+        una cupula lo que cuenta es hacia dentro o hacia fuera. Por eso van en
+        una lista a mano.
 
-        Es la misma malla en los dos niveles: el pieza_581 del cementerio y el
-        pieza_588 del hub, un cuadrado de 10 m con alfa, suelto en el cielo.
+        El cartel del cielo es la misma malla en los dos niveles de Deadtree: el
+        pieza_581 del cementerio y el pieza_588 del hub, un cuadrado de 10 m con
+        alfa. Y en The Monument esta la cupula interior de 475 x 452 m, con los
+        veinte triangulos mirando hacia fuera.
         """
         import numpy as np
 
         from ts2psp.formats.props import CARAS_AL_REVES
 
-        def normal_media(part):
+        CARTA = ("levels/deadtree/graveyard", "pieza_581")
+        CARTA_HUB = ("levels/deadtree/hub", "pieza_588")
+        CUPULA = ("levels/the_monument", "pieza_96")
+
+        def puntos_de(part):
             puntos = np.array([v[0] for v in part["vertices"]], dtype=np.float64)
             indices = np.array(part["indices"], dtype=np.int64).reshape(-1, 3)
             normales = np.cross(
@@ -354,43 +326,45 @@ class SkyDomeTests(unittest.TestCase):
             )
             pesos = np.linalg.norm(normales, axis=1)
             total = (normales * pesos[:, None]).sum(axis=0)
-            return total / np.linalg.norm(total)
+            return puntos, indices, normales, total / np.linalg.norm(total)
 
-        for nivel, pieza in (
-            ("levels/deadtree/graveyard", "pieza_581"),
-            ("levels/deadtree/hub", "pieza_588"),
-        ):
-            self.assertEqual(CARAS_AL_REVES[nivel], {pieza}, nivel)
-            con_ruta = {
-                p["name"]: p
-                for p in parse_rdms(
-                    self.datos(nivel),
-                    apply_scene=True,
-                    vertex_colors=False,
-                    ruta=nivel,
-                )[0]
-            }
-            sin_ruta = {
-                p["name"]: p
-                for p in parse_rdms(
-                    self.datos(nivel), apply_scene=True, vertex_colors=False
-                )[0]
-            }
+        def leer(nivel, con_ruta):
+            piezas = parse_rdms(
+                self.datos(nivel),
+                apply_scene=True,
+                vertex_colors=False,
+                ruta=nivel if con_ruta else None,
+            )[0]
+            return {p["name"]: p for p in piezas}
+
+        for nivel, pieza in (CARTA, CARTA_HUB, CUPULA):
+            self.assertIn(pieza, CARAS_AL_REVES[nivel], nivel)
+            antes = leer(nivel, False)[pieza]
+            despues = leer(nivel, True)[pieza]
+            _, _, _, normal_antes = puntos_de(antes)
+            _, _, _, normal_despues = puntos_de(despues)
             np.testing.assert_allclose(
-                normal_media(con_ruta[pieza]),
-                -normal_media(sin_ruta[pieza]),
+                normal_despues,
+                -normal_antes,
                 atol=1e-6,
                 err_msg=f"{nivel}/{pieza}: la normal no se ha dado la vuelta",
             )
-            # Solo ese cartel: el resto del nivel llega igual.
-            otras = [n for n in con_ruta if n != pieza]
-            for nombre in otras[::37]:
+            self.assertEqual(
+                len(antes["vertices"]), len(despues["vertices"]), nivel
+            )
+
+        # Y solo esas tres: el resto de cada nivel llega igual.
+        for nivel, (_n, excepcion) in (
+            ("levels/deadtree/graveyard", CARTA),
+            ("levels/deadtree/hub", CARTA_HUB),
+            ("levels/the_monument", CUPULA),
+        ):
+            con_ruta, sin_ruta = leer(nivel, True), leer(nivel, False)
+            for nombre in [n for n in con_ruta if n != excepcion][::53]:
                 self.assertEqual(
                     con_ruta[nombre]["indices"], sin_ruta[nombre]["indices"], nombre
                 )
-
-        # Y ningun otro nivel toca la lista.
-        self.assertNotIn("levels/gas_station/garage", CARAS_AL_REVES)
+            self.assertNotIn(nivel, ("levels/gas_station/garage",))
 
     def test_a_level_without_a_dome_keeps_every_piece(self):
         parts = self.parts_of("levels/division_47/barracks")

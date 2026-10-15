@@ -264,7 +264,23 @@ class Escena:
     tuplas con 'vertices' (posicion, nada, uv, color) e 'indices'.
     """
 
-    def __init__(self, piezas, texturas=None, tipo="personaje", fondo=(27, 31, 42)):
+    # Valores por defecto, aqui y no solo en `__init__`, porque hay pruebas que
+    # montan una escena llamando a `_cargar` directamente sobre un objeto vacio.
+    nombres = ()
+    tramos_vertices = ()
+    sin_framing = frozenset()
+    ocultas_mallas = frozenset()
+    sin_recorte = frozenset()
+    sin_mallas = False
+
+    def __init__(
+        self,
+        piezas,
+        texturas=None,
+        tipo="personaje",
+        fondo=(27, 31, 42),
+        sin_framing=(),
+    ):
         self.contexto = Contexto.compartido()
         self.fondo = fondo
         self.ancho = self.alto = 0
@@ -278,10 +294,23 @@ class Escena:
         self.transparentes = 0
         self.tipo = tipo
         self.mostrar_grid = True
+        # Nombres de las piezas que se dibujan pero no cuentan para el encuadre.
+        # Sirve para el cielo de los mapas: es una esfera de 528 de lado que
+        # envuelve el solar, y si entrara en la caja de la escena la camara se
+        # separaria tanto que el nivel entero quedaria en un punto.
+        self.sin_framing = frozenset(sin_framing)
         # Dibuja solo la rejilla: lo usa el visor de mapas cuando no queda ninguna
         # pieza encendida, para que la rejilla siga donde esta y el fotograma no
         # se quede pegado del anterior.
         self.sin_mallas = False
+        # Indices de `dibujos` que no se pintan. Las mallas siguen subidas y la
+        # caja de la escena no cambia, con lo que la camara no se reajusta al
+        # apagar o encender una pieza.
+        self.ocultas_mallas = frozenset()
+        # Indices de `dibujos` que se pintan sin recortar caras traseras, pero sin
+        # que eso las vuelva transparentes. Es distinto del pelo, que ademas se
+        # mezcla: aqui son piezas opacas de dos caras.
+        self.sin_recorte = frozenset()
         # Props use two-sided materials, just as their exported GLB does.
         self.sin_culling = tipo == "prop"
         self._grid_vertices = None
@@ -294,6 +323,12 @@ class Escena:
     def _cargar(self, piezas, texturas):
         posiciones, uvs, colores, indices, tramos = [], [], [], [], []
         self.alpha_modes = []
+        # El nombre de la pieza de cada dibujo, en el mismo orden. Lo usa el
+        # visor de mapas para apagar y encender piezas sin rehacer la escena.
+        self.nombres = []
+        # El tramo de vertices de cada dibujo, para poder dejar fuera de la caja
+        # de la escena las piezas que no cuentan para el encuadre.
+        self.tramos_vertices = []
         ids_textura = {}
         alpha_textura = {}
         escala_pos, normaliza_uv = (
@@ -367,6 +402,11 @@ class Escena:
                     es_peinado,
                 )
             )
+            # El nombre de la pieza va pegado al tramo porque los dos tienen que
+            # contar lo mismo: las piezas ocultas no se suben y tampoco van aqui.
+            nombre = str(parte.get("name") or parte.get("nombre") or ruta)
+            self.nombres.append(nombre)
+            self.tramos_vertices.append((inicio_vertices, len(parte["vertices"])))
             transparent = tramos[-1][3]
             modo = parte.get("alpha_mode")
             if self.tipo != "prop":
@@ -396,8 +436,11 @@ class Escena:
             if self.tipo.startswith("personaje") and "criatura" not in self.tipo
             else (self.rango[0][0] + self.rango[0][1]) / 2.0
         )
-        # distancia del pivote al punto más lejano: la cámara no baja de aquí
-        self.radio = float(np.abs(self.posiciones - self.pivote).max())
+        # distancia del pivote al punto más lejano: la cámara no baja de aquí.
+        # Solo sobre las piezas que cuentan para el encuadre: si el cielo entra,
+        # la cámara se aleja hasta que el solar es un punto.
+        encuadre = self._posiciones_del_encuadre()
+        self.radio = float(np.abs(encuadre - self.pivote).max())
         self.pose = ("", 0.0)
 
     def _normalizar(self, piezas):
@@ -548,10 +591,36 @@ class Escena:
         distancia = focal / (escala * min(zoom, self.zoom_tope(ancho, alto)))
         return distancia + sp * z + cp * fondo
 
+    def _posiciones_del_encuadre(self):
+        """Los vertices de las piezas que si cuentan para el encuadre.
+
+        Se deja fuera lo que va en `sin_framing`, que es el cielo de los mapas:
+        son esferas de 528 de lado y si su caja entrara en la del encuadre la
+        camara se separaria hasta que el solar entero quepa en un punto de dos
+        pixeles. Se quitan por tramo de vertices, no por bandera en el dibujo,
+        porque la caja se calcula una vez al montar y no en cada fotograma.
+
+        Cuando no hay nada que dejar fuera se devuelven todos los vertices sin
+        montar ninguna mascara: `sin_framing` es vacio en practicamente todos los
+        visores y esto esta en el arranque de cada escena.
+        """
+        if not self.sin_framing:
+            return self.posiciones
+        mascara = np.ones(len(self.posiciones), dtype=bool)
+        for nombre, (inicio, cuenta) in zip(
+            self.nombres, self.tramos_vertices
+        ):
+            if nombre in self.sin_framing:
+                mascara[inicio : inicio + cuenta] = False
+        return self.posiciones[mascara]
+
     def _rango(self):
         """Bounding box in model units; the camera framing itself lives in _camara()."""
-        minimo = self.posiciones.min(axis=0)
-        maximo = self.posiciones.max(axis=0)
+        puntos = self._posiciones_del_encuadre()
+        if len(puntos) == 0:
+            puntos = self.posiciones
+        minimo = puntos.min(axis=0)
+        maximo = puntos.max(axis=0)
         tamano = float(max(maximo - minimo))
         return (minimo, maximo), max(0.05, tamano)
 
@@ -810,24 +879,30 @@ class Escena:
         gl.punteros_uv(2, GL_FLOAT, 0, self.UV.ctypes.data)
         gl.punteros_color(4, GL_FLOAT, 0, self.colores.ctypes.data)
         primero, recortados, mezclados = [], [], []
-        for draw, mode in zip(self.dibujos, self.alpha_modes):
+        sin_recorte = self.sin_recorte
+        for indice, (draw, mode) in enumerate(zip(self.dibujos, self.alpha_modes)):
+            if indice in self.ocultas_mallas:
+                continue
             indices, textura, alfa, es_peinado = draw
             group = (
                 mezclados
                 if mode == "BLEND"
                 else recortados if mode == "MASK" else primero
             )
-            group.append((indices, textura, es_peinado))
+            group.append((indices, textura, es_peinado, indice))
         culling_activo = not sin_culling
 
         def dibujar_grupos(grupos):
             nonlocal culling_activo
-            for indices, textura, es_peinado in grupos:
+            for indices, textura, es_peinado, indice in grupos:
+                # Tres cosas se dibujan sin recortar: el pelo, que son triangulos
+                # sueltos, y las piezas marcadas a mano, que son de dos caras.
+                dos_caras = es_peinado or indice in sin_recorte
                 if not sin_culling:
-                    if es_peinado and culling_activo:
+                    if dos_caras and culling_activo:
                         gl.desactivar(GL_CULL_FACE)
                         culling_activo = False
-                    elif not es_peinado and not culling_activo:
+                    elif not dos_caras and not culling_activo:
                         gl.activar(GL_CULL_FACE)
                         culling_activo = True
                 gl.bind_textura(GL_TEXTURE_2D, textura)
@@ -915,13 +990,23 @@ SIN_CULLING = ("doctordominion",)
 
 
 def escena(
-    clave, piezas, texturas=None, tipo="personaje", fondo=(27, 31, 42), culling=False
+    clave,
+    piezas,
+    texturas=None,
+    tipo="personaje",
+    fondo=(27, 31, 42),
+    culling=False,
+    sin_framing=(),
 ):
     """Escena cacheada para `clave`. Avisa con SinOpenGL si la GPU no está disponible.
 
     `culling` recorta las caras traseras. Los props vienen con materiales de dos
     caras y se dibujan sin recortar; un nivel se dibuja con las normales hacia
     fuera, y sin recortar se ve el interior de cada muro desde el otro lado.
+
+    `sin_framing` son los nombres de las piezas que se dibujan pero no cuentan
+    para el encuadre: el cielo de los mapas, que es una esfera de 528 de lado y
+    se llevaria la camara tan lejos que el nivel quedaria en un punto.
 
     El recorte se fija en cada llamada y no solo al crear la escena, para que la
     clave pueda seguir siendo la de siempre: hay sitios que vacian la cache
@@ -931,7 +1016,7 @@ def escena(
     if _fallo is not None:
         raise SinOpenGL(str(_fallo))
     if clave not in _escenas:
-        _escenas[clave] = Escena(piezas, texturas, tipo, fondo)
+        _escenas[clave] = Escena(piezas, texturas, tipo, fondo, sin_framing)
     escena_actual = _escenas[clave]
     nombre = (
         clave[1] if isinstance(clave, (tuple, list)) and len(clave) > 1 else clave

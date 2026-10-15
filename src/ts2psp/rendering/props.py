@@ -7,7 +7,7 @@ from ts2psp.formats.props import parse_rdms, parse_prop_bmsh
 import ts2psp.rendering.opengl as gl
 
 
-def prop_scene(parts, key, show_textures=True, culling=False):
+def prop_scene(parts, key, show_textures=True, culling=False, sin_framing=()):
     """Escena GL del prop, cacheada por clave.
 
     Se expone aparte porque al reproducir una animacion hay que reutilizar la
@@ -17,6 +17,11 @@ def prop_scene(parts, key, show_textures=True, culling=False):
     `culling` deja recortar las caras traseras. Los props se dibujan sin
     recortar porque sus materiales son de dos caras; los mapas de nivel si
     llegaron con las normales hacia fuera y se ven bien recortados.
+
+    `sin_framing` son los nombres de las piezas que se dibujan pero no cuentan
+    para el encuadre. Lo usa el visor de mapas para el cielo, que es una esfera
+    de 528 de lado y, si contara, la camara se separaria tanto que el nivel
+    entero quedaria en un punto de dos pixeles.
     """
     textures = {}
     if show_textures:
@@ -34,6 +39,7 @@ def prop_scene(parts, key, show_textures=True, culling=False):
         "prop",
         fondo=(28, 31, 41),
         culling=culling,
+        sin_framing=sin_framing,
     )
 
 

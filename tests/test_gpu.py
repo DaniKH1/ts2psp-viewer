@@ -1,4 +1,4 @@
-﻿"""Comprueba el render por GPU: velocidad, tamaño de la imagen, cámara y app completa.
+"""Comprueba el render por GPU: velocidad, tamaño de la imagen, cámara y app completa.
 
 Uso:  py -3 test_gpu.py     (desde esta carpeta, con la carpeta data del nivel superior)
 
@@ -825,6 +825,119 @@ def comprobar_personaje_por_defecto(app):
     )
 
 
+def _caja_de_la_escena(escena):
+    """La caja de lo subido a la GPU, en numeros que se puedan comparar.
+
+    `Escena.rango` es ((minimo, maximo), tamano), con los minimos y maximos en
+    numpy. Aqui se pasan a tuplas de numeros, que si se pueden comparar con ==.
+    """
+    (minimo, maximo) = escena.rango[0]
+    return (tuple(float(x) for x in minimo), tuple(float(x) for x in maximo))
+
+
+def comprobar_barra_de_capas(app, tab):
+    """La franja de arriba del panel: sin fondo, con la flecha, la equis y el rotulo.
+
+    Lo que se ve son tres signos sobre el marco, y lo que hace la franja es
+    plegar la ventana, cerrarla y dejarla arrastrar. Son dos gestos distintos
+    sobre el mismo sitio, y por eso el pliegue espera a que se suelte el boton:
+    mientras el raton esta pulsado todavia no se sabe si lo que se quiere es
+    plegar o llevarla a otro lado del visor.
+    """
+    tab.toggle_layers_panel()
+    app.update()
+    barra = tab.capa_barra
+    comprobar(
+        barra.winfo_height() == tab.ALTO_BARRA,
+        "la franja de la ventana de capas tiene su alto",
+    )
+    comprobar(
+        len(barra.find_all()) == 4,
+        "en la franja solo estan la flecha, la equis, la otra linea de la equis "
+        "y el rotulo",
+    )
+    comprobar(
+        not any(
+            barra.type(item) == "rectangle" for item in barra.find_all()
+        ),
+        "la franja no pinta ningun fondo: no hay barras encima del panel",
+    )
+    comprobar(
+        barra.itemcget(barra.find_all()[0], "fill")
+        == app._sims_theme_colors["foreground"],
+        "la flecha va en el color del texto del tema",
+    )
+    comprobar(
+        barra.winfo_manager() == "pack"
+        and tab.layers_cuerpo.winfo_manager() == "pack",
+        "la ventana de capas sale desplegada con su cuerpo",
+    )
+
+    def clic(x):
+        """Un raton que pulsa en x y suelta sin moverse."""
+        evento = SimpleNamespace(
+            x=x, x_root=barra.winfo_rootx() + x, y_root=barra.winfo_rooty() + 4
+        )
+        tab._capa_press(evento)
+        tab._capa_soltar(evento)
+
+    # Un clic en el medio pliega la ventana.
+    clic(barra.winfo_width() // 2)
+    app.update()
+    comprobar(
+        tab._capas_minimizado and tab.layers_cuerpo.winfo_manager() == "",
+        "un clic en la franja pliega la ventana de capas",
+    )
+    # Y otro clic en el medio la vuelve a abrir.
+    clic(barra.winfo_width() // 2)
+    app.update()
+    comprobar(
+        not tab._capas_minimizado and tab.layers_cuerpo.winfo_manager() == "pack",
+        "un clic en la franja la vuelve a abrir",
+    )
+
+    # La esquina de la derecha cierra en vez de plegar, y no pliega al soltar.
+    x_equis = barra.winfo_width() - tab.HOLGURA_BARRA - tab.LADO_BOTON + 2
+    clic(x_equis)
+    app.update()
+    comprobar(
+        tab.canvas.itemcget(tab.layers_window, "state") == "hidden",
+        "la esquina de la franja cierra la ventana de capas",
+    )
+    comprobar(
+        not tab._capas_minimizado,
+        "la esquina que cierra no pliega: cierra",
+    )
+    tab.toggle_layers_panel()
+    app.update()
+
+    # Arrastrar mueve la ventana y no la pliega, aunque se suelte encima.
+    antes = tuple(tab.layers_pos)
+    inicio = SimpleNamespace(
+        x=barra.winfo_width() // 2,
+        x_root=barra.winfo_rootx() + barra.winfo_width() // 2,
+        y_root=barra.winfo_rooty() + 4,
+    )
+    tab._capa_press(inicio)
+    tab._arrastrar_capas(
+        SimpleNamespace(x=inicio.x, x_root=inicio.x_root + 40, y_root=inicio.y_root)
+    )
+    tab._capa_soltar(
+        SimpleNamespace(
+            x=inicio.x, x_root=inicio.x_root + 40, y_root=inicio.y_root
+        )
+    )
+    app.update()
+    comprobar(
+        tuple(tab.layers_pos) != antes,
+        "arrastrar la franja mueve la ventana de capas",
+    )
+    comprobar(
+        not tab._capas_minimizado,
+        "arrastrar la franja no la pliega",
+    )
+
+
 def prueba_app():
     seccion("App completa")
     app = Sims2PSPApp(base=DATOS)
@@ -880,9 +993,67 @@ def prueba_app():
                 "MapTab: el mapa entero queda cargado, con todas sus piezas",
             )
             comprobar(
-                len(tab.piezas_visibles()) < len(tab.parts),
-                "MapTab: la cupula del cielo se deja fuera del encuadre",
+                len(tab.piezas_visibles()) == len(tab.parts),
+                "MapTab: con el cielo encendido se dibujan todas las piezas, "
+                "domo incluido",
             )
+            # Las dos cupulas del nivel (392 vertices y 528 de lado) se dibujan
+            # pero no cuentan para el encuadre: si contaran, la camara se
+            # separaria hasta que el nivel entero quedase en un punto.
+            comprobar(
+                len(tab.nombres_del_cielo()) == 2,
+                "MapTab: el nivel trae sus dos cupulas de cielo",
+            )
+            comprobar(
+                set(tab.nombres_del_cielo()) <= set(tab.objeto.sin_framing),
+                "MapTab: el cielo se dibuja pero no marca el encuadre",
+            )
+            ancho_encuadre = max(
+                float(tab.objeto.rango[0][1][k] - tab.objeto.rango[0][0][k])
+                for k in range(3)
+            )
+            comprobar(
+                ancho_encuadre < 300,
+                "MapTab: la caja del encuadre es la del nivel, no la de la esfera",
+            )
+            # Apagar una pieza no puede rehacer la escena: el encuadre sale de la
+            # caja de lo subido a la GPU, y si al apagarla se montara una escena
+            # nueva sin ella, la caja encogeria y el visor se ajustaria solo.
+            comprobar(
+                len(tab.piezas_de_la_escena()) >= len(tab.parts) - 4,
+                "MapTab: la escena lleva las piezas apagadas",
+            )
+            escena_antes = tab.objeto
+            caja_antes = _caja_de_la_escena(escena_antes)
+            antes_visibles = len(tab.piezas_visibles())
+            tab.ocultas = {tab.parts[0]["name"]}
+            tab.render()
+            app.update()
+            comprobar(
+                tab.objeto is escena_antes,
+                "MapTab: apagar una pieza no vuelve a montar la escena",
+            )
+            comprobar(
+                _caja_de_la_escena(tab.objeto) == caja_antes,
+                "MapTab: la caja del encuadre no cambia al apagar una pieza",
+            )
+            comprobar(
+                len(tab.piezas_visibles()) == antes_visibles - 1,
+                "MapTab: la pieza apagada sale del dibujo",
+            )
+            comprobar(
+                len(tab.objeto.ocultas_mallas) == 1,
+                "MapTab: la escena sabe que malla no pintar",
+            )
+            comprobar(
+                tab.objeto.nombres[list(tab.objeto.ocultas_mallas)[0]]
+                == tab.parts[0]["name"],
+                "MapTab: es la malla de la pieza apagada",
+            )
+            tab.ocultas = set()
+            tab.render()
+            app.update()
+            comprobar_barra_de_capas(app, tab)
         app.update_idletasks()
         # La camara se prueba sobre algo que se pueda mover. La pestana de
         # personajes abre con Bella Goth cargado; si no lo estuviera, sin modelo
@@ -918,7 +1089,16 @@ def prueba_app():
         )
         comprobar(movido, f"{type(tab).__name__}: la cámara orbita con el ratón")
         comprobar(estable, f"{type(tab).__name__}: la ventana no crece al girar")
-        comprobar(frame < 20, f"{type(tab).__name__}: el frame dura menos de 20 ms")
+        # El tope son 30 ms y no 20 porque la cámara de los mapas mira hacia abajo
+        # y abarca el solar entero. Antes miraba casi a ras de suelo, se quedaba
+        # fuera de plano la mitad de las piezas y el render salía en 12 ms. Con el
+        # nivel entero a la vista son unos 23, que sigue siendo 43 fps de sobra
+        # para arrastrar la cámara.
+        comprobar(
+            frame < 30,
+            f"{type(tab).__name__}: el frame dura menos de 30 ms "
+            f"(ahora {frame:.1f} ms)",
+        )
 
     # Se guarda el ancho del visor antes de ensanchar la ventana, para comprobar
     # que CRECE en vez de mirar un numero fijo: las columnas laterales se han

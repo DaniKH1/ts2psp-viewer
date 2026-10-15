@@ -71,6 +71,22 @@ class TextureGallery(ttk.Frame):
         self.grid.bind("<Configure>", self._grid_resized)
         self.canvas.bind("<Configure>", self._canvas_resized)
         self.canvas.bind("<MouseWheel>", self._mousewheel)
+        # Tambien en el marco y en la rejilla, para la rueda que cae en el hueco
+        # entre miniaturas o en el borde, que no es ni lienzo ni boton.
+        self.grid.bind("<MouseWheel>", self._mousewheel)
+        marco.bind("<MouseWheel>", self._mousewheel)
+        self.bind("<MouseWheel>", self._mousewheel)
+
+    def rueda_sobre_la_galeria(self, event):
+        """Desplaza la galeria y avisa de si queda algo mas, para las pruebas.
+
+        Devuelve cuanto se ha movido: cero si no habia nada que desplazar, que es
+        el caso de una galeria con todas sus texturas a la vista.
+        """
+        antes = self.canvas.yview()[0]
+        self._mousewheel(event)
+        despues = self.canvas.yview()[0]
+        return abs(despues - antes)
 
     # -- contenido ---------------------------------------------------------
 
@@ -137,6 +153,11 @@ class TextureGallery(ttk.Frame):
                 "<Leave>",
                 lambda _event, w=boton: self._hover(w, False),
             )
+            # La rueda va atada tambien a cada miniatura. Tk manda el evento al
+            # widget que hay bajo el puntero, y ese es el boton, no el lienzo que
+            # lo contiene: sin esta linea, rueda sobre una textura y no pasa
+            # nada, que es justo donde se hace.
+            boton.bind("<MouseWheel>", self._mousewheel)
             self.buttons.append(boton)
             self.thumbnails.extend(fotos.values())
         # El grupo se centra segun cuantas sean, y eso cambia en cada carga.
@@ -230,7 +251,12 @@ class TextureGallery(ttk.Frame):
         self._centrar()
 
     def _mousewheel(self, event):
-        self.canvas.yview_scroll(-int(event.delta / 120), "units")
+        """Rueda del raton: sube o baja la rejilla de miniaturas.
+
+        El salto va en unidades y no en lineas porque las lineas aqui son de una
+        fila de miniaturas, y con tres se salen de la galeria de un golpe.
+        """
+        self.canvas.yview_scroll(-max(-3, min(3, int(event.delta / 120))), "units")
 
     # -- vista previa ------------------------------------------------------
 

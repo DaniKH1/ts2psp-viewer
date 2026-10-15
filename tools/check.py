@@ -20,7 +20,9 @@ def main():
         cwd=ROOT,
         env=environment,
         check=True,
-        timeout=180,
+        # La suite se come unos 170 s en esta maquina y con 180 se saltaba por los
+        # pelos en varias ejecuciones. Es un tope para colgar, no un objetivo.
+        timeout=420,
     )
     if args.gui:
         for name in (
