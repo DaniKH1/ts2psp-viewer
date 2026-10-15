@@ -4,6 +4,35 @@ import tkinter as tk
 from tkinter import font as tkfont
 from PIL import Image, ImageTk
 
+# Radio de las esquinas redondeadas del panel, en pixeles. Las esquinas de la
+# textura son cuadradas y el corte se hace ahi, asi que los tres cortes tienen
+# que caer en el mismo sitio que en la imagen original.
+RADIO_ESQUINA = 11
+
+
+def panel_redondeado(origen, width, height, radio=RADIO_ESQUINA):
+    """La textura del panel estirada a `width` x `height` con esquinas enteras.
+
+    Se parte en nueve: cuatro esquinas que no se tocan, cuatro bordes que se
+    estiran en un solo sentido y el centro, que se estira en los dos. Sin esto
+    el panel sale con las esquinas cuadradas, o con el borde deformado si se
+    estira la imagen entera.
+    """
+    ancho, alto = max(width, 2 * radio + 1), max(height, 2 * radio + 1)
+    panel = Image.new("RGBA", (ancho, alto))
+    xs = (0, radio, origen.width - radio, origen.width)
+    ys = (0, radio, origen.height - radio, origen.height)
+    dx = (0, radio, ancho - radio, ancho)
+    dy = (0, radio, alto - radio, alto)
+    for fila in range(3):
+        for columna in range(3):
+            trozo = origen.crop((xs[columna], ys[fila], xs[columna + 1], ys[fila + 1]))
+            destino = (dx[columna + 1] - dx[columna], dy[fila + 1] - dy[fila])
+            if trozo.size != destino:
+                trozo = trozo.resize(destino, Image.Resampling.BILINEAR)
+            panel.paste(trozo, (dx[columna], dy[fila]))
+    return panel
+
 
 class TexturedListbox(tk.Canvas):
     def __init__(
@@ -268,23 +297,7 @@ class TexturedListbox(tk.Canvas):
         return (text[:low] + "...") if low > 0 else "..."
 
     def _panel_image(self, width, height):
-        source = self._source
-        corner = 11
-        width = max(width, 2 * corner + 1)
-        height = max(height, 2 * corner + 1)
-        panel = Image.new("RGBA", (width, height))
-        xs = (0, corner, source.width - corner, source.width)
-        ys = (0, corner, source.height - corner, source.height)
-        dx = (0, corner, width - corner, width)
-        dy = (0, corner, height - corner, height)
-        for row in range(3):
-            for col in range(3):
-                tile = source.crop((xs[col], ys[row], xs[col + 1], ys[row + 1]))
-                target = (dx[col + 1] - dx[col], dy[row + 1] - dy[row])
-                if tile.size != target:
-                    tile = tile.resize(target, Image.Resampling.BILINEAR)
-                panel.paste(tile, (dx[col], dy[row]))
-        return panel
+        return panel_redondeado(self._source, width, height)
 
     def _redraw(self, _event=None):
         width = max(2, self.winfo_width())

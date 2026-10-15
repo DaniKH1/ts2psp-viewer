@@ -278,6 +278,10 @@ class Escena:
         self.transparentes = 0
         self.tipo = tipo
         self.mostrar_grid = True
+        # Dibuja solo la rejilla: lo usa el visor de mapas cuando no queda ninguna
+        # pieza encendida, para que la rejilla siga donde esta y el fotograma no
+        # se quede pegado del anterior.
+        self.sin_mallas = False
         # Props use two-sided materials, just as their exported GLB does.
         self.sin_culling = tipo == "prop"
         self._grid_vertices = None
@@ -785,6 +789,12 @@ class Escena:
             self._dibujar_grid(
                 gl, ancho, alto, ojo, limite, yaw, pitch, zoom, pan, centro
             )
+        if self.sin_mallas:
+            # No hay malla que dibujar pero el fotograma se devuelve igual: es lo
+            # que lee el visor de mapas cuando todas las piezas estan apagadas, y
+            # sin este paso se quedaria pegada la imagen anterior.
+            gl.fin()
+            return self._leer(ancho, alto)
 
         gl.activar(GL_TEXTURE_2D)
         gl.activar(GL_CULL_FACE)
@@ -852,6 +862,11 @@ class Escena:
             gl.desactivar(GL_ALPHA_TEST)
             gl.desactivar(GL_BLEND)
         gl.fin()
+        return self._leer(ancho, alto)
+
+    def _leer(self, ancho, alto):
+        """Trae el fotograma del búfer fuera de pantalla a una imagen."""
+        gl = self.contexto
         gl.leer(0, 0, ancho, alto, GL_RGBA, GL_UNSIGNED_BYTE, self.lectura.ctypes.data)
         # glReadPixels devuelve las filas de abajo arriba. frombytes y no frombuffer:
         # frombuffer no copia y devolvería una vista sobre el búfer de lectura, así que
@@ -899,18 +914,32 @@ def disponible():
 SIN_CULLING = ("doctordominion",)
 
 
-def escena(clave, piezas, texturas=None, tipo="personaje", fondo=(27, 31, 42)):
-    """Escena cacheada para `clave`. Avisa con SinOpenGL si la GPU no está disponible."""
+def escena(
+    clave, piezas, texturas=None, tipo="personaje", fondo=(27, 31, 42), culling=False
+):
+    """Escena cacheada para `clave`. Avisa con SinOpenGL si la GPU no está disponible.
+
+    `culling` recorta las caras traseras. Los props vienen con materiales de dos
+    caras y se dibujan sin recortar; un nivel se dibuja con las normales hacia
+    fuera, y sin recortar se ve el interior de cada muro desde el otro lado.
+
+    El recorte se fija en cada llamada y no solo al crear la escena, para que la
+    clave pueda seguir siendo la de siempre: hay sitios que vacian la cache
+    nombrando la clave a mano y, si `culling` se metiera dentro, se quedarian
+    con la escena del ajuste anterior.
+    """
     if _fallo is not None:
         raise SinOpenGL(str(_fallo))
     if clave not in _escenas:
-        escena_nueva = Escena(piezas, texturas, tipo, fondo)
-        nombre = (
-            clave[1] if isinstance(clave, (tuple, list)) and len(clave) > 1 else clave
-        )
-        escena_nueva.sin_culling = tipo == "prop" or str(nombre) in SIN_CULLING
-        _escenas[clave] = escena_nueva
-    return _escenas[clave]
+        _escenas[clave] = Escena(piezas, texturas, tipo, fondo)
+    escena_actual = _escenas[clave]
+    nombre = (
+        clave[1] if isinstance(clave, (tuple, list)) and len(clave) > 1 else clave
+    )
+    escena_actual.sin_culling = (
+        tipo == "prop" and not culling
+    ) or str(nombre) in SIN_CULLING
+    return escena_actual
 
 
 def ahora_ms():

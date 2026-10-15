@@ -10,11 +10,17 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
+from PIL import Image, ImageTk
+
 from ts2psp.ui.camera import CAMERA_HINT, OrbitController, Viewport
 import ts2psp.rendering.opengl as gl
 from ts2psp.rendering.props import prop_scene, render_prop
 from ts2psp.formats.props import parse_rdms, sections, write_rigid_glb
 from ts2psp.formats.surfaces import decode_surface
+from ts2psp.ui.floating_button import FloatingButton
+from ts2psp.ui.textured_list import TexturedListbox, panel_redondeado
+from ts2psp.ui.texture_gallery import TextureGallery
+from ts2psp.ui.theme import LIST_PANEL_PATH
 from ts2psp.ui.uv import UVWindow
 
 # La cupula del cielo de los niveles.
@@ -43,9 +49,24 @@ CUPULA_TOLERANCIA = 0.05
 # No se borran: el boton del visor las vuelve a ensenar.
 SIN_COLOCAR = 1.0
 
+# Alturas de las listas del panel de capas, en pixeles. Son canvas, no filas.
+# La de mapas es bajita a proposito: debajo va la galeria de texturas, que con
+# 21 niveles competian por el alto de la columna.
+ALTO_LISTA_MAPS = 356
+ALTO_LISTA_CAPAS = 300
+ANCHO_LISTA_MAPS = 250
+ANCHO_LISTA_CAPAS = 244
+# Holgura entre el borde redondeado del panel y lo que va dentro, en pixeles.
+MARGEN_CAPAS = 9
+
 
 def es_sin_colocar(part):
-    """Si la pieza llega al recurso sin sitio: su cabecera rdms la deja en el centro."""
+    """Si la pieza llega al recurso sin sitio: su cabecera rdms la deja en el centro.
+
+    Esto ya no aparta nada del dibujo. Se queda como detector porque el filtro
+    escondia muebles que si estan colocados, y mientras se estuvo aplicando no
+    se podia saber cuales eran: lo que no se ve, no se comprueba.
+    """
     origen = part.get("origin")
     if origen is None:
         return False
@@ -64,6 +85,76 @@ def es_cupula(part):
     return abs(lado - CUPULA_LADO) <= CUPULA_LADO * CUPULA_TOLERANCIA
 
 
+def nombre_del_mapa(row):
+    """El nombre que se enseña del nivel, sin su ruta interna.
+
+    Las rutas son de desarrollo (`levels/gas_station/garage`) y no dicen nada del
+    sitio: quien juega ahi lo llama Gas Station. Esta tabla es la que se enseqa, y
+    lo que no esta en ella cae al nombre de la carpeta, que por lo menos no se
+    repite: hay cuatro niveles que se llaman `hub`.
+    """
+    ruta = row["ruta_interna"]
+    conocido = NOMBRES_DE_MAPAS.get(ruta)
+    if conocido:
+        return conocido
+    partes = ruta.split("/")
+    return partes[-2] + "/" + partes[-1] if len(partes) > 2 else ruta
+
+
+NOMBRES_DE_MAPAS = {
+    "levels/deadtree/graveyard": "Graveyard",
+    "levels/deadtree/hub": "Deadtree",
+    "levels/deadtree/kine": "Kine",
+    "levels/deadtree/library": "Library",
+    "levels/deadtree/saloon": "Saloon",
+    "levels/division_47/barracks": "Barracks",
+    "levels/division_47/hub": "Division 47",
+    "levels/division_47/lab": "Laboratory",
+    "levels/division_47/secret_sublevel": "Secret Sublevel",
+    "levels/gas_station/curio_shop": "Curio Shop",
+    "levels/gas_station/garage": "Garage",
+    "levels/gas_station/hub": "Gas Station",
+    "levels/interface/mainmenu": "Espiritu Estate (Unused)",
+    "levels/paradise_place/beaker": "Beaker House",
+    "levels/paradise_place/doss": "Doss House",
+    "levels/paradise_place/espiritu": "Espiritu Estate",
+    "levels/paradise_place/hub": "Paradise Place",
+    "levels/paradise_place/newlow": "Newlow House",
+    "levels/paradise_place/rossum": "Rossum House",
+    "levels/cas": "Create a Sim",
+    "levels/the_monument": "The Monument",
+}
+
+
+class ListaCapas(TexturedListbox):
+    """Lista de capas del panel flotante.
+
+    Cada fila es una pieza del nivel y lo que hace al pulsarla es encenderla o
+    apagarla. Se aparta de la lista normal en dos cosas: no desplaza la lista al
+    elegir (si no, tocar una pieza del final salta el panel entero) y avisa a
+    quien la ha creado en vez de limitarse a marcar la fila.
+    """
+
+    def __init__(self, parent, texture_path, al_tocar, **kwargs):
+        super().__init__(parent, texture_path, **kwargs)
+        self._al_tocar = al_tocar
+
+    def _choose(self, index, extend=False, toggle=False):
+        if not 0 <= index < len(self._items):
+            return "break"
+        self._selected = index
+        self._selected_set = {index}
+        self._redraw()
+        self._al_tocar(index)
+        self.event_generate("<<ListboxSelect>>")
+        return "break"
+
+    def refrescar_filas(self, textos):
+        """Cambia el texto de las filas sin perder cual esta marcada."""
+        self._items[:] = [str(texto) for texto in textos]
+        self._redraw()
+
+
 class MapTab(ttk.Frame):
     # Valores por defecto. La clase se puede montar sin pasar por __init__ (los
     # tests la levantan a mano) y `dispose` no debe encontrarse con un atributo
@@ -77,6 +168,8 @@ class MapTab(ttk.Frame):
     objeto = None
     objeto_key = None
     _carga_color = False
+    _resumen = ""
+    ocultas = frozenset()
 
     def __init__(self, parent, app, fbx_export):
         super().__init__(parent, padding=8)
@@ -96,101 +189,99 @@ class MapTab(ttk.Frame):
         self.parts = []
         self.timer = None
         self.last_frame = 0.0
-        left = ttk.Frame(self)
-        left.pack(side="left", fill="y", padx=(0, 8))
-        ttk.Label(left, text=f"Maps ({len(self.rows)})").pack(anchor="w")
-        self.filter = tk.StringVar()
-        entry = ttk.Entry(left, textvariable=self.filter, width=29)
-        entry.pack(fill="x", pady=4)
-        entry.bind("<KeyRelease>", self.refresh)
-        self.map_list = tk.Listbox(left, width=30, height=24, exportselection=False)
-        self.map_list.pack(fill="both", expand=True)
-        self.map_list.bind("<<ListboxSelect>>", self.select_map)
-        ttk.Button(left, text="Extract original map RES", command=self.export_res).pack(
-            fill="x", pady=(8, 3)
-        )
-        ttk.Button(
-            left, text="Extract PNG textures as ZIP", command=self.export_textures
-        ).pack(fill="x", pady=3)
-        ttk.Button(
-            left, text="Export unplaced parts as GLB", command=self.export_all_parts
-        ).pack(fill="x", pady=3)
-
-        middle = ttk.Frame(self)
-        middle.pack(side="left", fill="y", padx=(0, 8))
-        ttk.Label(middle, text="Map 3D parts").pack(anchor="w")
-        self.part_list = tk.Listbox(middle, width=29, height=24, exportselection=False)
-        self.part_list.pack(fill="both", expand=True)
-        self.part_list.bind("<<ListboxSelect>>", self.select_part)
+        # Nombres de las piezas apagadas desde el panel de capas. Se guardan por
+        # nombre y no por indice porque al recargar el mapa la lista se rehace y
+        # los indices habrian cambiado de lugar.
+        self.ocultas = set()
+        # Estas cuatro ya no tienen casilla: la cupula y el mobiliario sin
+        # colocar se quedan fuera a proposito, las texturas se ven siempre y el
+        # recorte de caras traseras va activo. Los colores de vertice siguen
+        # teniendo su boton flotante, que es la unica opcion que cambia el
+        # parseo y obliga a recargar el nivel.
         self.show_sky = tk.BooleanVar(value=False)
         self.show_unplaced = tk.BooleanVar(value=False)
         self.vertex_colors = tk.BooleanVar(value=False)
-        ttk.Checkbutton(
-            middle,
-            text="Show sky dome / hide to frame the lot",
-            variable=self.show_sky,
-            command=self.schedule,
-        ).pack(anchor="w", pady=(4, 0))
-        ttk.Checkbutton(
-            middle,
-            text="Show unplaced furniture / hidden, the level positions it on load",
-            variable=self.show_unplaced,
-            command=self.schedule,
-        ).pack(anchor="w")
-        ttk.Checkbutton(
-            middle,
-            text="Vertex colours / off, they tint the level's materials",
-            variable=self.vertex_colors,
-            command=self.reload,
-        ).pack(anchor="w")
-        ttk.Button(middle, text="Frame part", command=self.frame_part).pack(
-            fill="x", pady=(8, 3)
+        self.show_textures = tk.BooleanVar(value=True)
+        self.culling = tk.BooleanVar(value=True)
+        left = ttk.Frame(self)
+        left.pack(side="left", fill="y", padx=(0, 8))
+        ttk.Label(
+            left,
+            text=f"Maps ({len(self.rows)})",
+            anchor="center",
+            font=(self.app._sims_font_family, 12, "bold"),
+        ).pack(fill="x")
+        self.filter = tk.StringVar()
+        entry = ttk.Entry(
+            left,
+            textvariable=self.filter,
+            width=29,
+            style="CharacterSearch.TEntry",
         )
-        ttk.Button(middle, text="View texture and UVs", command=self.show_uv).pack(
-            fill="x", pady=3
+        entry.pack(fill="x", pady=(5, 10))
+        entry.bind("<KeyRelease>", self.refresh)
+        map_list_frame = ttk.Frame(left)
+        map_list_frame.pack(fill="both", expand=True)
+        self.map_list = TexturedListbox(
+            map_list_frame,
+            LIST_PANEL_PATH,
+            width=ANCHO_LISTA_MAPS,
+            height=ALTO_LISTA_MAPS,
+            font=(self.app._sims_font_family, 10, "bold"),
         )
-        ttk.Button(middle, text="Export part as GLB", command=self.export_part).pack(
-            fill="x", pady=3
+        map_scroll = ttk.Scrollbar(
+            map_list_frame, orient="vertical", command=self.map_list.yview
         )
-        ttk.Button(
-            middle, text="Export part as FBX", command=lambda: self.export_part("fbx")
-        ).pack(fill="x", pady=3)
+        self.map_list.configure(yscrollcommand=map_scroll.set)
+        map_scroll.pack(side="right", fill="y")
+        self.map_list.pack(side="left", fill="both", expand=True)
+        self.map_list.bind("<<ListboxSelect>>", self.select_map)
+        # Debajo de la lista, las texturas del nivel que este cargado. Se separa
+        # con una raya porque es otra cosa: la lista elige donde mirar y estas
+        # enseñan que lleva cada malla.
+        ttk.Separator(left, orient="horizontal").pack(fill="x", pady=(16, 12))
+        ttk.Label(
+            left,
+            text="Textures",
+            anchor="center",
+            font=(self.app._sims_font_family, 11, "bold"),
+        ).pack(fill="x", pady=(0, 4))
+        self.gallery = TextureGallery(left, self.app)
+        self.gallery.pack(fill="x", expand=False)
 
         right = ttk.Frame(self)
         right.pack(side="left", fill="both", expand=True)
         self.canvas = Viewport(right, minimum=(450, 500))
         self.canvas.on_resize = self.schedule
-        # Un nivel se mira desde arriba. Con la inclinacion de 0 que le va bien a
-        # un prop, el mapa se aplasta en una franja en el horizonte y se desperdicia
-        # media pantalla; a 30 grados se ve la planta del solar sin deformarlo.
+        # Un nivel se mira desde arriba y con la rotacion alineada a los ejes: los
+        # muros del juego caen en coordenadas exactas, y con la camara en 25
+        # grados de guiñada todo el solar va torcido respecto a la rejilla.
         self.camera = OrbitController(
-            self.canvas, self.schedule, yaw=math.radians(25), pitch=math.radians(30)
+            self.canvas, self.schedule, yaw=0.0, pitch=math.radians(30)
         )
-        self.show_textures = tk.BooleanVar(value=True)
-        ttk.Label(right, text=CAMERA_HINT, wraplength=610).pack(anchor="w")
-        ttk.Button(right, text="Reset camera", command=self.camera.reset).pack(
-            anchor="w", pady=4
-        )
-        ttk.Checkbutton(
-            right,
-            text="Show textures / hide to inspect vertex colors",
-            variable=self.show_textures,
-            command=self.schedule,
-        ).pack(anchor="w")
         self.show_grid = tk.BooleanVar(value=True)
-        ttk.Checkbutton(
-            right, text="Show grid", variable=self.show_grid, command=self.schedule
-        ).pack(anchor="w")
-        self.status = ttk.Label(right, text="", wraplength=610)
-        self.status.pack(anchor="w", fill="x")
-        ttk.Label(
-            right,
-            text="Every RDMS piece of the level is drawn in its own place. The pieces "
-            "the level places when it loads (furniture, lamps, fences) have no "
-            "position in the file and are hidden; the checkbox brings them back. The "
-            "TERN terrain mesh is not shown yet.",
-            wraplength=610,
-        ).pack(anchor="w", pady=(5, 0))
+        # Botones flotantes sobre el visor, como en la pestaña de props.
+        self.floating_buttons = []
+        self.camera.ignores = self._over_floating_button
+        self.export_button = self._floating_button("Export as...", self.export_as)
+        self.recenter_button = self._floating_button(
+            "Reset view", self.camera.reset
+        )
+        self.vertex_button = self._floating_button(
+            "Vertex Colors", self.toggle_vertex_colors
+        )
+        self.layers_button = self._floating_button("Layers", self.toggle_layers_panel)
+        self.grid_button = self._floating_button(
+            "Grid", self.toggle_grid, selected=True
+        )
+        self._build_layers_panel()
+        self.canvas.bind("<Configure>", self._position_viewport_controls, add="+")
+        self.after_idle(self._position_viewport_controls)
+
+        # La barra de estado se queda sin sitio en la ventana: sigue existiendo
+        # como etiqueta sin empaquetar porque el resto de la pestana sigue
+        # hablandole al cargar un nivel y al exportar.
+        self.status = ttk.Label(text="")
         self.refresh()
         if self.visible:
             self.map_list.selection_set(0)
@@ -209,7 +300,337 @@ class MapTab(ttk.Frame):
         self.visible = [r for r in self.rows if term in r["ruta_interna"].casefold()]
         self.map_list.delete(0, "end")
         for row in self.visible:
-            self.map_list.insert("end", row["ruta_interna"])
+            self.map_list.insert("end", nombre_del_mapa(row))
+
+    # -- botones flotantes y panel de capas ----------------------------------
+
+    def _floating_button(self, text, command, selected=False):
+        """Boton flotante dibujado sobre el canvas del visor.
+
+        Se usa un item del canvas y no un `ttk.Button` porque el widget pinta su
+        fondo en todo el rectangulo y sobre la escena 3D se veria un rectangulo
+        negro alrededor de la textura redondeada.
+        """
+        top = self.winfo_toplevel()
+        width = top._sims_floating_text_width(text) + 2 * 14
+        button = FloatingButton(
+            self.canvas,
+            top._sims_floating_button_factory,
+            text,
+            command,
+            width,
+            32,
+            font=top._sims_floating_font,
+        )
+        button.set_selected(selected)
+        self.floating_buttons.append(button)
+        button.install(
+            lambda event, b=button: self._floating_enter(b, event),
+            lambda event, b=button: self._floating_leave(b, event),
+            lambda event, b=button: self._floating_press(b, event),
+            lambda event, b=button: self._floating_release(b, event),
+        )
+        return button
+
+    def _over_floating_button(self, event):
+        """La camara no debe arrastrarse si el puntero esta sobre un boton."""
+        return any(button.hit(event.x, event.y) for button in self.floating_buttons)
+
+    def _floating_enter(self, button, event):
+        button.hover(True)
+
+    def _floating_leave(self, button, event):
+        button.hover(False)
+        button.press(False)
+
+    def _floating_press(self, button, event):
+        button.press(True)
+
+    def _floating_release(self, button, event):
+        if button.press(False):
+            button.command()
+
+    def _position_viewport_controls(self, event=None):
+        if event is None:
+            width = self.canvas.winfo_width()
+        else:
+            width = event.width
+        self.export_button.place(10, 10)
+        # A la derecha, de fuera hacia dentro: Grid, Layers y Vertex Colors.
+        x = width - 10
+        for boton in (self.grid_button, self.layers_button, self.vertex_button):
+            x -= boton.reqwidth
+            boton.place(x, 10)
+            x -= 12
+        # Reset view en la derecha, en la fila de debajo y pegado al mismo borde
+        # que Grid, que es donde se busca cuando se ha descolocado la camara.
+        self.recenter_button.place(width - 10 - self.recenter_button.reqwidth, 50)
+        self._colocar_panel_capas()
+
+    def toggle_grid(self):
+        self.show_grid.set(not self.show_grid.get())
+        self.grid_button.set_selected(self.show_grid.get())
+        self.schedule()
+
+    def _build_layers_panel(self):
+        """El desplegable de capas: se pinta encima del visor y se puede mover.
+
+        El fondo redondeado es un item del canvas, no un widget: un marco con
+        fondo plano haria un rectangulo con las esquinas vivas sobre la escena,
+        y la textura del panel es transparente justo en las esquinas.
+
+        El panel no lleva palomitas. Las opciones que afectan a todo el nivel
+        (cupula, mobiliario sin colocar, texturas y colores de vertice) estan
+        como botones flotantes y como casillas al pie del visor; aqui solo la
+        lista de piezas y los dos botones que las encienden o apagan todas.
+        """
+        self._capas_fuente = Image.open(LIST_PANEL_PATH).convert("RGBA")
+        self._capas_foto = None
+        self.layers_fondo = self.canvas.create_image(0, 0, anchor="nw")
+        self.layers_panel = ttk.Frame(self.canvas)
+        self.layers_window = self.canvas.create_window(
+            0, 0, anchor="nw", window=self.layers_panel
+        )
+
+        cabecera = ttk.Frame(self.layers_panel)
+        cabecera.pack(fill="x")
+        self._titulo_capas = ttk.Label(
+            cabecera,
+            text="Layers",
+            font=(self.app._sims_font_family, 10, "bold"),
+        )
+        self._titulo_capas.pack(side="left")
+        # Los dos signs de la derecha son la equis que cierra y el guion que
+        # pliega la lista. Antes decia "drag" y habia que acertar para arrastrar
+        # la cabecera; asi se ven las dos cosas que se pueden hacer.
+        cerrar = ttk.Label(cabecera, text="\u2715", foreground="#182658")
+        cerrar.pack(side="right", padx=(12, 2))
+        plegar = ttk.Label(cabecera, text="\u2212", foreground="#182658")
+        plegar.pack(side="right")
+        self._signo_cerrar = cerrar
+        self._signo_plegar = plegar
+        cerrar.bind("<Button-1>", lambda event: self.toggle_layers_panel())
+        plegar.bind("<Button-1>", lambda event: self.toggle_minimizar_capas())
+        # El titulo y los dos signs no arrastran; el resto de la cabecera si.
+        cabecera.bind("<ButtonPress-1>", self._capa_press)
+        cabecera.bind("<B1-Motion>", self._arrastrar_capas)
+        self._titulo_capas.bind("<ButtonPress-1>", self._capa_press)
+        self._titulo_capas.bind("<B1-Motion>", self._arrastrar_capas)
+        self.layers_pos = [10, 10]
+        self._capa_origen = (0, 0)
+        self._capas_minimizado = False
+
+        # Todo lo de debajo de la cabecera se pliega junto: la lista, los dos
+        # botones de encender y apagar y el texto de ayuda.
+        self.layers_cuerpo = ttk.Frame(self.layers_panel)
+        self.layers_cuerpo.pack(fill="both", expand=True)
+
+        botones = ttk.Frame(self.layers_cuerpo)
+        botones.pack(fill="x", pady=(6, 0))
+        ttk.Button(
+            botones, text="Hide everything", command=lambda: self._todas(False)
+        ).pack(side="left", fill="x", expand=True)
+        ttk.Button(
+            botones, text="Unhide everything", command=lambda: self._todas(True)
+        ).pack(side="left", fill="x", expand=True, padx=(6, 0))
+        ttk.Separator(self.layers_cuerpo).pack(fill="x", pady=6)
+        ttk.Label(
+            self.layers_cuerpo,
+            text="Click a piece to show or hide it",
+            wraplength=ANCHO_LISTA_CAPAS - 16,
+        ).pack(anchor="w")
+
+        marco = ttk.Frame(self.layers_cuerpo)
+        marco.pack(fill="both", expand=True)
+        self.part_list = ListaCapas(
+            marco,
+            LIST_PANEL_PATH,
+            self._alternar_capa,
+            width=ANCHO_LISTA_CAPAS,
+            height=ALTO_LISTA_CAPAS,
+            font=(self.app._sims_font_family, 9),
+        )
+        scroll = ttk.Scrollbar(marco, orient="vertical", command=self.part_list.yview)
+        self.part_list.configure(yscrollcommand=scroll.set)
+        scroll.pack(side="right", fill="y")
+        self.part_list.pack(side="left", fill="both", expand=True)
+        self.part_list.bind("<<ListboxSelect>>", self.select_part)
+        self._pintar_panel_capas()
+        self.canvas.itemconfigure(self.layers_fondo, state="hidden")
+        self.canvas.itemconfigure(self.layers_window, state="hidden")
+
+    def _pintar_panel_capas(self):
+        """Da al panel el alto de su contenido y pinta el fondo redondeado.
+
+        Se vuelve a pintar al plegar y al desplegar, porque el alto del panel lo
+        marca su contenido y el fondo redondeado va a medida.
+        """
+        self.layers_panel.update_idletasks()
+        ancho = self.layers_panel.winfo_reqwidth() + 2 * MARGEN_CAPAS
+        alto = self.layers_panel.winfo_reqheight() + 2 * MARGEN_CAPAS
+        self._capas_foto = ImageTk.PhotoImage(
+            panel_redondeado(self._capas_fuente, ancho, alto), master=self.canvas
+        )
+        self.canvas.itemconfigure(
+            self.layers_fondo, image=self._capas_foto, state="normal"
+        )
+
+    def toggle_minimizar_capas(self):
+        """Pliega la lista de piezas dejando solo la cabecera del panel."""
+        self._capas_minimizado = not self._capas_minimizado
+        if self._capas_minimizado:
+            self.layers_cuerpo.pack_forget()
+            for hijo in self._signos_capas():
+                hijo.configure(text="\u25b8")
+        else:
+            self.layers_cuerpo.pack(fill="both", expand=True)
+            for hijo in self._signos_capas():
+                hijo.configure(text="\u2212")
+        self.layers_panel.update_idletasks()
+        self._pintar_panel_capas()
+        self._colocar_panel_capas()
+
+    def _signos_capas(self):
+        """Los dos etiquetas de la cabecera: la equis y el guion del pliegue."""
+        return self._signo_plegar, self._signo_cerrar
+
+    def _todas(self, mostrar):
+        """Enciende o apaga todas las piezas de golpe."""
+        self.ocultas = set() if mostrar else {p["name"] for p in self.parts}
+        self.part_list.refrescar_filas(self._filas_de_capas())
+        self._avisar_capas()
+        self.schedule()
+
+    def _colocar_panel_capas(self):
+        if not hasattr(self, "layers_window"):
+            return
+        x, y = self.layers_pos
+        ancho = self.canvas.bbox(self.layers_fondo)
+        alto = (ancho[3] - ancho[1]) if ancho else 360
+        maximo_y = max(10, self.canvas.winfo_height() - alto - 10)
+        y = max(10, min(y, maximo_y))
+        self.canvas.coords(self.layers_fondo, x, y)
+        self.canvas.coords(self.layers_window, x + MARGEN_CAPAS, y + MARGEN_CAPAS)
+
+    def _capa_press(self, event):
+        """Marca donde se ha pulsado la cabecera, para medir el arrastre desde ahi."""
+        self._capa_origen = (event.x_root, event.y_root)
+
+    def _arrastrar_capas(self, event):
+        x, y = self.layers_pos
+        self.layers_pos = [
+            x + event.x_root - self._capa_origen[0],
+            y + event.y_root - self._capa_origen[1],
+        ]
+        self._capa_origen = (event.x_root, event.y_root)
+        self._colocar_panel_capas()
+
+    def toggle_layers_panel(self):
+        abierto = self.canvas.itemcget(self.layers_window, "state") == "normal"
+        estado = "hidden" if abierto else "normal"
+        self.canvas.itemconfigure(self.layers_window, state=estado)
+        self.canvas.itemconfigure(self.layers_fondo, state=estado)
+        self.layers_button.set_selected(not abierto)
+        if not abierto:
+            # Se abre pegado al borde derecho y por debajo de las dos filas de
+            # botones: si empieza a la altura de la primera, tapa la de Reset
+            # view, que esta justo debajo de Grid.
+            ancho = self.canvas.bbox(self.layers_fondo)
+            total = (ancho[2] - ancho[0]) if ancho else ANCHO_LISTA_CAPAS
+            self.layers_pos = [
+                max(10, self.canvas.winfo_width() - total - 10),
+                92,
+            ]
+            self._colocar_panel_capas()
+
+    def toggle_vertex_colors(self):
+        """El boton flotante de los colores de vertice: recargan el nivel entero."""
+        self.vertex_colors.set(not self.vertex_colors.get())
+        self.vertex_button.set_selected(self.vertex_colors.get())
+        self.reload()
+
+    def _filas_de_capas(self):
+        filas = []
+        for part in self.parts:
+            marca = " " if part["name"] in self.ocultas else "x"
+            filas.append(f"[{marca}] {part['name']} · {len(part['vertices'])} verts")
+        return filas
+
+    def _alternar_capa(self, index):
+        """Enciende o apaga la pieza de la fila que se ha pulsado."""
+        if not 0 <= index < len(self.parts):
+            return
+        nombre = self.parts[index]["name"]
+        if nombre in self.ocultas:
+            self.ocultas.discard(nombre)
+        else:
+            self.ocultas.add(nombre)
+        self.part_list.refrescar_filas(self._filas_de_capas())
+        self._avisar_capas()
+        self.schedule()
+
+    def _avisar_capas(self):
+        """El resumen del mapa mas cuantas piezas hay encendidas."""
+        if not hasattr(self, "part_list"):
+            return
+        resumen = getattr(self, "_resumen", "")
+        if not resumen:
+            return
+        self.status.configure(
+            text=f"{resumen} · {len(self.parts) - len(self.ocultas)} "
+            f"of {len(self.parts)} pieces shown"
+        )
+
+    def export_as(self):
+        """El boton flotante 'Export as...' ofrece los cuatro formatos del mapa."""
+        if not self.current:
+            return
+        dialog = tk.Toplevel(self)
+        dialog.title("Export as...")
+        dialog.transient(self.winfo_toplevel())
+        dialog.resizable(False, False)
+        elegido = tk.StringVar(value="glb")
+        contenido = ttk.Frame(dialog, padding=16)
+        contenido.pack(fill="both", expand=True)
+        ttk.Label(
+            contenido, text=f"Export {self.current['ruta_interna']} as:"
+        ).pack(anchor="w", pady=(0, 8))
+        for etiqueta, valor in (
+            ("Every 3D piece as GLB (.glb)", "glb"),
+            ("The selected piece as GLB (.glb)", "parte_glb"),
+            ("The selected piece as FBX (.fbx) — needs Blender", "parte_fbx"),
+            ("The original map file (.res)", "res"),
+            ("All the textures as a ZIP", "texturas"),
+        ):
+            ttk.Radiobutton(
+                contenido, text=etiqueta, value=valor, variable=elegido
+            ).pack(anchor="w", pady=2)
+        botones = ttk.Frame(contenido)
+        botones.pack(fill="x", pady=(12, 0))
+        decision = {"valor": None}
+
+        def aceptar():
+            decision["valor"] = elegido.get()
+            dialog.destroy()
+
+        ttk.Button(botones, text="Cancel", command=dialog.destroy).pack(side="right")
+        ttk.Button(
+            botones, text="Export", style="Primary.TButton", command=aceptar
+        ).pack(side="right", padx=(0, 8))
+        dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
+        dialog.grab_set()
+        dialog.wait_window()
+        destino = decision["valor"]
+        if destino == "glb":
+            self.export_all_parts()
+        elif destino == "parte_glb":
+            self.export_part()
+        elif destino == "parte_fbx":
+            self.export_part("fbx")
+        elif destino == "res":
+            self.export_res()
+        elif destino == "texturas":
+            self.export_textures()
 
     def select_map(self, _event=None):
         """Elige un mapa. Parsearlo va en un hilo salvo que ya este cacheado.
@@ -321,34 +742,43 @@ class MapTab(ttk.Frame):
         # contra buffers ya liberados.
         self.objeto = None
         self.objeto_key = None
-        self.camera.focus_offset = (0.0, 0.0, 0.0)
         self.data = data
         self.parts = parts
         self.current = row
+        # La camara vuelve al origen y al encuadre de partida: el foco es la caja
+        # de lo que se dibuja, asi que sin resetarla cada nivel se abriria
+        # descentrado respecto al anterior y con la inclinacion que se hubiera
+        # dejado antes.
+        self.camera.reset()
+        # Las piezas apagadas son de este mapa: al cambiar de nivel se olvida.
+        self.ocultas = set()
         self.part_list.delete(0, "end")
-        for part in self.parts:
-            self.part_list.insert(
-                "end", f'{part["name"]} · {len(part["vertices"])} vertices'
-            )
-        self.status.configure(
-            text=f'{row["ruta_interna"]} · {len(self.parts)} RDMS parts · '
+        self.part_list.refrescar_filas(self._filas_de_capas())
+        # La galeria de la izquierda enseña lo que lleva el nivel: cada pieza
+        # guarda su textura como (nombre, pixeles), y sin pixeles no hay miniatura.
+        self.gallery.set_textures(
+            {
+                part["texture"][0]: part["texture"][1]
+                for part in self.parts
+                if part.get("texture") and part["texture"][1]
+            }
+        )
+        sin_colocar = sum(1 for p in self.parts if es_sin_colocar(p))
+        self._resumen = (
+            f'{row["ruta_interna"]} · {len(self.parts)} RDMS parts · '
             f'{row["terrenos"]} TERN sections · '
             f'{row["superficies"]} surfaces · '
             f"{len(rejected)} skipped parts"
         )
-        sin_colocar = sum(1 for p in self.parts if es_sin_colocar(p))
         if sin_colocar:
-            self.status.configure(
-                text=f'{row["ruta_interna"]} · {len(self.parts)} RDMS parts · '
-                f'{row["terrenos"]} TERN sections · '
-                f'{row["superficies"]} surfaces · '
-                f"{len(rejected)} skipped parts · "
-                f"{sin_colocar} pieces hidden: the level places them when it "
-                f"loads and their position is not in the file"
+            self._resumen += (
+                f" · {sin_colocar} pieces with no place in the file, drawn where "
+                f"the resource leaves them"
             )
+        self._avisar_capas()
         # No se elige ninguna pieza: el visor pinta el mapa entero, asi que
         # escolher la mas grande solo tapaba el resumen con el nombre de una
-        # pieza. Elige la que quieras de la lista cuando la busques.
+        # pieza. Elige la que quieras en el panel de capas cuando la busques.
 
     def selected_part(self):
         choice = self.part_list.curselection()
@@ -381,22 +811,20 @@ class MapTab(ttk.Frame):
             self.render()
 
     def piezas_visibles(self):
-        """Las piezas que se dibujan: el mapa entero, sin fondo ni mobiliario suelto.
+        """Las piezas que se dibujan: todo lo que trae el recurso, menos lo apagado.
 
-        Se dejan fuera dos cosas, y solo del encuadre: la cupula, que son dos
-        esferas de 528 de lado que envuelven todo el solar, y las piezas que el
-        nivel coloca al cargar y cuyo sitio no esta en el recurso. Sin la cupula
-        la escena se abarca desde tan lejos, para que quepa una esfera de 528,
-        que el solar entero queda en un punto de dos pixeles. Sin las otras, el
-        mobiliario aparece amontonado en el centro.
+        Antes se apartaba ademas el mobiliario que el nivel coloca al cargar, el
+        que llega con el origen a cero y se ve amontonado en el centro. Eso
+        quitaba piezas que si estaban colocadas y, mientras estuvo puesto, no se
+        podia distinguir una de otra. Ahora se dibuja todo lo que hay en el
+        archivo y es el panel de capas el que apaga lo que sobre, una a una o de
+        golpe.
 
-        Los dos grupos se pueden volver a ensenar desde el visor.
+        La cupula si se sigue dejando fuera del encuadre: son dos esferas de 528
+        de lado que envuelven el solar, y con ellas dentro la escena se abarca
+        desde tan lejos que el nivel entero queda en un punto de dos pixeles.
         """
-        partes = [
-            p
-            for p in self.parts
-            if self.show_unplaced.get() or not es_sin_colocar(p)
-        ]
+        partes = [p for p in self.parts if p["name"] not in self.ocultas]
         if self.show_sky.get():
             return partes
         return [p for p in partes if not es_cupula(p)]
@@ -404,22 +832,55 @@ class MapTab(ttk.Frame):
     def render(self):
         self.timer = None
         self.last_frame = gl.ahora_ms()
-        parts = self.piezas_visibles()
-        if not parts or not self.current:
+        if not self.current:
             return
+        parts = self.piezas_visibles()
         try:
             width, height = self.canvas.view_size()
+            if not parts:
+                # No queda ninguna pieza encendida, pero la rejilla se sigue
+                # dibujando: si se saliera sin mas, el fotograma anterior se
+                # quedaria pegado y el visor pareceria congelado en vez de vacio.
+                if self.objeto is None:
+                    self.canvas.clear()
+                    return
+                self.objeto.sin_mallas = True
+                self.canvas.set_image(
+                    render_prop(
+                        [],
+                        width,
+                        height,
+                        self.camera.yaw,
+                        self.camera.zoom,
+                        self.show_textures.get(),
+                        self.camera.pitch,
+                        self.camera.pan,
+                        key=("mapa", "solo-rejilla"),
+                        camara=self.camera,
+                        objeto=self.objeto,
+                        show_grid=self.show_grid.get(),
+                        culling=True,
+                    )
+                )
+                return
+            culling = self.culling.get()
+            # El conjunto de piezas tambien va en la clave: apagar una pieza
+            # cambia la escena que hay que montar, no solo que dibujar.
             key = (
                 self.current["entry"],
                 self.show_textures.get(),
                 self.show_sky.get(),
+                self.show_unplaced.get(),
+                culling,
+                len(parts),
             )
             if self.objeto_key != key:
                 # La escena se reutiliza entre fotogramas: montar las 387 piezas
                 # y subir 80 texturas son unos 270 ms, y si se hiciera en cada
                 # redibujado el visor no responderia al arrastrar la camara.
-                self.objeto = prop_scene(parts, ("mapa",) + key)
+                self.objeto = prop_scene(parts, ("mapa",) + key, culling=culling)
                 self.objeto_key = key
+            self.objeto.sin_mallas = False
             image = render_prop(
                 parts,
                 width,
@@ -433,6 +894,7 @@ class MapTab(ttk.Frame):
                 camara=self.camera,
                 objeto=self.objeto,
                 show_grid=self.show_grid.get(),
+                culling=culling,
             )
             self.canvas.set_image(image)
         except Exception as exc:

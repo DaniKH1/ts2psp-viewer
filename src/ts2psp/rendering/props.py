@@ -7,12 +7,16 @@ from ts2psp.formats.props import parse_rdms, parse_prop_bmsh
 import ts2psp.rendering.opengl as gl
 
 
-def prop_scene(parts, key, show_textures=True):
+def prop_scene(parts, key, show_textures=True, culling=False):
     """Escena GL del prop, cacheada por clave.
 
     Se expone aparte porque al reproducir una animacion hay que reutilizar la
     misma escena y solo cambiarle los vertices: si se pidiera por clave dentro
     de `render_prop`, la cache devolveria la de reposo y el prop no se moveria.
+
+    `culling` deja recortar las caras traseras. Los props se dibujan sin
+    recortar porque sus materiales son de dos caras; los mapas de nivel si
+    llegaron con las normales hacia fuera y se ven bien recortados.
     """
     textures = {}
     if show_textures:
@@ -20,8 +24,16 @@ def prop_scene(parts, key, show_textures=True):
             texture = part.get("texture")
             if texture and texture[1]:
                 textures[texture[0]] = texture
+    # La clave no lleva `culling`: hay sitios que vacian la cache nombrandola a
+    # mano y, si el recorte se metiera dentro, se quedarian con la escena del
+    # ajuste anterior. El flag lo pone `escena` en cada llamada.
     return gl.escena(
-        ("prop", key, show_textures), parts, textures, "prop", fondo=(28, 31, 41)
+        ("prop", key, show_textures),
+        parts,
+        textures,
+        "prop",
+        fondo=(28, 31, 41),
+        culling=culling,
     )
 
 
@@ -52,6 +64,7 @@ def render_prop(
     bones=None,
     show_bones=False,
     objeto=None,
+    culling=False,
 ):
     """Dibuja un objeto con la GPU. `key` lo identifica en la caché.
 
@@ -64,7 +77,7 @@ def render_prop(
     `objeto` es la escena a reutilizar; si no se pasa se busca por clave, con lo
     que las mallas nuevas de una llamada anterior se ignoran.
     """
-    scene = objeto or prop_scene(parts, key, show_textures)
+    scene = objeto or prop_scene(parts, key, show_textures, culling)
     scene.mostrar_grid = show_grid
     image = scene.render(width, height, yaw, pitch, zoom, pan, camara)
     if show_bones and bones:
