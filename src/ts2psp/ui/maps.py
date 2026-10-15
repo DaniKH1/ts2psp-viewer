@@ -85,6 +85,16 @@ def es_cupula(part):
     return abs(lado - CUPULA_LADO) <= CUPULA_LADO * CUPULA_TOLERANCIA
 
 
+def firma_de_piezas(ocultas):
+    """La parte de la clave de escena que depende de que piezas estan apagadas.
+
+    Van los NOMBRES y no la cuenta. Con la cuenta, apagar una pieza y luego otra
+    deja el mismo numero que al principio: la escena se creia la misma, no se
+    remitaba a construir y al volver a encender la primera seguia sin verse.
+    """
+    return tuple(sorted(ocultas))
+
+
 def nombre_del_mapa(row):
     """El nombre que se enseña del nivel, sin su ruta interna.
 
@@ -698,7 +708,12 @@ class MapTab(ttk.Frame):
                 with zipfile.ZipFile(path) as archive:
                     data = archive.read(archivo)
                 parts, rejected = parse_rdms(
-                    data, apply_scene=True, vertex_colors=con_color
+                    data,
+                    apply_scene=True,
+                    vertex_colors=con_color,
+                    # La ruta hace falta para las excepciones que van por nivel,
+                    # como las piezas a las que hay que dar la vuelta a las caras.
+                    ruta=row["ruta_interna"],
                 )
                 cola.put((generacion, row, data, parts, rejected, None))
             except Exception as exc:
@@ -864,15 +879,15 @@ class MapTab(ttk.Frame):
                 )
                 return
             culling = self.culling.get()
-            # El conjunto de piezas tambien va en la clave: apagar una pieza
-            # cambia la escena que hay que montar, no solo que dibujar.
+            # La escena se vuelve a montar cuando cambia el CONJUNTO de piezas,
+            # y por eso en la clave va quais son las apagadas y no cuantas hay.
             key = (
                 self.current["entry"],
                 self.show_textures.get(),
                 self.show_sky.get(),
                 self.show_unplaced.get(),
                 culling,
-                len(parts),
+                firma_de_piezas(self.ocultas),
             )
             if self.objeto_key != key:
                 # La escena se reutiliza entre fotogramas: montar las 387 piezas

@@ -287,6 +287,31 @@ def rdms_indices(data, index_at, index_count, vertex_count, index_width, end):
     return indices
 
 
+# Piezas a las que hay que dar la vuelta a las caras.
+#
+# El visor de mapas recorta las caras traseras, y una malla con los triangulos al
+# reves no se ve desde el lado bueno. El volumen con signo las delata, pero solo
+# cuando la malla es cerrada: en un plano no dice nada, porque el signo depende de
+# lo lejos que este el origen y no de hacia donde mire la cara. Las de plano se
+# anotan una a una segun se ven, como las demas excepciones del visor.
+CARAS_AL_REVES = {
+    # Un cartel de 10 x 10 m con alfa, suelto en el cielo: en el cementerio es el
+    # pieza_581 y en el hub el pieza_588, la misma malla duplicada en los dos
+    # niveles. Es un plano de dos triangulos mirando a +y, y el volumen con signo
+    # no dice nada de un plano: el signo depende de lo lejos que este el origen.
+    "levels/deadtree/graveyard": {"pieza_581"},
+    "levels/deadtree/hub": {"pieza_588"},
+}
+
+
+def _dar_la_vuelta(triangulos):
+    """Cada triangulo con sus dos ultimos vertices cambiados de sitio."""
+    salida = list(triangulos)
+    for k in range(0, len(salida) - 2, 3):
+        salida[k + 1], salida[k + 2] = salida[k + 2], salida[k + 1]
+    return salida
+
+
 def parse_rdms(data, apply_scene=True, opaco=False, ruta=None, vertex_colors=True):
     """Las piezas de un rdms.
 
@@ -411,6 +436,8 @@ def parse_rdms(data, apply_scene=True, opaco=False, ruta=None, vertex_colors=Tru
             pos = tuple(origin[k] + pos[k] * position_scale for k in range(3))
             vertices.append((pos, normal, uv, color if vertex_colors else None))
         triangles = triangle_strip(indices)
+        if f"pieza_{i}" in CARAS_AL_REVES.get(ruta or "", ()):
+            triangles = _dar_la_vuelta(triangles)
         if triangles:
             part = {
                 "name": f"pieza_{i}",
