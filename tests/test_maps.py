@@ -218,6 +218,83 @@ class SkyDomeTests(unittest.TestCase):
             [p["vertices"][0][0] for p in con_pos],
         )
 
+    def test_the_node_graph_places_the_levels_meshes(self):
+        """El grafo de nodos coloca las mallas del nivel, y hay que aplicarlo.
+
+        En el menu principal 216 de las 217 mallas que alcanza el grafo llegan con
+        su propia traslacion, 68 de ellas muros (una se mueve 43.1 en x), mientras
+        el cesped y la carretera se quedan quietos. Sin aplicar la escena la casa
+        se dibuja encima de la carretera y las paredes no cierran con el suelo.
+
+        En el cementerio los nodos valen la identidad, asi que aplicarla no cambia
+        nada: se aplica siempre.
+        """
+        import numpy as np
+
+        def muros(piezas):
+            fuera = []
+            for p in piezas:
+                pts = np.array([v[0] for v in p["vertices"]])
+                lado = pts.max(axis=0) - pts.min(axis=0)
+                if lado.min() < 0.6 and 2.0 < lado[2] < 3.2:
+                    fuera.append(p)
+            return fuera
+
+        base = muros(
+            parse_rdms(self.datos("levels/interface/mainmenu"), apply_scene=False)[0]
+        )
+        con_escena = muros(
+            parse_rdms(self.datos("levels/interface/mainmenu"), apply_scene=True)[0]
+        )
+        self.assertEqual(len(base), len(con_escena))
+
+        indice = {p["name"]: p for p in base}
+        movidos = 0
+        for p in con_escena:
+            q = indice[p["name"]]
+            a = np.array([v[0] for v in q["vertices"]])
+            b = np.array([v[0] for v in p["vertices"]])
+            self.assertEqual(a.shape, b.shape)
+            if np.abs(a - b).max() > 0.01:
+                movidos += 1
+        self.assertGreater(movidos, 50, "el menu principal coloca sus muros")
+
+        # Y el terreno no se mueve: si se moviera, la casa seguiria encima.
+        for nombre in ("pieza_598", "pieza_601", "pieza_603", "pieza_605"):
+            a = next(
+                p
+                for p in parse_rdms(
+                    self.datos("levels/interface/mainmenu"), apply_scene=False
+                )[0]
+                if p["name"] == nombre
+            )
+            b = next(
+                p
+                for p in parse_rdms(
+                    self.datos("levels/interface/mainmenu"), apply_scene=True
+                )[0]
+                if p["name"] == nombre
+            )
+            np.testing.assert_allclose(
+                np.array([v[0] for v in a["vertices"]]),
+                np.array([v[0] for v in b["vertices"]]),
+                atol=0.01,
+                err_msg=f"{nombre} es terreno y no debe moverse",
+            )
+
+        # En el cementerio la escena no cambia nada, que es por lo que se puede
+        # aplicar sin miedo en todos los niveles.
+        cemetery = self.datos("levels/deadtree/graveyard")
+        a, _ = parse_rdms(cemetery)
+        b, _ = parse_rdms(cemetery, apply_scene=True)
+        for p, q in zip(a, b):
+            if p["name"] == q["name"] and len(p["vertices"]) == len(q["vertices"]):
+                np.testing.assert_allclose(
+                    np.array([v[0] for v in p["vertices"]]),
+                    np.array([v[0] for v in q["vertices"]]),
+                    atol=0.01,
+                )
+
     def test_a_level_without_a_dome_keeps_every_piece(self):
         parts = self.parts_of("levels/division_47/barracks")
         self.assertTrue(parts)

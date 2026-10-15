@@ -252,7 +252,14 @@ class MapTab(ttk.Frame):
         self._empezar_carga(self.current)
 
     def _empezar_carga(self, row):
-        """Lanza el hilo que lee y parsea el mapa."""
+        """Lanza el hilo que lee y parsea el mapa.
+
+        Con `apply_scene=True`: el grafo de nodos coloca las mallas del nivel. En
+        el menu principal 68 de los 105 muros llegan con su propia traslacion (una
+        de ellas 43,1 en x) mientras el terreno se queda quieto, y sin aplicarla la
+        casa se dibuja encima de la carretera. En el cementerio los nodos valen la
+        identidad y no cambia nada, asi que se aplica siempre.
+        """
         self._carga_generacion += 1
         generacion = self._carga_generacion
         cola = queue.Queue()
@@ -270,7 +277,7 @@ class MapTab(ttk.Frame):
                 with zipfile.ZipFile(path) as archive:
                     data = archive.read(archivo)
                 parts, rejected = parse_rdms(
-                    data, apply_scene=False, vertex_colors=con_color
+                    data, apply_scene=True, vertex_colors=con_color
                 )
                 cola.put((generacion, row, data, parts, rejected, None))
             except Exception as exc:
