@@ -18,6 +18,8 @@ from ts2psp.rendering.props import (
     render_prop,
 )
 from ts2psp.formats.props import ALFA_ILEGIBLE, convert_prop, prop_joints
+from ts2psp.formats.prop_assets import PropAssets
+from ts2psp.formats.prop_skin import SkinnedPropAnimator
 from ts2psp.formats.prop_anim import (
     PropAnimator,
     iter_prop_animations,
@@ -55,6 +57,7 @@ class PropTab(ttk.Frame):
     def __init__(self, parent, app):
         super().__init__(parent, padding=10)
         self.app = app
+        self.assets = PropAssets(app.paths["props"])
         with zipfile.ZipFile(app.paths["props"]) as z:
             self.rows = list(
                 csv.DictReader(
@@ -85,6 +88,7 @@ class PropTab(ttk.Frame):
         self.show_grid = tk.BooleanVar(value=True)
         self.show_bones = tk.BooleanVar(value=False)
         self.show_helpers = tk.BooleanVar(value=False)
+        self.show_vertex_colors = tk.BooleanVar(value=True)
         grupo = app._sims_font_family
 
         # Columna de la izquierda: los modelos, su desplegable de grupos y la
@@ -125,13 +129,11 @@ class PropTab(ttk.Frame):
             side="bottom", fill="x", pady=(8, 10)
         )
         self.group_box.pack(side="bottom", fill="x", pady=(0, 4))
-        ttk.Label(
-            left, text="Group", anchor="center", font=(grupo, 10, "bold")
-        ).pack(side="bottom", fill="x", pady=(10, 0))
-        self.group_box.bind("<<ComboboxSelected>>", self.refresh)
-        self.listbox = self._lista_texturizada(
-            left, ALTO_LISTA_PROPS, self.select
+        ttk.Label(left, text="Group", anchor="center", font=(grupo, 10, "bold")).pack(
+            side="bottom", fill="x", pady=(10, 0)
         )
+        self.group_box.bind("<<ComboboxSelected>>", self.refresh)
+        self.listbox = self._lista_texturizada(left, ALTO_LISTA_PROPS, self.select)
 
         # Columna de la derecha: las animaciones del prop, su desplegable de
         # grupos y los controles de reproduccion. Mismo reparto que en la
@@ -166,9 +168,9 @@ class PropTab(ttk.Frame):
         self.anim_list = self._lista_texturizada(
             right, ALTO_LISTA_ANIMS, self.select_animation, selectmode="extended"
         )
-        ttk.Label(
-            right, text="Group", anchor="center", font=(grupo, 10, "bold")
-        ).pack(fill="x", pady=(10, 0))
+        ttk.Label(right, text="Group", anchor="center", font=(grupo, 10, "bold")).pack(
+            fill="x", pady=(10, 0)
+        )
         self.anim_group_box.pack(fill="x", pady=(0, 4))
         self.anim_group_box.bind("<<ComboboxSelected>>", self.refresh_animations)
         ttk.Separator(right, orient="horizontal").pack(fill="x", pady=(10, 6))
@@ -208,6 +210,12 @@ class PropTab(ttk.Frame):
             style="Props.Horizontal.TScale",
         )
         self.slider.pack(fill="x", pady=6)
+        ttk.Checkbutton(
+            right,
+            text="Vertex colors",
+            variable=self.show_vertex_colors,
+            command=self.schedule,
+        ).pack(anchor="w", pady=4)
         self._fps_button_refresh()
 
         # El visor en el centro, con los botones flotantes encima.
@@ -372,7 +380,7 @@ class PropTab(ttk.Frame):
         Solo el ultimo tramo. El numero de entrada no dice nada y la ruta entera
         no cabe en la lista.
         """
-        return row["ruta_interna"].rpartition("/")[2]
+        return row.get("animation_name", row["ruta_interna"]).rpartition("/")[2]
 
     def _grupos(self, rows):
         """Categorias de una lista de filas, con 'All' delante y en orden."""
@@ -525,6 +533,7 @@ class PropTab(ttk.Frame):
                 include_helpers=self.show_helpers.get(),
                 opaco=row["ruta_interna"] in ALFA_ILEGIBLE,
                 ruta=row["ruta_interna"],
+                assets=self.assets,
             )
             self.bone_src, _ = prop_joints(
                 data, include_helpers=self.show_helpers.get()
@@ -532,9 +541,24 @@ class PropTab(ttk.Frame):
             self.bones = bones_over(self.parts, self.bone_src)
             self.clip = prop_clip(data)
             self.animator = PropAnimator(data, self.clip)
+            clips = (
+                self.assets.clips(row["ruta_interna"]) if b"bmsh" in data[:128] else []
+            )
+            if clips:
+                reference = next(
+                    (c for c in clips if c["name"].endswith("idle-breathe")), clips[0]
+                )
+                selected = next(
+                    (c for c in clips if c["name"] == row.get("animation_name")),
+                    reference,
+                )
+                self.animator = SkinnedPropAnimator(data, selected, reference)
+                self.clip = self.animator.clip
+                self.bones = self.bone_src
             self.current = row
             for textured in (False, True):
                 gl.forget(("prop", row["entry"], textured))
+                gl.forget(("prop", (row["entry"], "without_vertex_colors"), textured))
             self.objeto = None
             self.objeto_key = None
             # La galeria enseña lo que se pinta: cada parte lleva su textura en
@@ -586,6 +610,18 @@ class PropTab(ttk.Frame):
         if self.clip and self.animator.bindings:
             pistas = len(self.clip["channels"])
             lineas.append(f"{self.clip['duration']:.2f} s · {pistas} tracks")
+        warnings = sorted(
+            {p["texture_warning"] for p in self.parts if p.get("texture_warning")}
+        )
+        lineas.extend(warnings)
+        if not self.assets.manifest.get("version"):
+            lineas.append(
+                "Reimport the ISO (File > Select ISO) to load object bitmaps and skeletal clips."
+            )
+        if row["ruta_interna"].endswith(("/fx_lamp_kine", "/fx_lamp_swinging")):
+            lineas.append(
+                "Black shading is stored in vertex colors. Toggle Vertex colors to inspect the texture."
+            )
         return "\n".join(lineas)
 
     def time_text(self, t, duration):
@@ -651,14 +687,28 @@ class PropTab(ttk.Frame):
 
     def posed_parts(self):
         """Las piezas en el instante actual, con las curvas aplicadas."""
-        if not self.clip:
+        show_rest = (
+            not self.playing
+            and self.playhead == 0
+            and getattr(self.animator, "rest_overrides", ())
+        )
+        if not self.clip or show_rest:
+            self.bones = (
+                self.bone_src
+                if isinstance(self.animator, SkinnedPropAnimator)
+                else bones_over(self.parts, self.bone_src)
+            )
             return self.parts
         partes, huesos = self.animator.pose(self.parts, self.playhead, self.bone_src)
         posed_bones = tuple(
             {**bone, "position": huesos.get(bone["index"], bone["position"])}
             for bone in self.bone_src
         )
-        self.bones = bones_over(partes, posed_bones)
+        self.bones = (
+            posed_bones
+            if isinstance(self.animator, SkinnedPropAnimator)
+            else bones_over(partes, posed_bones)
+        )
         return partes
 
     def tick(self):
@@ -727,9 +777,15 @@ class PropTab(ttk.Frame):
             # La escena se reutiliza entre fotogramas y solo se le cambian los
             # vertices: si se pidiera por clave, la cache devolveria la de
             # reposo y el prop no se moveria.
-            key = (self.current["entry"], self.show_textures.get())
+            key = (
+                self.current["entry"],
+                self.show_textures.get(),
+                self.show_vertex_colors.get(),
+            )
             if self.objeto_key != key:
-                self.objeto = prop_scene(self.parts, key[0], key[1])
+                self.objeto = prop_scene(
+                    self.parts, key[0], key[1], vertex_colors=key[2]
+                )
                 self.objeto_key = key
             if self.clip:
                 self.objeto.fijar_poses(posed_positions(partes))
@@ -791,6 +847,8 @@ class PropTab(ttk.Frame):
                 self.current["ruta_interna"],
                 glb,
                 include_helpers=self.show_helpers.get(),
+                assets=self.assets,
+                animation=self.current.get("animation_name"),
             )
             if fbx:
                 export_path(glb, target, blender)
@@ -828,6 +886,8 @@ class PropTab(ttk.Frame):
                         row["ruta_interna"],
                         glb,
                         include_helpers=self.show_helpers.get(),
+                        assets=self.assets,
+                        animation=row.get("animation_name"),
                     )
                     if fbx:
                         export_path(glb, target, blender)

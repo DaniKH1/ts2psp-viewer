@@ -31,7 +31,7 @@ def add_prop_animation(glb, data, bones, name, fps=30):
     clip = animator.clip
     if not bones:
         return 0
-    animated = set(animator.by_node) & {bone["index"] for bone in bones}
+    animated = (set(animator.by_node) | animator.rest_overrides) & {bone["index"] for bone in bones}
     joints = glb.doc["skins"][0]["joints"]
     by_index = {bone["index"]: bone for bone in bones}
     bind_local = {}

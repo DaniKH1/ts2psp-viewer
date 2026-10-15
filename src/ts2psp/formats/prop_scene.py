@@ -67,6 +67,17 @@ def node_name(data, node):
     return data[at : at + 256].split(b"\0", 1)[0].decode("ascii", "replace")
 
 
+def rest_values(data, node):
+    values = list(transform_values(data, node))
+    # The accessory's stored assembly offsets separate its lid and housing.
+    # Animation evaluation deliberately keeps the original authored values.
+    if b"objects/accessories_perks/fx_trackingdevice\0" in data and node_name(
+        data, node
+    ) in ("device", "flap"):
+        values[3] = 0.0
+    return values
+
+
 def _quaternion_matrix(values):
     x, y, z, w = values
     norm = x * x + y * y + z * z + w * w
@@ -129,7 +140,7 @@ def transform_matrix(data, node, values=None, parent_scale=None):
     return _transform(values, pivots[6:9], pivots[:3], pivots[9:12], pivots[3:6])
 
 
-def _node_section(data, off, size, end):
+def _node_section(data, off, size, end, rest_pose=True):
     """Los nodos de una seccion `node`, con su tabla de matrices del mundo."""
     for prefix in (0, 32):
         head = off + 128 + prefix
@@ -171,7 +182,13 @@ def _node_section(data, off, size, end):
                 values = struct.unpack_from("<10f", data, payload)
                 if all(math.isfinite(value) for value in values):
                     local = transform_matrix(
-                        data, (at, kind, parent, local), values
+                        data,
+                        (at, kind, parent, local),
+                        (
+                            rest_values(data, (at, kind, parent, local))
+                            if rest_pose
+                            else values
+                        ),
                     )
         nodes.append((at, kind, parent, local))
     for index, node in enumerate(nodes):
@@ -206,7 +223,7 @@ def _node_section(data, off, size, end):
     return None
 
 
-def _node_sections(data, records):
+def _node_sections(data, records, rest_pose=True):
     """Cada seccion `node` del recurso, con el final que le toca de verdad.
 
     El tamaño que declara la cabecera se queda corto: en los niveles, la tabla de
@@ -222,12 +239,12 @@ def _node_sections(data, records):
         # siguiente se busca por valor y no por posicion.
         siguiente = next((o for o in finales if o > off), len(data))
         end = min(len(data), max(off + 128 + size, siguiente))
-        seccion = _node_section(data, off, size, end)
+        seccion = _node_section(data, off, size, end, rest_pose=rest_pose)
         if seccion is not None:
             yield seccion
 
 
-def node_hierarchy(data, records):
+def node_hierarchy(data, records, rest_pose=True):
     """Return NODE records, lazy world-matrix lookup and section bounds.
 
     Solo la primera seccion `node`, que es lo que tiene un prop. Un nivel
@@ -235,7 +252,7 @@ def node_hierarchy(data, records):
 
     Only visited branches are validated: nonspatial records can contain cycles.
     """
-    for seccion in _node_sections(data, records):
+    for seccion in _node_sections(data, records, rest_pose=rest_pose):
         return seccion
     return [], None, None, None
 

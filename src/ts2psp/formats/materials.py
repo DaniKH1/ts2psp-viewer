@@ -7,7 +7,7 @@ import io
 import numpy as np
 from PIL import Image
 
-from ts2psp.formats.surfaces import decode_surface
+from ts2psp.formats.surfaces import decode_surface, surface_source
 
 
 def _canal_alfa(texture_png):
@@ -190,13 +190,7 @@ MODO_PIEZAS = {
 
 
 def opaca(png):
-    """El mismo PNG con el canal alfa a opaco.
-
-    Las texturas BC3 (DXT5) se leen con el alfa desplazado, asi que salen con
-    una opacidad bajisima y el prop se dibuja casi invisible. Cambiar solo el
-    alfa deja los colores intactos y es reversible: si un dia se descifra la
-    disposicion del bloque, basta con quitar esta pasada.
-    """
+    """Opaque color copy for explicitly identified non-opacity alpha maps."""
     image = Image.open(io.BytesIO(png)).convert("RGBA")
     r, g, b, _ = image.split()
     salida = io.BytesIO()
@@ -244,6 +238,7 @@ def prop_materials(data, records, opaco=False):
             "surface_address": surface_address,
             "base_color": (*rgb, opacity),
             "shader_index": index,
+            "source_texture_path": surface_source(data, surface_address) if surface_address else "",
         }
         for prefix in (0, 32):
             shaders[off + 128 + prefix] = material
@@ -254,6 +249,7 @@ def assign_material(part, material, uvs, modo=None):
     """Store one material per mesh part; repeating UVs stay repeating on the GPU."""
     material = material or {}
     part["texture"] = material.get("texture")
+    part["source_texture_path"] = material.get("source_texture_path", "")
     part["base_color"] = material.get("base_color", (1, 1, 1, 1))
     part["material_kind"] = "texture" if part["texture"] else "solid_color"
     # tres grupos: opaco, recorte (prueba de alfa, escribe profundidad) y mezcla

@@ -28,7 +28,7 @@ def u32(data, at):
 
 
 def clip_name(data):
-    names = re.findall(rb"characters/bodyanims/[^\x00]+", data)
+    names = re.findall(rb"(?:characters/bodyanims|objects)/[^\x00]+", data)
     return names[0].decode("ascii", "replace") if names else ""
 
 

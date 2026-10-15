@@ -1,6 +1,6 @@
 # Architecture
 
-`run_viewer.py` starts `ts2psp.app`. The application selects the ISO/cache and creates four tabs. Each tab owns its selection and camera state; format readers do not depend on GUI widgets.
+`run_viewer.py` starts `ts2psp.app`. The application selects the ISO/cache and creates three tabs. Each tab owns its selection and camera state; format readers do not depend on GUI widgets.
 
 For a prop, `rendering/props.py` loads `formats/props.py`. The reader decodes each RDMS/BMSH mesh. `formats/materials.py` follows its GSHD pointer to the SURF texture, and `formats/surfaces.py` decodes the pixels. `formats/prop_scene.py` applies the static NODE hierarchy to rigid mesh instances. The same decoded parts feed the OpenGL preview and GLB writer.
 
@@ -17,3 +17,14 @@ For props, `formats/prop_scene.py` composes pivot-aware NODE transforms;
 `exporting/prop_animation.py` bakes that same hierarchy into GLB animation.
 The Objects tab reuses its compiled animator and keeps bind data immutable.
 See [prop rigs](prop-rigs.md) for the binary fields and scope.
+
+`formats/prop_assets.py` reads the optional `prop_support.json` inside the local
+props archive. It resolves standalone ISO bitmaps and separate BANM clips, and
+keeps documented material repairs apart from raw format decoding. Raw source
+resources are never modified. Generated UVs are labelled in the preview and in
+GLB mesh extras.
+
+`formats/prop_skin.py` evaluates BANM rotation/translation tracks by bone name.
+It compiles vertex positions, weights and palettes once, then skins with NumPy.
+The GLB exporter uses the same reference pose; regression tests compare the
+exported motion against preview vertices.

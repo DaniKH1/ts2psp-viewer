@@ -27,17 +27,9 @@ from ts2psp.formats.materials import (
     prop_materials,
 )
 
-# Props cuyo canal alfa no se puede leer y se dibujan casi invisibles.
-#
-# Los BC3 (DXT5) se descifran con el alfa desplazado: de 447 texturas BC3 del
-# catalogo, 326 se quedan sin un solo pixel opaco. Se sabe que el lector va mal,
-# pero la disposicion correcta no esta averiguada, y cambiar las 447 de golpe
-# para tapar dos puertas es jugarsela. Asi que se listan una a una las que se
-# han reportado y se les fuerza el alfa a opaco; el resto sigue con su alfa
-# leido, mejor que antes.
-#
-# Para quitar una entrada de aqui no hay que hacer nada mas: cuando se sepa la
-# disposicion del bloque BC3, `materials.opaca` sobra entero.
+# Solid doors use texture alpha for a surface effect rather than visibility.
+# Keep this explicit until more shader techniques have been decoded. The PSP
+# BC3 block layout is already correct; other textures must retain their alpha.
 ALFA_ILEGIBLE = frozenset(
     {
         "objects/doors/fx_d47mechdoor",
@@ -53,6 +45,8 @@ from ts2psp.formats.prop_scene import (
     transform_matrix,
     is_transform,
     mesh_is_helper,
+    node_name,
+    rest_values,
 )
 
 
@@ -144,7 +138,7 @@ def prop_joints(data, include_helpers=False):
             node = nodes[index]
             local = node[3]
             if is_transform(data, node):
-                values = list(transform_values(data, node))
+                values = rest_values(data, node)
                 # Bind at unit scale. Tiny or zero effect scales otherwise lose
                 # float32 vertex precision when an animation expands the mesh.
                 values[7:10] = [1.0, 1.0, 1.0]
@@ -257,19 +251,15 @@ def vertex_layout(vtype):
     return tex_code, color_code, normal_code, pos_code, pos_at, stride
 
 
-def rdms_indices(data, index_at, index_count, vertex_count, index_width, end):
-    """Los indices de una pieza rdms, en el ancho que de verdad tienen.
+def rdms_indices(
+    data, index_at, index_count, vertex_count, index_width, end, vertex_at=None
+):
+    """Use the allocated index span to detect incorrectly advertised U8 data.
 
-    El vtype declara el ancho y casi siempre acierta, pero hay piezas que
-    declaran indices de un byte con mas de 128 vertices, que es imposible: un
-    indice de un byte solo llega a 127, asi que la mitad de los vertices se
-    quedan sin usar y la tira sale descosida, con triangulos que cruzan la pieza
-    entera. Ahi el ancho real es el otro.
-
-    Solo se cambia cuando el declarado es manifiestamente imposible y el otro
-    deja indices dentro de rango. Asi las demas piezas, que tambien tienen mas de
-    128 vertices pero si salen bien, se quedan como estaban.
+    Fallen bookcases store U16 indices despite their U8 VTYPE. An actual U8
+    index can reach 255; unused vertices alone do not justify changing width.
     """
+
     def leer(ancho):
         total = index_count * ancho
         if total > end - index_at:
@@ -280,8 +270,14 @@ def rdms_indices(data, index_at, index_count, vertex_count, index_width, end):
     indices = leer(index_width)
     if indices is None or max(indices) >= vertex_count:
         return None
-    if vertex_count > 128 and max(indices) < vertex_count - 1:
-        otro = leer(2 if index_width == 1 else 1)
+    if (
+        index_width == 1
+        and vertex_count > 128
+        and index_count > 16
+        and vertex_at is not None
+        and 0 <= vertex_at - index_at - 2 * index_count < 16
+    ):
+        otro = leer(2)
         if otro is not None and max(otro) < vertex_count:
             indices = otro
     return indices
@@ -381,7 +377,13 @@ def parse_rdms(data, apply_scene=True, opaco=False, ruta=None, vertex_colors=Tru
             )
             continue
         indices = rdms_indices(
-            data, index_at, index_count, vertex_count, index_width, end
+            data,
+            index_at,
+            index_count,
+            vertex_count,
+            index_width,
+            end,
+            vertex_at=vertex_at,
         )
         if indices is None:
             rejected.append((i, "index range"))
@@ -474,6 +476,11 @@ def parse_rdms(data, apply_scene=True, opaco=False, ruta=None, vertex_colors=Tru
                         **part,
                         "name": name,
                         "node": node_index,
+                        "node_name": (
+                            node_name(data, nodes[node_index])
+                            if 0 <= node_index < len(nodes)
+                            else ""
+                        ),
                         "helper": mesh_is_helper(
                             data, nodes, node_index, textured=bool(part["texture"])
                         )
@@ -499,6 +506,13 @@ def parse_prop_bmsh(data, ruta=None):
     dos veces y los UV salirian a la mitad.
     """
     parts = parse_mesh(data)
+    # GU texture coordinates are unsigned shorts, biased around 0x8000.
+    # Keep the legacy +32768 consumer convention across the signed boundary.
+    for part in parts:
+        part["vertices"] = [
+            (pos, normal, tuple((v & 65535) - 65536 for v in uv), weights)
+            for pos, normal, uv, weights in part["vertices"]
+        ]
     materials = prop_materials(data, sections(data))
     off, _, _ = section(data, b"bmsh")
     forzado = MODO_PIEZAS.get(ruta or "", {})
@@ -629,8 +643,9 @@ def write_rigid_glb(parts, name, target, bones=(), anclajes=None):
             "doubleSided": True,
             "pbrMetallicRoughness": pbr,
         }
-        if has_alpha:
-            material["alphaMode"] = "BLEND"
+        material["alphaMode"] = part.get("alpha_mode") or (
+            "BLEND" if has_alpha else "OPAQUE"
+        )
         glb.doc["materials"].append(material)
         mesh_idx = len(glb.doc["meshes"])
         glb.doc["meshes"].append(
@@ -646,6 +661,11 @@ def write_rigid_glb(parts, name, target, bones=(), anclajes=None):
                 ],
             }
         )
+        if part.get("uv_source") or part.get("texture_warning"):
+            glb.doc["meshes"][-1]["extras"] = {
+                "uvSource": part.get("uv_source", "source"),
+                "materialNote": part.get("texture_warning", ""),
+            }
         node_idx = len(glb.doc["nodes"])
         mesh_node = {"name": f'{name}/{part["name"]}', "mesh": mesh_idx}
         # Las mallas NO se cuelgan del esqueleto: parse_rdms ya las deja en
@@ -660,15 +680,17 @@ def write_rigid_glb(parts, name, target, bones=(), anclajes=None):
     return glb
 
 
-def convert_prop(data, name, target, include_helpers=False):
+def convert_prop(
+    data, name, target, include_helpers=False, assets=None, animation=None
+):
     if b"rdms" in data[:128]:
-        parts, rejected = parse_rdms(
-            data, opaco=name in ALFA_ILEGIBLE, ruta=name
-        )
+        parts, rejected = parse_rdms(data, opaco=name in ALFA_ILEGIBLE, ruta=name)
         if not include_helpers:
             parts = [part for part in parts if not part.get("helper")]
         if not parts:
             raise ValueError(f"No compatible RDMS parts: {rejected[:3]}")
+        if assets:
+            assets.repair(parts, name)
         bones, anclajes = prop_joints(data, include_helpers=include_helpers)
         glb = write_rigid_glb(parts, name, target, bones=bones, anclajes=anclajes)
         from ts2psp.exporting.prop_animation import add_prop_animation
@@ -703,9 +725,22 @@ def convert_prop(data, name, target, include_helpers=False):
         textures = {part["name"]: part["texture"] for part in parts}
         glb.add_mesh(name, parts, skin, len(bones), textures)
         glb.save(target)
+        clips = assets.clips(name) if assets else []
+        if clips:
+            from ts2psp.formats.animations import attach_animations
+
+            reference = next(
+                (c for c in clips if c["name"].endswith("idle-breathe")), clips[0]
+            )
+            selected = (
+                [c for c in clips if c["name"] == animation] if animation else clips
+            )
+            attach_animations(target, selected, reference, target)
         return {
             "name": name,
             "format": "BMSH",
+            "bones": len(bones),
+            "animations": len(selected) if clips else 0,
             "parts": len(parts),
             "vertices": sum(len(p["vertices"]) for p in parts),
             "triangles": sum(len(p["indices"]) // 3 for p in parts),
@@ -718,6 +753,8 @@ def convert_prop(data, name, target, include_helpers=False):
 
 
 def main():
+    from ts2psp.formats.prop_assets import PropAssets
+
     ap = argparse.ArgumentParser(description="Extrae props de Los Sims 2 PSP a GLB")
     ap.add_argument("archive", type=Path)
     ap.add_argument("entry", help="ID del inventario_props.csv")
@@ -733,11 +770,13 @@ def main():
         if row is None:
             raise ValueError("ID no encontrado")
         result = convert_prop(
-            z.read(row["archivo_zip"]), row["ruta_interna"], args.output
+            z.read(row["archivo_zip"]),
+            row["ruta_interna"],
+            args.output,
+            assets=PropAssets(z),
         )
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
     main()
-

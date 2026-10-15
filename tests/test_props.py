@@ -109,13 +109,7 @@ class PropResourceTests(unittest.TestCase):
         )
 
     def test_wide_index_buffers_are_read_at_their_real_width(self):
-        """Un rdms con 8 bits de indice no puede tener mas de 128 vertices.
-
-        El fx_fallenbookcase declara indices de un byte en el vtype y tiene 256
-        vertices, que no caben: leidos a un byte solo llegaban a 127 y la mitad de
-        la malla se quedaba sin usar. La tira salia descosida, con triangulos
-        que cruzaban la pieza entera y la estanteria se veia como una plancha.
-        """
+        """The bookcase's index allocation is U16 despite its U8 VTYPE."""
         for name in ("fx_fallenbookcase", "fx_fallenbookcase02", "fx_fallenbookcase03"):
             with self.subTest(prop=name):
                 parts, rejected = parse_rdms(self.resource(name))

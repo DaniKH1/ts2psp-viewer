@@ -16,6 +16,7 @@ from ts2psp.formats.prop_scene import (
     _relative,
     is_transform,
     is_joint,
+    rest_values,
 )
 
 
@@ -67,8 +68,14 @@ def iter_prop_animations(path, rows):
     tener que esperar al final.
     """
     with zipfile.ZipFile(path) as archive:
+        from ts2psp.formats.prop_assets import PropAssets
+
+        assets = PropAssets(archive)
         for row in rows:
             data = archive.read(row["archivo_zip"])
+            if b"bmsh" in data[:128]:
+                for external in assets.animation_rows(row["ruta_interna"]):
+                    yield {**row, "animation_name": external["name"]}
             clip = prop_clip(data)
             if clip:
                 animated = {link["node"] for link in curve_bindings(data, clip)}
@@ -172,7 +179,15 @@ class PropAnimator:
     def __init__(self, data, clip=None):
         self.data = data
         self.clip = clip if clip is not None else prop_clip(data)
-        self.nodes, self.rest_world, _, _ = node_hierarchy(data, sections(data))
+        self.nodes, self.rest_world, _, _ = node_hierarchy(
+            data, sections(data), rest_pose=False
+        )
+        self.rest_overrides = {
+            i
+            for i, node in enumerate(self.nodes)
+            if is_transform(data, node)
+            and tuple(rest_values(data, node)) != tuple(transform_values(data, node))
+        }
         self.bindings = curve_bindings(data, self.clip)
         self.values = {
             i: transform_values(data, node)
@@ -230,7 +245,11 @@ class PropAnimator:
 
     def joint_local_matrix(self, bone, by_index, t):
         matrix = (
-            self.nodes[bone["index"]][3]
+            transform_matrix(
+                self.data,
+                self.nodes[bone["index"]],
+                rest_values(self.data, self.nodes[bone["index"]]),
+            )
             if t is None
             else self.local_matrix(bone["index"], t)
         ).copy()

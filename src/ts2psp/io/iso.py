@@ -6,6 +6,7 @@ with the application source.
 
 import csv
 import io
+import json
 import mmap
 import os
 import re
@@ -102,6 +103,17 @@ def res_sections(data):
     ]
 
 
+def object_resource_name(data, records):
+    """Only read the resource name table, never incidental script references."""
+    header = struct.unpack_from("<I", data, 12)[0]
+    for tag, off, size, _, _ in records:
+        if tag == b"strg":
+            paths = PROP_PATH.findall(data[off + header : off + header + size])
+            if paths:
+                return paths[-1].decode("ascii")
+    return ""
+
+
 def decode_texture(data):
     if data[:4] != b"res\n" or data[0x38:0x3C] != b"surf":
         return None
@@ -168,6 +180,7 @@ def import_iso(iso_path, output_dir, progress=None):
             props = []
             animations = []
             maps = []
+            prop_support = {"version": 1, "textures": {}, "animations": []}
             used_meshes = set()
             used_textures = set()
             used_props = set()
@@ -190,6 +203,44 @@ def import_iso(iso_path, output_dir, progress=None):
                     data = mm[start : start + row["size"]]
                     if not data.startswith(b"res\n"):
                         continue
+                    records = res_sections(data)
+                    object_name = object_resource_name(data, records)
+                    if object_name and b".." not in object_name.encode().split(b"/"):
+                        if any(s[0] == b"surf" for s in records) and not any(
+                            s[0] in (b"bmsh", b"rdms", b"node", b"levl")
+                            for s in records
+                        ):
+                            surf = next(s for s in records if s[0] == b"surf")
+                            file = f'support/textures/{row["entry"]}.res'
+                            zips["props"].writestr(file, data)
+                            prop_support["textures"][object_name.casefold()] = {
+                                "file": file,
+                                "off": surf[1],
+                                "size": surf[2],
+                            }
+                        if any(s[0] == b"banm" for s in records):
+                            file = f'support/animations/{row["entry"]}.res'
+                            zips["props"].writestr(file, data)
+                            try:
+                                clip = parse_banm(data)
+                            except (ValueError, struct.error) as exc:
+                                prop_support.setdefault(
+                                    "unsupported_animations", []
+                                ).append(
+                                    {
+                                        "name": object_name,
+                                        "file": file,
+                                        "error": str(exc),
+                                    }
+                                )
+                            else:
+                                prop_support["animations"].append(
+                                    {
+                                        "name": object_name,
+                                        "file": file,
+                                        "duration": clip["duration"],
+                                    }
+                                )
 
                     if b"bmsh" in data:
                         paths = MESH_PATH.findall(data)
@@ -298,7 +349,7 @@ def import_iso(iso_path, output_dir, progress=None):
 
                     if b"banm" in data[:96]:
                         name = clip_name(data)
-                        if name:
+                        if name.startswith("characters/bodyanims/"):
                             clip = parse_banm(data)
                             category = name.split("/")[2]
                             file = f'res/{row["entry"]}.res'
@@ -377,7 +428,9 @@ def import_iso(iso_path, output_dir, progress=None):
                         ],
                     ),
                 )
-                import json
+                zips["props"].writestr(
+                    "prop_support.json", json.dumps(prop_support, indent=2)
+                )
 
                 zips["animations"].writestr(
                     "catalog.json", json.dumps(animations, ensure_ascii=False, indent=2)

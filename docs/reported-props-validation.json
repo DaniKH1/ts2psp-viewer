@@ -1,0 +1,26 @@
+{
+  "props": 767,
+  "surfaces": 1619,
+  "joint_nodes": 22,
+  "helper_parts": 352,
+  "textured_parts": 3994,
+  "solid_color_parts": 503,
+  "mixed_wrap_props": 185,
+  "errors": [],
+  "preview_textured_parts": 4032,
+  "standalone_surfaces": 1167,
+  "generated_uv_parts": 59,
+  "unit_tests": 102,
+  "stage_bones": 13,
+  "stage_clips": 4,
+  "satellite_playback": {
+    "frames": 621,
+    "loops": 2,
+    "max_event_gap_seconds": 0.136971
+  },
+  "stage_playback": {
+    "frames": 629,
+    "loops": 11,
+    "max_event_gap_seconds": 0.058801
+  }
+}

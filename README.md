@@ -100,6 +100,10 @@ otherwise drags one hand away from the other. See `formats/characters.py`.
 
 ## Props
 
+After updating from an older build, select your ISO again through **File >
+Select ISO**. The new cache includes standalone object bitmaps and skeletal
+clips, which older ZIPs do not contain. Older caches still open with a reminder.
+
 The **Props** tab is laid out in three columns.
 
 - **Left**: the model list, its search box, a **Group** dropdown that splits the
@@ -133,6 +137,12 @@ parts, stored solid colors and unresolved references. Use
 Model statistics are painted over the viewport in the bottom left corner rather
 than under the playback controls: the name and what was loaded, plus the
 duration and track count when the prop has a clip.
+
+The **Vertex colors** checkbox lets you inspect the texture without stored
+vertex shading; it does not remove colors from the exported model. Cowthulu's
+stage exposes four separate hose clips and all 13 joints. See
+[reported prop fixes and source limitations](docs/reported-props.md) for water
+materials, UV repairs and the remaining untextured authoring templates.
 
 ## Export
 

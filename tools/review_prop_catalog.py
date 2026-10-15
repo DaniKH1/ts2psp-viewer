@@ -18,12 +18,15 @@ sys.path.insert(0, str(ROOT / "src"))
 from ts2psp.formats.props import sections, parse_rdms, parse_prop_bmsh, prop_joints
 from ts2psp.formats.prop_scene import node_hierarchy, is_joint
 from ts2psp.formats.surfaces import decode_surface
+from ts2psp.formats.prop_assets import PropAssets
+from ts2psp.formats.props import ALFA_ILEGIBLE
 from ts2psp.rendering.props import load_parts, render_prop
 import ts2psp.rendering.opengl as gl
 
 
 def review(archive_path, output):
     output.mkdir(parents=True, exist_ok=True)
+    assets = PropAssets(archive_path)
     root = tk.Tk()
     root.withdraw()
     font = ImageFont.truetype("arial.ttf", 13)
@@ -95,12 +98,27 @@ def review(archive_path, output):
                 report["mixed_wrap_props"] += any(
                     len(states) > 1 for states in modes.values()
                 )
-                parts = load_parts(data)
+                parts = load_parts(
+                    data,
+                    ruta=row["ruta_interna"],
+                    opaco=row["ruta_interna"] in ALFA_ILEGIBLE,
+                    assets=assets,
+                )
                 item.update(
                     parts=len(parts),
                     helper_parts=helpers,
                     textured_parts=sum(bool(part.get("texture")) for part in parts),
                     solid_color_parts=sum(not part.get("texture") for part in parts),
+                    generated_uv_parts=sum(
+                        p.get("uv_source", "").startswith("generated") for p in parts
+                    ),
+                    notes=sorted(
+                        {
+                            p["texture_warning"]
+                            for p in parts
+                            if p.get("texture_warning")
+                        }
+                    ),
                 )
                 if parts:
                     points = np.array(

@@ -52,7 +52,19 @@ def smoke(exe, data=None):
     if data:
         environment["TS2_PSP_DATA_DIR"] = str(data)
     process = subprocess.Popen([str(exe)], env=environment)
-    user = ctypes.WinDLL("user32")
+    user = ctypes.WinDLL("user32", use_last_error=True)
+    user.GetWindowThreadProcessId.argtypes = [
+        wintypes.HWND,
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    user.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+    user.IsWindowVisible.argtypes = [wintypes.HWND]
+    user.PostMessageW.argtypes = [
+        wintypes.HWND,
+        wintypes.UINT,
+        wintypes.WPARAM,
+        wintypes.LPARAM,
+    ]
     found = []
     owned = {process.pid}
 
@@ -63,7 +75,7 @@ def smoke(exe, data=None):
         if pid.value in owned and user.IsWindowVisible(window):
             text = ctypes.create_unicode_buffer(256)
             user.GetWindowTextW(window, text, len(text))
-            if text.value.startswith("The Sims 2 PSP"):
+            if text.value.startswith(("TS2PSP Viewer", "The Sims 2 PSP")):
                 found.append(window)
         return True
 
@@ -76,7 +88,8 @@ def smoke(exe, data=None):
             time.sleep(0.5)
         if not found:
             raise RuntimeError(f"EXE window did not appear; exit={process.poll()}")
-        user.PostMessageW(found[0], 0x0010, 0, 0)
+        if not user.PostMessageW(found[0], 0x0010, 0, 0):
+            raise ctypes.WinError(ctypes.get_last_error())
         process.wait(timeout=20)
         if process.returncode:
             raise RuntimeError(f"EXE exited with {process.returncode}")

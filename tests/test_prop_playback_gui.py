@@ -14,6 +14,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seconds", type=float, default=22)
     parser.add_argument("--slow-frame", action="store_true")
+    parser.add_argument("--prop", default="fx_rightarm_satellite")
+    parser.add_argument("--clip", default="")
     args = parser.parse_args()
     base = Path(
         os.environ.get(
@@ -36,7 +38,8 @@ def main():
     row = next(
         row
         for row in tab.anim_rows
-        if row["ruta_interna"].endswith("/fx_rightarm_satellite")
+        if row["ruta_interna"].endswith("/" + args.prop)
+        and (not args.clip or row.get("animation_name", "").endswith(args.clip))
     )
     tab.load(row)
     app.update()
