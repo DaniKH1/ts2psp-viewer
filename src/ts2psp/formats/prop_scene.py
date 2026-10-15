@@ -2,12 +2,23 @@
 
 import math
 import struct
+from dataclasses import dataclass
 
 import numpy as np
 
 
 def _relative(data, at):
     return at + struct.unpack_from("<i", data, at)[0]
+
+
+def _header_sizes(data):
+    """Prefer the container's declared header over layout guesses."""
+    declared = struct.unpack_from("<I", data, 12)[0] if len(data) >= 16 else 0
+    return (
+        tuple(dict.fromkeys((declared, 128, 160)))
+        if declared in (96, 128, 160)
+        else (128, 160)
+    )
 
 
 def _transform(
@@ -142,8 +153,8 @@ def transform_matrix(data, node, values=None, parent_scale=None):
 
 def _node_section(data, off, size, end, rest_pose=True):
     """Los nodos de una seccion `node`, con su tabla de matrices del mundo."""
-    for prefix in (0, 32):
-        head = off + 128 + prefix
+    for header in _header_sizes(data):
+        head = off + header
         if head + 8 > end:
             continue
         count = struct.unpack_from("<I", data, head)[0]
@@ -220,7 +231,6 @@ def _node_section(data, off, size, end, rest_pose=True):
         return world[index]
 
     return nodes, world_matrix, head, end
-    return None
 
 
 def _node_sections(data, records, rest_pose=True):
@@ -238,7 +248,7 @@ def _node_sections(data, records, rest_pose=True):
         # `records` no tiene por que venir en orden de archivo, asi que el
         # siguiente se busca por valor y no por posicion.
         siguiente = next((o for o in finales if o > off), len(data))
-        end = min(len(data), max(off + 128 + size, siguiente))
+        end = min(len(data), max(off + _header_sizes(data)[0] + size, siguiente))
         seccion = _node_section(data, off, size, end, rest_pose=rest_pose)
         if seccion is not None:
             yield seccion
@@ -267,8 +277,96 @@ def node_hierarchies(data, records):
     return [s for s in _node_sections(data, records) if s is not None]
 
 
-def rigid_placements(data, records):
-    """Return each RDMS instance's owning node and world transform."""
+@dataclass
+class RigidPlacement:
+    node: int
+    matrix: np.ndarray
+    nodes: list
+    resource: str = ""
+    instance: str = ""
+
+
+def _resource_path(path):
+    path = path.replace("\\", "/").casefold()
+    return path[:-3] if path.endswith(".ma") else path
+
+
+def _string(data, at):
+    if not 0 <= at < len(data):
+        return ""
+    end = data.find(b"\0", at, min(len(data), at + 1024))
+    if end < 0:
+        return ""
+    return data[at:end].decode("ascii", "replace")
+
+
+def _graph_resources(data, records, graphs):
+    """NDBG identifies the Maya resource whose NODE section follows it."""
+    sources = {}
+    ordered = sorted(records, key=lambda row: row[1])
+    for index, (tag, off, size, _, _) in enumerate(ordered):
+        if tag != b"ndbg" or size < 12:
+            continue
+        head = off + _header_sizes(data)[0]
+        if head + size > len(data):
+            continue
+        source = _resource_path(_string(data, _relative(data, head)))
+        following = next(
+            (row for row in ordered[index + 1 :] if row[0] in (b"node", b"ndbg")), None
+        )
+        if following is None or following[0] != b"node":
+            continue
+        for graph in graphs:
+            if graph[2] - following[1] in _header_sizes(data):
+                sources[graph[2]] = source
+                break
+    return sources
+
+
+def _graph_references(data, graph):
+    nodes, world, _, end = graph
+    for index, node in enumerate(nodes):
+        at, kind, _, _ = node
+        if kind != 31 or at + 44 > end:
+            continue
+        path = _resource_path(_string(data, _relative(data, at + 40)))
+        if not path or "/" not in path:
+            continue
+        yield index, path, world(index)
+
+
+def level_prop_references(data, records):
+    """Authored placements in PSP coordinates (X/Y ground, Z up)."""
+    graphs = node_hierarchies(data, records)
+    by_head = {graph[2]: graph for graph in graphs}
+    sources = _graph_resources(data, records, graphs)
+    targets = {path: head for head, path in sources.items()}
+    result = []
+    for tag, off, size, _, _ in records:
+        head = off + _header_sizes(data)[0]
+        if tag != b"levl" or size < 8 or head + 8 > len(data):
+            continue
+        graph = by_head.get(_relative(data, head + 4))
+        if graph is None:
+            continue
+        for index, path, matrix in _graph_references(data, graph):
+            result.append(
+                {
+                    "node": index,
+                    "name": node_name(data, graph[0][index]),
+                    "resource": path,
+                    "position": matrix[:3, 3].tolist(),
+                    "matrix": matrix.tolist(),
+                    "resolved": path in targets,
+                    "graph": graph[2],
+                    "target_graph": targets.get(path),
+                }
+            )
+    return result
+
+
+def rigid_placement_details(data, records):
+    """Mesh owners plus referenced prop instances, retaining each local graph."""
     meshes = {
         off + 128 + prefix: off + 128
         for tag, off, _, _, _ in records
@@ -276,9 +374,12 @@ def rigid_placements(data, records):
         for prefix in (0, 32)
     }
     instances = {}
+    graphs = node_hierarchies(data, records)
+    local_instances = {}
     # Todas las secciones, no solo la primera: un nivel tiene hasta 31 y las
     # mallas de un solo subgroupo aparecen en varias.
-    for nodes, world_matrix, head, end in node_hierarchies(data, records):
+    for nodes, world_matrix, head, end in graphs:
+        local_instances[head] = {}
         for index, (at, kind, _, _) in enumerate(nodes):
             if kind != 25 or at + 40 > end:
                 continue
@@ -295,11 +396,63 @@ def rigid_placements(data, records):
                 for lod in range(lod_count):
                     mesh = _relative(data, lods + lod * 8)
                     if mesh in meshes:
-                        placements = instances.setdefault(meshes[mesh], [])
+                        placements = local_instances[head].setdefault(meshes[mesh], [])
                         # Keep lower LODs out of the same preview/export.
                         if lod == 0:
-                            placements.append((index, world_matrix(index)))
+                            placements.append(
+                                RigidPlacement(index, world_matrix(index), nodes)
+                            )
+    references = (
+        level_prop_references(data, records)
+        if any(row[0] == b"levl" for row in records)
+        else []
+    )
+    if not references:
+        for group in local_instances.values():
+            for mesh, placements in group.items():
+                instances.setdefault(mesh, []).extend(placements)
+        return instances
+
+    # Embedded object graphs are prototypes. Only reachable references create
+    # instances; otherwise the same furniture also appears at the origin.
+    for group in local_instances.values():
+        for mesh in group:
+            instances.setdefault(mesh, [])
+    by_head = {graph[2]: graph for graph in graphs}
+    sources = _graph_resources(data, records, graphs)
+    targets = {path: head for head, path in sources.items()}
+
+    def place(head, matrix, resource="", instance="", ancestors=()):
+        if head in ancestors or len(ancestors) >= 32:
+            return
+        for mesh, placements in local_instances[head].items():
+            instances[mesh].extend(
+                RigidPlacement(p.node, matrix @ p.matrix, p.nodes, resource, instance)
+                for p in placements
+            )
+        for index, path, local in _graph_references(data, by_head[head]):
+            target = targets.get(path)
+            if target is not None:
+                name = node_name(data, by_head[head][0][index])
+                place(
+                    target,
+                    matrix @ local,
+                    path,
+                    f"{instance}/{name}#{index}".lstrip("/"),
+                    (*ancestors, head),
+                )
+
+    for head in dict.fromkeys(ref["graph"] for ref in references):
+        place(head, np.eye(4))
     return instances
+
+
+def rigid_placements(data, records):
+    """Return each RDMS instance's owning node and world transform."""
+    return {
+        mesh: [(p.node, p.matrix) for p in placements]
+        for mesh, placements in rigid_placement_details(data, records).items()
+    }
 
 
 def rigid_instances(data, records):

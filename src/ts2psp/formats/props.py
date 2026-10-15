@@ -39,6 +39,9 @@ ALFA_ILEGIBLE = frozenset(
 from ts2psp.formats.prop_scene import (
     node_hierarchy,
     rigid_placements,
+    rigid_placement_details,
+    RigidPlacement,
+    _header_sizes,
     transform_vertices,
     transform_pivot,
     transform_values,
@@ -340,15 +343,15 @@ def parse_rdms(data, apply_scene=True, opaco=False, ruta=None, vertex_colors=Tru
     rejected = []
     records = sections(data)
     materials = prop_materials(data, records, opaco=opaco)
-    placements = rigid_placements(data, records) if apply_scene else {}
-    nodes = node_hierarchy(data, records)[0] if apply_scene else []
+    placements = rigid_placement_details(data, records) if apply_scene else {}
+    has_nodes = any(row[0] == b"node" for row in records) if apply_scene else False
     for i, (tag, off, size, _, _) in enumerate(records):
         if tag != b"rdms":
             continue
         shift = next(
             (
                 extra
-                for extra in (0, 32)
+                for extra in (header - 128 for header in _header_sizes(data))
                 if off + 0xC4 + extra <= len(data)
                 and struct.unpack_from("<I", data, off + 0xB8 + extra)[0] >> 24 == 0x12
             ),
@@ -489,8 +492,13 @@ def parse_rdms(data, apply_scene=True, opaco=False, ruta=None, vertex_colors=Tru
             if off + 128 in placements and not anclajes:
                 continue
             if not anclajes:
-                anclajes = [(-1, np.eye(4))]
-            for instance, (node_index, matrix) in enumerate(anclajes):
+                anclajes = [RigidPlacement(-1, np.eye(4), [])]
+            for instance, placement in enumerate(anclajes):
+                node_index, matrix, nodes = (
+                    placement.node,
+                    placement.matrix,
+                    placement.nodes,
+                )
                 name = (
                     part["name"]
                     if instance == 0
@@ -509,13 +517,12 @@ def parse_rdms(data, apply_scene=True, opaco=False, ruta=None, vertex_colors=Tru
                         "helper": mesh_is_helper(
                             data, nodes, node_index, textured=bool(part["texture"])
                         )
-                        or (bool(nodes) and node_index < 0),
+                        or (has_nodes and node_index < 0),
+                        "resource_path": placement.resource,
+                        "placement_node": placement.instance,
                         "local_vertices": vertices,
                         "vertices": transform_vertices(vertices, matrix),
-                        # Donde declara la cabecera rdms que cae la malla. En un
-                        # prop es su sitio en el mundo; en un nivel, las piezas
-                        # que el juego coloca al cargar lo traen a cero porque su
-                        # sitio no esta escrito en el recurso.
+                        # RDMS compression origin, before NODE placement.
                         "origin": tuple(float(v) for v in origin),
                     }
                 )
@@ -693,6 +700,11 @@ def write_rigid_glb(parts, name, target, bones=(), anclajes=None):
             }
         node_idx = len(glb.doc["nodes"])
         mesh_node = {"name": f'{name}/{part["name"]}', "mesh": mesh_idx}
+        if part.get("resource_path"):
+            mesh_node["extras"] = {
+                "sourceResource": part["resource_path"],
+                "sourcePlacement": part["placement_node"],
+            }
         # Las mallas NO se cuelgan del esqueleto: parse_rdms ya las deja en
         # espacio mundo (les aplica la matriz de su nodo), y colgar-las
         # componia la transformacion local del hueso encima y las desplazaba.

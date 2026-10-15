@@ -12,6 +12,12 @@ Asset paths are resolved by `paths.py`. PyInstaller extracts bundled assets to i
 
 Small comments explain format offsets and non-obvious rendering decisions. Longer observations belong in these documents.
 
+Maps share the rigid mesh reader. `formats/prop_scene.py` links LEVL's level
+graph to embedded object graphs through type 31 resource references and NDBG
+source paths. Placement records retain their own graph, so local node indices
+and helper ancestry remain valid. Both the map preview and GLB writer receive
+the expanded world-space instances. See [map prop placements](map-prop-placements.md).
+
 For props, `formats/prop_scene.py` composes pivot-aware NODE transforms;
 `formats/prop_anim.py` follows explicit curve links and evaluates motion.
 `exporting/prop_animation.py` bakes that same hierarchy into GLB animation.

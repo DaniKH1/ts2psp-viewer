@@ -151,6 +151,19 @@ retain their source colors.
 See [first import and Vertex Colors validation](docs/first-import-and-vertex-colors.md)
 for the decoder changes and measured switch timings.
 
+## Maps
+
+Map props use their authored position, rotation and scale, including repeated
+instances and nested object references. The same placements are preserved in
+GLB exports. Click a piece to see its source prop and instance name.
+
+**Maps > Export as... > Prop placement references (.json)** saves the resource
+paths and full transforms in PSP coordinates (X/Y ground, Z up). This reads the
+existing map archive; importing the ISO again is unnecessary for this change.
+
+See [map prop placements](docs/map-prop-placements.md) for binary references,
+the catalogue audit and limits involving scripted object states.
+
 ## Export
 
 Character and clip exports write to `exports/<model>_export/` inside the project
@@ -175,7 +188,7 @@ multiple export asks for a folder and writes one file per animation into it.
 | `tools/` | Build, package and diagnostic scripts |
 | `docs/` | User guide, architecture and binary format notes |
 
-Props use their shader references, texture palettes, packed coordinates, UV transforms and static scene hierarchy. Vertex colors and repeating UVs are preserved. Maps still expose mesh parts; complete terrain and playable scene placement are not reconstructed.
+Props use their shader references, texture palettes, packed coordinates, UV transforms and static scene hierarchy. Vertex colors and repeating UVs are preserved. Maps expose mesh parts and authored prop placements; complete terrain and runtime game state are not reconstructed.
 
 See [architecture](docs/architecture.md) and [format notes](docs/formats.md) for the implementation path.
 

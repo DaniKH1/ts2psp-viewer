@@ -2,6 +2,7 @@
 
 import csv
 import io
+import json
 import math
 import queue
 import threading
@@ -16,6 +17,7 @@ from ts2psp.ui.camera import CAMERA_HINT, OrbitController, Viewport
 import ts2psp.rendering.opengl as gl
 from ts2psp.rendering.props import prop_scene, render_prop, without_vertex_colors
 from ts2psp.formats.props import parse_rdms, sections, write_rigid_glb
+from ts2psp.formats.prop_scene import level_prop_references
 from ts2psp.formats.surfaces import decode_surface
 from ts2psp.ui.floating_button import FloatingButton
 from ts2psp.ui.textured_list import TexturedListbox, panel_redondeado
@@ -59,16 +61,8 @@ SIN_RECORTAR = {
     "levels/deadtree/hub": ("pieza_292", "pieza_293"),
 }
 
-# Las piezas que el nivel coloca al cargar y no al leer.
-#
-# El juego pone el mobiliario del solar (camas, neveras, butacas, alfombras)
-# con un Lua de nivel, no con coordenadas en el .res: la cabecera rdms de esas
-# piezas trae el origen a cero y se dibujan todas amontonadas en el centro del
-# solar. Se comprueba pieza a pieza en los 21 niveles: en el cuartel son 154 de
-# 304 con el origen a menos de 1, y el menu principal solo 3 de 413, que es
-# justo el unico nivel que se veia bien.
-#
-# No se borran: el boton del visor las vuelve a ensenar.
+# Legacy compression-origin diagnostic. NODE references, rather than RDMS
+# origins, determine whether a prop has an authored placement.
 SIN_COLOCAR = 1.0
 
 # Tamano de la columna de la izquierda. La lista va al ancho de la galeria de
@@ -83,12 +77,7 @@ MARGEN_CAPAS = 9
 
 
 def es_sin_colocar(part):
-    """Si la pieza llega al recurso sin sitio: su cabecera rdms la deja en el centro.
-
-    Esto ya no aparta nada del dibujo. Se queda como detector porque el filtro
-    escondia muebles que si estan colocados, y mientras se estuvo aplicando no
-    se podia saber cuales eran: lo que no se ve, no se comprueba.
-    """
+    """Legacy origin diagnostic, never a visibility or placement filter."""
     origen = part.get("origin")
     if origen is None:
         return False
@@ -778,6 +767,7 @@ class MapTab(ttk.Frame):
             ("The selected piece as FBX (.fbx) — needs Blender", "parte_fbx"),
             ("The original map file (.res)", "res"),
             ("All the textures as a ZIP", "texturas"),
+            ("Prop placement references (.json)", "placements"),
         ):
             ttk.Radiobutton(
                 contenido, text=etiqueta, value=valor, variable=elegido
@@ -808,6 +798,31 @@ class MapTab(ttk.Frame):
             self.export_res()
         elif destino == "texturas":
             self.export_textures()
+        elif destino == "placements":
+            self.export_placements()
+
+    def export_placements(self):
+        if not self.current or self.data is None:
+            return
+        target = filedialog.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[("JSON", "*.json")],
+            initialfile=self.current["ruta_interna"].rsplit("/", 1)[-1] + "_props.json",
+        )
+        if not target:
+            return
+        try:
+            report = {
+                "map": self.current["ruta_interna"],
+                "coordinates": "PSP: X/Y ground, Z up; column-vector matrices, row-major JSON",
+                "note": "Authored references; game scripts may select alternate states or move objects.",
+                "references": level_prop_references(self.data, sections(self.data)),
+            }
+            Path(target).write_text(
+                json.dumps(report, indent=2) + "\n", encoding="utf-8"
+            )
+        except Exception as exc:
+            messagebox.showerror("Export prop placements", str(exc))
 
     def select_map(self, _event=None):
         """Elige un mapa. Parsearlo va en un hilo salvo que ya este cacheado.
@@ -940,18 +955,17 @@ class MapTab(ttk.Frame):
                 if part.get("texture") and part["texture"][1]
             }
         )
-        sin_colocar = sum(1 for p in self.parts if es_sin_colocar(p))
+        instances = {
+            p.get("placement_node") for p in self.parts if p.get("placement_node")
+        }
         self._resumen = (
             f'{row["ruta_interna"]} · {len(self.parts)} RDMS parts · '
             f'{row["terrenos"]} TERN sections · '
             f'{row["superficies"]} surfaces · '
             f"{len(rejected)} skipped parts"
         )
-        if sin_colocar:
-            self._resumen += (
-                f" · {sin_colocar} pieces with no place in the file, drawn where "
-                f"the resource leaves them"
-            )
+        if instances:
+            self._resumen += f" · {len(instances)} placed prop instances"
         self._avisar_capas()
         # No se elige ninguna pieza: el visor pinta el mapa entero, asi que
         # escolher la mas grande solo tapaba el resumen con el nombre de una
@@ -970,6 +984,11 @@ class MapTab(ttk.Frame):
                 f'{len(part["indices"]) // 3} triangles · '
                 f'{"texture" if part["texture"] else "no texture"} · '
                 f'{"Vertex Color" if any(v[3] is not None for v in part["vertices"]) else "no vertex colors"}'
+                + (
+                    f' · {part["resource_path"]} · {part["placement_node"]}'
+                    if part.get("resource_path")
+                    else ""
+                )
             )
             self.schedule()
 
