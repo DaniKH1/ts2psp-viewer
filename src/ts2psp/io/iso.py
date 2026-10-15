@@ -12,6 +12,7 @@ import os
 import re
 import struct
 import tempfile
+import time
 import zipfile
 from contextlib import ExitStack
 from pathlib import Path
@@ -154,7 +155,39 @@ def decode_texture(data):
     return internal, width, height, output.getvalue()
 
 
-def import_iso(iso_path, output_dir, progress=None):
+class ImportCancelled(Exception):
+    """The caller requested cancellation before publishing the new cache."""
+
+
+def _check_cancel(cancelled):
+    if cancelled and cancelled():
+        raise ImportCancelled()
+
+
+def _validate_archive(path, progress, cancelled):
+    """Read CRC-checked chunks so validation reports progress and can stop."""
+    with zipfile.ZipFile(path) as archive:
+        entries = archive.infolist()
+        total = sum(entry.file_size for entry in entries)
+        read = 0
+        last = 0.0
+        for entry in entries:
+            with archive.open(entry) as source:
+                while True:
+                    _check_cancel(cancelled)
+                    block = source.read(1024 * 1024)
+                    if not block:
+                        break
+                    read += len(block)
+                    now = time.monotonic()
+                    if now - last >= 0.25:
+                        progress(
+                            f"Validating {path.name}: {read * 100 // max(1, total)}%"
+                        )
+                        last = now
+
+
+def import_iso(iso_path, output_dir, progress=None, cancelled=None):
     """Create five local resource archives, reporting text progress on demand."""
     iso_path = Path(iso_path)
     output_dir = Path(output_dir)
@@ -162,6 +195,7 @@ def import_iso(iso_path, output_dir, progress=None):
         raise FileNotFoundError(iso_path)
     output_dir.mkdir(parents=True, exist_ok=True)
     progress = progress or (lambda message: None)
+    _check_cancel(cancelled)
     progress("Reading the ISO index…")
     with tempfile.TemporaryDirectory(
         prefix="sims2_psp_import_", dir=output_dir
@@ -197,8 +231,11 @@ def import_iso(iso_path, output_dir, progress=None):
                     for kind, name in ARCHIVES.items()
                 }
                 for i, row in enumerate(index, 1):
-                    if i % 1000 == 0:
-                        progress(f"Processing {i:,}/{len(index):,} entries…")
+                    _check_cancel(cancelled)
+                    if i == 1 or i % 100 == 0:
+                        progress(
+                            f"Extracting resources: {i:,}/{len(index):,} ({i * 100 // len(index)}%)"
+                        )
                     start = base + row["offset"]
                     data = mm[start : start + row["size"]]
                     if not data.startswith(b"res\n"):
@@ -391,6 +428,7 @@ def import_iso(iso_path, output_dir, progress=None):
                                     }
                                 )
 
+                progress("Writing resource catalogues…")
                 char_fields = ["personaje", "entry", "archivo_zip"] + sorted(
                     {
                         key
@@ -486,9 +524,10 @@ def import_iso(iso_path, output_dir, progress=None):
                     f"La ISO no produjo todos los tipos de recursos: {counts}"
                 )
         for name in ARCHIVES.values():
-            with zipfile.ZipFile(staging / name) as z:
-                if z.testzip() is not None:
-                    raise ValueError(f"Generated file is corrupt: {name}")
+            progress(f"Validating {name}…")
+            _validate_archive(staging / name, progress, cancelled)
+        _check_cancel(cancelled)
+        progress("Installing validated resource archives…")
         for name in ARCHIVES.values():
             os.replace(staging / name, output_dir / name)
     progress(

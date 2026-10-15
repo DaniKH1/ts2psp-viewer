@@ -18,6 +18,12 @@ python run_viewer.py
 
 `run.bat` starts the same app. Imported files live in `%LOCALAPPDATA%\TS2 PSP Viewer\data`. You can also place resource ZIPs in `data/` or set `TS2_PSP_DATA_DIR` to an existing resource folder.
 
+ISO extraction runs in a separate process, with visible extraction/validation
+progress and **Cancel import**. Failures are shown and recorded in
+`%LOCALAPPDATA%\TS2 PSP Viewer\last-import.log` (or your configured cache folder).
+See [ISO import checks](docs/iso-import.md) for troubleshooting and the actual
+EXE extraction test.
+
 Rendering requires an OpenGL GPU. Without one the app still opens and lists
 what it can read, and the previews come back as `SinOpenGL`.
 

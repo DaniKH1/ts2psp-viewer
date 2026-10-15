@@ -2,6 +2,12 @@
 
 `run_viewer.py` starts `ts2psp.app`. The application selects the ISO/cache and creates three tabs. Each tab owns its selection and camera state; format readers do not depend on GUI widgets.
 
+`io/import_job.py` runs ISO decoding and ZIP compression in a spawned process.
+Tk polls its message queue; cancellation is cooperative and worker exits are
+detected even if no Python exception reaches the queue. `run_viewer.py` calls
+`multiprocessing.freeze_support()` before loading the app, so the same worker
+works in PyInstaller's single EXE. Import stages and failures stay in a local log.
+
 For a prop, `rendering/props.py` loads `formats/props.py`. The reader decodes each RDMS/BMSH mesh. `formats/materials.py` follows its GSHD pointer to the SURF texture, and `formats/surfaces.py` decodes the pixels. `formats/prop_scene.py` applies the static NODE hierarchy to rigid mesh instances. The same decoded parts feed the OpenGL preview and GLB writer.
 
 Character meshes and facial modifiers are in `formats/characters.py`. Animation decoding is in `formats/animations.py`; evaluated frames are in `rendering/animation.py`. The GLB builder is in `exporting/glb.py`, so the readers share one buffer/material implementation.
