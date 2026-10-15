@@ -14,7 +14,7 @@ from PIL import Image, ImageTk
 
 from ts2psp.ui.camera import CAMERA_HINT, OrbitController, Viewport
 import ts2psp.rendering.opengl as gl
-from ts2psp.rendering.props import prop_scene, render_prop
+from ts2psp.rendering.props import prop_scene, render_prop, without_vertex_colors
 from ts2psp.formats.props import parse_rdms, sections, write_rigid_glb
 from ts2psp.formats.surfaces import decode_surface
 from ts2psp.ui.floating_button import FloatingButton
@@ -101,9 +101,7 @@ def es_cupula(part):
     if len(vertices) != CUPULA_VERTICES:
         return False
     puntos = [v[0] for v in vertices]
-    lado = max(
-        max(p[k] for p in puntos) - min(p[k] for p in puntos) for k in range(3)
-    )
+    lado = max(max(p[k] for p in puntos) - min(p[k] for p in puntos) for k in range(3))
     return abs(lado - CUPULA_LADO) <= CUPULA_LADO * CUPULA_TOLERANCIA
 
 
@@ -189,7 +187,6 @@ class MapTab(ttk.Frame):
     _cache = None
     objeto = None
     objeto_key = None
-    _carga_color = False
     _resumen = ""
     ocultas = frozenset()
 
@@ -218,8 +215,7 @@ class MapTab(ttk.Frame):
         # Estas cuatro ya no tienen casilla: la cupula y el mobiliario sin
         # colocar se quedan fuera a proposito, las texturas se ven siempre y el
         # recorte de caras traseras va activo. Los colores de vertice siguen
-        # teniendo su boton flotante, que es la unica opcion que cambia el
-        # parseo y obliga a recargar el nivel.
+        # teniendo su boton flotante; se conservan en memoria incluso apagados.
         self.show_sky = tk.BooleanVar(value=True)
         self.show_unplaced = tk.BooleanVar(value=False)
         self.vertex_colors = tk.BooleanVar(value=False)
@@ -302,9 +298,7 @@ class MapTab(ttk.Frame):
         self.floating_buttons = []
         self.camera.ignores = self._over_floating_button
         self.export_button = self._floating_button("Export as...", self.export_as)
-        self.recenter_button = self._floating_button(
-            "Reset view", self.camera.reset
-        )
+        self.recenter_button = self._floating_button("Reset view", self.camera.reset)
         self.vertex_button = self._floating_button(
             "Vertex Colors", self.toggle_vertex_colors
         )
@@ -727,10 +721,10 @@ class MapTab(ttk.Frame):
             self._colocar_panel_capas()
 
     def toggle_vertex_colors(self):
-        """El boton flotante de los colores de vertice: recargan el nivel entero."""
+        """Change cached shading; keep geometry, textures, layers and camera."""
         self.vertex_colors.set(not self.vertex_colors.get())
         self.vertex_button.set_selected(self.vertex_colors.get())
-        self.reload()
+        self.schedule()
 
     def _filas_de_capas(self):
         filas = []
@@ -775,9 +769,9 @@ class MapTab(ttk.Frame):
         elegido = tk.StringVar(value="glb")
         contenido = ttk.Frame(dialog, padding=16)
         contenido.pack(fill="both", expand=True)
-        ttk.Label(
-            contenido, text=f"Export {self.current['ruta_interna']} as:"
-        ).pack(anchor="w", pady=(0, 8))
+        ttk.Label(contenido, text=f"Export {self.current['ruta_interna']} as:").pack(
+            anchor="w", pady=(0, 8)
+        )
         for etiqueta, valor in (
             ("Every 3D piece as GLB (.glb)", "glb"),
             ("The selected piece as GLB (.glb)", "parte_glb"),
@@ -835,17 +829,11 @@ class MapTab(ttk.Frame):
             return
         if self._carga_entrada == row["entry"]:
             return  # este mapa ya esta cargandose
-        if self._cache is not None and self._cache[0] == self._clave_de_cache():
+        if self._cache is not None and self._cache[0] == row["entry"]:
             _, data, parts, rejected = self._cache
             self._aplicar_mapa(row, data, parts, rejected)
             return
         self._empezar_carga(row)
-
-    def _clave_de_cache(self):
-        """La cache del ultimo mapa, con los ajustes que cambian el parseo."""
-        if self.current is None:
-            return None
-        return (self.current["entry"], self.vertex_colors.get())
 
     def reload(self, _event=None):
         """Vuelve a parsear el mapa actual, para cuando cambia una opcion."""
@@ -874,7 +862,6 @@ class MapTab(ttk.Frame):
         self.status.configure(text=f'{row["ruta_interna"]}: loading...')
         path = self.app.paths["maps"]
         archivo = row["archivo_zip"]
-        con_color = self._carga_color = self.vertex_colors.get()
 
         def work():
             try:
@@ -883,7 +870,7 @@ class MapTab(ttk.Frame):
                 parts, rejected = parse_rdms(
                     data,
                     apply_scene=True,
-                    vertex_colors=con_color,
+                    vertex_colors=True,
                     # La ruta hace falta para las excepciones que van por nivel,
                     # como las piezas a las que hay que dar la vuelta a las caras.
                     ruta=row["ruta_interna"],
@@ -903,7 +890,9 @@ class MapTab(ttk.Frame):
         if self.disposed or self._carga_cola is None:
             return
         try:
-            generacion, row, data, parts, rejected, error = self._carga_cola.get_nowait()
+            generacion, row, data, parts, rejected, error = (
+                self._carga_cola.get_nowait()
+            )
         except queue.Empty:
             self._carga_poll = self.after(50, self._poll_carga)
             return
@@ -915,7 +904,7 @@ class MapTab(ttk.Frame):
             return
         if generacion != self._carga_generacion:
             return  # mientras cargaba se eligio otro mapa: este ya no vale
-        self._cache = (row["entry"], self._carga_color, data, parts, rejected)
+        self._cache = (row["entry"], data, parts, rejected)
         self._aplicar_mapa(row, data, parts, rejected)
 
     def _aplicar_mapa(self, row, data, parts, rejected):
@@ -1105,6 +1094,7 @@ class MapTab(ttk.Frame):
                     sin_framing=self.nombres_del_cielo(),
                 )
                 self.objeto_key = key
+            self.objeto.fijar_vertex_colors(self.vertex_colors.get())
             self.objeto.sin_mallas = False
             # Las apagadas se marcan por nombre y la escena las busca una vez.
             self.objeto.ocultas_mallas = frozenset(
@@ -1182,7 +1172,7 @@ class MapTab(ttk.Frame):
             if fmt == "fbx" and not blender:
                 return
             glb = self.app.cache / "map_piece.glb" if blender else target
-            write_rigid_glb([part], name, glb)
+            write_rigid_glb(self._export_parts([part]), name, glb)
             if blender:
                 self.fbx_export(glb, target, blender)
             self.status.configure(text=f"Part saved: {target}")
@@ -1241,13 +1231,18 @@ class MapTab(ttk.Frame):
         if not target:
             return
         try:
-            write_rigid_glb(self.parts, self.current["ruta_interna"], target)
+            write_rigid_glb(
+                self._export_parts(self.parts), self.current["ruta_interna"], target
+            )
             self.status.configure(
                 text=f"{len(self.parts)} GLB parts saved without "
                 f"global placement: {target}"
             )
         except Exception as exc:
             messagebox.showerror("Export map parts", str(exc))
+
+    def _export_parts(self, parts):
+        return parts if self.vertex_colors.get() else without_vertex_colors(parts)
 
     def dispose(self):
         self.disposed = True

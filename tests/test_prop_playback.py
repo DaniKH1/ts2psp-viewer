@@ -47,7 +47,7 @@ class PropPlaybackTests(unittest.TestCase):
         self.tab.posed_parts = lambda: self.tab.parts
         self.tab.current = {"entry": "satellite"}
         self.tab.objeto = Mock()
-        self.tab.objeto_key = ("satellite", True, True)
+        self.tab.objeto_key = ("satellite", True)
         self.tab.bones = ()
         self.tab.status = Mock()
         self.tab.play_button = Mock()

@@ -199,21 +199,32 @@ def prop_bones(data):
     return count, names
 
 
+def _color5(value):
+    value &= 31
+    return ((value << 3) | (value >> 2)) / 255.0
+
+
+def _color6(value):
+    value &= 63
+    return ((value << 2) | (value >> 4)) / 255.0
+
+
 def decode_color(raw, code):
+    """PSP color channels expand to bytes by repeating the high bits."""
     if code in (4, 5, 6):
         value = int.from_bytes(raw, "little")
         if code == 4:  # PSP RGB565
             return (
-                (value & 31) / 31,
-                ((value >> 5) & 63) / 63,
-                ((value >> 11) & 31) / 31,
+                _color5(value),
+                _color6(value >> 5),
+                _color5(value >> 11),
                 1.0,
             )
         if code == 5:  # PSP RGBA5551
             return (
-                (value & 31) / 31,
-                ((value >> 5) & 31) / 31,
-                ((value >> 10) & 31) / 31,
+                _color5(value),
+                _color5(value >> 5),
+                _color5(value >> 10),
                 (value >> 15) & 1,
             )
         return (
@@ -238,7 +249,13 @@ def vertex_layout(vtype):
     pos_size = {1: 3, 2: 6, 3: 12}.get(pos_code)
     if color_size is None or pos_size is None:
         raise ValueError("VTYPE no soportado")
-    cursor = tex_size + color_size + normal_size
+    color_align = 4 if color_code == 7 else 2 if color_code else 1
+    color_at = (tex_size + color_align - 1) // color_align * color_align
+    normal_align = {0: 1, 1: 1, 2: 2, 3: 4}[normal_code]
+    normal_at = (
+        (color_at + color_size + normal_align - 1) // normal_align * normal_align
+    )
+    cursor = normal_at + normal_size
     align = {1: 1, 2: 2, 3: 4}[pos_code]
     pos_at = (cursor + align - 1) // align * align
     vertex_align = max(
@@ -417,8 +434,11 @@ def parse_rdms(data, apply_scene=True, opaco=False, ruta=None, vertex_colors=Tru
             color = None
             if color_code:
                 width = 4 if color_code == 7 else 2
+                cursor = (cursor + width - 1) // width * width
                 color = decode_color(raw[cursor : cursor + width], color_code)
                 cursor += width
+            normal_align = {0: 1, 1: 1, 2: 2, 3: 4}[normal_code]
+            cursor = (cursor + normal_align - 1) // normal_align * normal_align
             if normal_code == 1:
                 normal = struct.unpack_from("<bbb", raw, cursor)
                 length = max(1.0, math.sqrt(sum(x * x for x in normal)))
@@ -451,6 +471,11 @@ def parse_rdms(data, apply_scene=True, opaco=False, ruta=None, vertex_colors=Tru
                 "indices": triangles,
                 "vtype": vtype,
             }
+            alphas = [v[3][3] for v in vertices if v[3] is not None]
+            if any(a < 1 for a in alphas):
+                part["vertex_alpha_mode"] = (
+                    "BLEND" if any(0 < a < 1 for a in alphas) else "MASK"
+                )
             shader_at = off + 128 + shift
             shader = shader_at + struct.unpack_from("<i", data, shader_at)[0]
             forzado = MODO_PIEZAS.get(ruta or "", {})

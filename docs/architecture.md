@@ -28,3 +28,9 @@ GLB mesh extras.
 It compiles vertex positions, weights and palettes once, then skins with NumPy.
 The GLB exporter uses the same reference pose; regression tests compare the
 exported motion against preview vertices.
+
+The renderer stores both material-only and vertex-modulated color arrays, plus
+their alpha modes, when it creates a scene. `fijar_vertex_colors()` switches
+references to those arrays; map and prop controls share this path. Map readers
+keep source colors even when the preview setting starts off. Colorless map
+exports use copies and leave the decoded data intact.

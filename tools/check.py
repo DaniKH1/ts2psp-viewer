@@ -31,6 +31,7 @@ def main():
             "test_gpu.py",
             "test_prop_material_gpu.py",
             "test_prop_helpers_gui.py",
+            "test_vertex_colors_gui.py",
         ):
             subprocess.run(
                 [sys.executable, str(ROOT / "tests" / name)],

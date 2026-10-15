@@ -24,9 +24,7 @@ def _canal_alfa(texture_png):
         return entrada[1]
     if len(_ALFA_CACHE) > 64:
         _ALFA_CACHE.clear()
-    alfa = np.asarray(
-        Image.open(io.BytesIO(texture_png)).convert("RGBA")
-    )[:, :, 3]
+    alfa = np.asarray(Image.open(io.BytesIO(texture_png)).convert("RGBA"))[:, :, 3]
     _ALFA_CACHE[clave] = (texture_png, alfa)
     return alfa
 
@@ -71,9 +69,9 @@ def alfa_tocado(texture_png, uvs, indices):
             continue
         for vuelta_u in vueltas_u:
             for vuelta_v in vueltas_v:
-                _rasterizar(cubierta, alfa, [
-                    (u - vuelta_u, v - vuelta_v) for u, v in vertices
-                ])
+                _rasterizar(
+                    cubierta, alfa, [(u - vuelta_u, v - vuelta_v) for u, v in vertices]
+                )
     if not cubierta.any():
         return 255
     return int(alfa[cubierta].min())
@@ -126,6 +124,7 @@ def _rasterizar(cubierta, alfa, triangulo):
     t = (du1 * oy - dv1 * ox) / det
     dentro = (s >= -1e-6) & (t >= -1e-6) & (s + t <= 1 + 1e-6)
     cubierta[y0:y1, x0:x1] |= dentro
+
 
 # El pase de mezcla dibuja despues de lo opaco, apaga la escritura de profundidad
 # y ordena cada malla solo por su profundidad media. Un prop opaco que entra ahi se
@@ -238,7 +237,9 @@ def prop_materials(data, records, opaco=False):
             "surface_address": surface_address,
             "base_color": (*rgb, opacity),
             "shader_index": index,
-            "source_texture_path": surface_source(data, surface_address) if surface_address else "",
+            "source_texture_path": (
+                surface_source(data, surface_address) if surface_address else ""
+            ),
         }
         for prefix in (0, 32):
             shaders[off + 128 + prefix] = material
@@ -283,6 +284,11 @@ def assign_material(part, material, uvs, modo=None):
         else:
             part["alpha_mode"] = "OPAQUE"
     part["color"] = tuple(round(v * 255) for v in part["base_color"])
+    part["alpha_mode_without_vertex_colors"] = part["alpha_mode"]
+    vertex_mode = part.get("vertex_alpha_mode")
+    if vertex_mode and not modo:
+        if vertex_mode == "BLEND" or part["alpha_mode"] in (None, "OPAQUE"):
+            part["alpha_mode"] = vertex_mode
     part["repeat_texture"] = any(
         uv is not None and any(v < -0.001 or v > 1.001 for v in uv) for uv in uvs
     )

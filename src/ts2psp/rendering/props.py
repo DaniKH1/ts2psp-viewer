@@ -26,12 +26,6 @@ def prop_scene(
     entero quedaria en un punto de dos pixeles.
     """
     textures = {}
-    if not vertex_colors:
-        parts = [
-            {**part, "vertices": [(v[0], v[1], v[2], None) for v in part["vertices"]]}
-            for part in parts
-        ]
-        key = (key, "without_vertex_colors")
     if show_textures:
         for part in parts:
             texture = part.get("texture")
@@ -40,7 +34,7 @@ def prop_scene(
     # La clave no lleva `culling`: hay sitios que vacian la cache nombrandola a
     # mano y, si el recorte se metiera dentro, se quedarian con la escena del
     # ajuste anterior. El flag lo pone `escena` en cada llamada.
-    return gl.escena(
+    scene = gl.escena(
         ("prop", key, show_textures),
         parts,
         textures,
@@ -49,6 +43,22 @@ def prop_scene(
         culling=culling,
         sin_framing=sin_framing,
     )
+    scene.fijar_vertex_colors(vertex_colors)
+    return scene
+
+
+def without_vertex_colors(parts):
+    """Colorless export copies; keep the immutable decoded source parts intact."""
+    return [
+        {
+            **part,
+            "vertices": [(v[0], v[1], v[2], None) for v in part["vertices"]],
+            "alpha_mode": part.get(
+                "alpha_mode_without_vertex_colors", part.get("alpha_mode")
+            ),
+        }
+        for part in parts
+    ]
 
 
 def posed_positions(parts):

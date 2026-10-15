@@ -558,7 +558,6 @@ class PropTab(ttk.Frame):
             self.current = row
             for textured in (False, True):
                 gl.forget(("prop", row["entry"], textured))
-                gl.forget(("prop", (row["entry"], "without_vertex_colors"), textured))
             self.objeto = None
             self.objeto_key = None
             # La galeria enseña lo que se pinta: cada parte lleva su textura en
@@ -777,16 +776,11 @@ class PropTab(ttk.Frame):
             # La escena se reutiliza entre fotogramas y solo se le cambian los
             # vertices: si se pidiera por clave, la cache devolveria la de
             # reposo y el prop no se moveria.
-            key = (
-                self.current["entry"],
-                self.show_textures.get(),
-                self.show_vertex_colors.get(),
-            )
+            key = (self.current["entry"], self.show_textures.get())
             if self.objeto_key != key:
-                self.objeto = prop_scene(
-                    self.parts, key[0], key[1], vertex_colors=key[2]
-                )
+                self.objeto = prop_scene(self.parts, key[0], key[1])
                 self.objeto_key = key
+            self.objeto.fijar_vertex_colors(self.show_vertex_colors.get())
             if self.clip:
                 self.objeto.fijar_poses(posed_positions(partes))
             image = render_prop(

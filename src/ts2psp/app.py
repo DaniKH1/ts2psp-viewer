@@ -248,7 +248,7 @@ class Sims2PSPApp(tk.Tk):
     def select_iso(self):
         if self.importing:
             return
-        if self.character_tab.animations.exporting:
+        if self.tabs is not None and self.character_tab.animations.exporting:
             messagebox.showinfo("Import", "Wait for the current export to finish.")
             return
         path = filedialog.askopenfilename(

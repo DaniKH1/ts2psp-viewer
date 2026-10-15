@@ -144,6 +144,13 @@ stage exposes four separate hose clips and all 13 joints. See
 [reported prop fixes and source limitations](docs/reported-props.md) for water
 materials, UV repairs and the remaining untextured authoring templates.
 
+Props and maps switch Vertex Colors using cached color arrays. Changing this
+setting does not reread the archive, reupload textures, reset the camera or
+restart an animation. Map exports follow the map's color setting; prop exports
+retain their source colors.
+See [first import and Vertex Colors validation](docs/first-import-and-vertex-colors.md)
+for the decoder changes and measured switch timings.
+
 ## Export
 
 Character and clip exports write to `exports/<model>_export/` inside the project
