@@ -31,6 +31,26 @@ CUPULA_VERTICES = 392
 CUPULA_LADO = 527.8
 CUPULA_TOLERANCIA = 0.05
 
+# Las piezas que el nivel coloca al cargar y no al leer.
+#
+# El juego pone el mobiliario del solar (camas, neveras, butacas, alfombras)
+# con un Lua de nivel, no con coordenadas en el .res: la cabecera rdms de esas
+# piezas trae el origen a cero y se dibujan todas amontonadas en el centro del
+# solar. Se comprueba pieza a pieza en los 21 niveles: en el cuartel son 154 de
+# 304 con el origen a menos de 1, y el menu principal solo 3 de 413, que es
+# justo el unico nivel que se veia bien.
+#
+# No se borran: el boton del visor las vuelve a ensenar.
+SIN_COLOCAR = 1.0
+
+
+def es_sin_colocar(part):
+    """Si la pieza llega al recurso sin sitio: su cabecera rdms la deja en el centro."""
+    origen = part.get("origin")
+    if origen is None:
+        return False
+    return max(abs(valor) for valor in origen) < SIN_COLOCAR
+
 
 def es_cupula(part):
     """Si una pieza es la cupula del cielo del nivel."""
@@ -102,12 +122,19 @@ class MapTab(ttk.Frame):
         self.part_list.pack(fill="both", expand=True)
         self.part_list.bind("<<ListboxSelect>>", self.select_part)
         self.show_sky = tk.BooleanVar(value=False)
+        self.show_unplaced = tk.BooleanVar(value=False)
         ttk.Checkbutton(
             middle,
             text="Show sky dome / hide to frame the lot",
             variable=self.show_sky,
             command=self.schedule,
         ).pack(anchor="w", pady=(4, 0))
+        ttk.Checkbutton(
+            middle,
+            text="Show unplaced furniture / hidden, the level positions it on load",
+            variable=self.show_unplaced,
+            command=self.schedule,
+        ).pack(anchor="w")
         ttk.Button(middle, text="Frame part", command=self.frame_part).pack(
             fill="x", pady=(8, 3)
         )
@@ -150,9 +177,10 @@ class MapTab(ttk.Frame):
         self.status.pack(anchor="w", fill="x")
         ttk.Label(
             right,
-            text="The viewer draws every RDMS piece of the level in its own place, "
-            "sky dome included. The TERN terrain mesh and the level script are not "
-            "shown yet.",
+            text="Every RDMS piece of the level is drawn in its own place. The pieces "
+            "the level places when it loads (furniture, lamps, fences) have no "
+            "position in the file and are hidden; the checkbox brings them back. The "
+            "TERN terrain mesh is not shown yet.",
             wraplength=610,
         ).pack(anchor="w", pady=(5, 0))
         self.refresh()
@@ -276,6 +304,16 @@ class MapTab(ttk.Frame):
             f'{row["superficies"]} surfaces · '
             f"{len(rejected)} skipped parts"
         )
+        sin_colocar = sum(1 for p in self.parts if es_sin_colocar(p))
+        if sin_colocar:
+            self.status.configure(
+                text=f'{row["ruta_interna"]} · {len(self.parts)} RDMS parts · '
+                f'{row["terrenos"]} TERN sections · '
+                f'{row["superficies"]} surfaces · '
+                f"{len(rejected)} skipped parts · "
+                f"{sin_colocar} pieces hidden: the level places them when it "
+                f"loads and their position is not in the file"
+            )
         # No se elige ninguna pieza: el visor pinta el mapa entero, asi que
         # escolher la mas grande solo tapaba el resumen con el nombre de una
         # pieza. Elige la que quieras de la lista cuando la busques.
@@ -311,17 +349,25 @@ class MapTab(ttk.Frame):
             self.render()
 
     def piezas_visibles(self):
-        """Las piezas que se dibujan: el mapa entero, o tambien la cupula.
+        """Las piezas que se dibujan: el mapa entero, sin fondo ni mobiliario suelto.
 
-        La cupula son dos esferas de 528 de lado que envuelven todo el solar. No
-        son geometria del nivel sino el fondo, y se dejan fuera del encuadre
-        porque `_escala` abarca la escena entera segun su radio: con ellas dentro
-        la camara tiene que alejarse hasta meter 528 y el solar queda en un punto
-        de dos pixeles.
+        Se dejan fuera dos cosas, y solo del encuadre: la cupula, que son dos
+        esferas de 528 de lado que envuelven todo el solar, y las piezas que el
+        nivel coloca al cargar y cuyo sitio no esta en el recurso. Sin la cupula
+        la escena se abarca desde tan lejos, para que quepa una esfera de 528,
+        que el solar entero queda en un punto de dos pixeles. Sin las otras, el
+        mobiliario aparece amontonado en el centro.
+
+        Los dos grupos se pueden volver a ensenar desde el visor.
         """
+        partes = [
+            p
+            for p in self.parts
+            if self.show_unplaced.get() or not es_sin_colocar(p)
+        ]
         if self.show_sky.get():
-            return self.parts
-        return [p for p in self.parts if not es_cupula(p)]
+            return partes
+        return [p for p in partes if not es_cupula(p)]
 
     def render(self):
         self.timer = None

@@ -443,6 +443,11 @@ def parse_rdms(data, apply_scene=True, opaco=False, ruta=None):
                         or (bool(nodes) and node_index < 0),
                         "local_vertices": vertices,
                         "vertices": transform_vertices(vertices, matrix),
+                        # Donde declara la cabecera rdms que cae la malla. En un
+                        # prop es su sitio en el mundo; en un nivel, las piezas
+                        # que el juego coloca al cargar lo traen a cero porque su
+                        # sitio no esta escrito en el recurso.
+                        "origin": tuple(float(v) for v in origin),
                     }
                 )
     return output, rejected

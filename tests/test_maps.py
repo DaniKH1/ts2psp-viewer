@@ -157,6 +157,39 @@ class SkyDomeTests(unittest.TestCase):
             "casi todas las mallas del nivel cuelgan de la identidad",
         )
 
+    def test_the_furniture_the_level_places_on_load_is_left_out(self):
+        """Esas piezas no tienen sitio en el recurso, asi que no se dibujan.
+
+        El juego coloca el mobiliario del solar con un Lua de nivel, no con
+        coordenadas en el .res: la cabecera rdms de esas piezas trae el origen a
+        cero y se ven amontonadas en el centro. Se comprueba en los 21 niveles
+        que el filtro quita muchas en el cuartel y deja casi intacto el menu
+        principal, que es el unico nivel que ya se veia bien.
+        """
+        from ts2psp.ui.maps import es_sin_colocar
+
+        cuento = {}
+        for row in self.rows:
+            partes = self.parts_of(row["ruta_interna"])
+            cuento[row["ruta_interna"]] = (
+                sum(1 for p in partes if es_sin_colocar(p)),
+                len(partes),
+            )
+
+        cuartel = cuento["levels/division_47/barracks"]
+        self.assertGreater(cuartel[0], cuartel[1] // 2, "el cuartel va medio amontonado")
+
+        menu = cuento["levels/interface/mainmenu"]
+        self.assertLess(menu[0], menu[1] // 20, "el menu principal casi no tiene")
+
+        # Y ninguna pieza colocada se quita: las del mausoleo tienen su origen
+        # lejos del centro y siguen en pantalla.
+        piezas = self.parts_of("levels/deadtree/graveyard")
+        colocadas = [p for p in piezas if not es_sin_colocar(p)]
+        self.assertGreater(len(colocadas), 250)
+        for parte in colocadas[:20]:
+            self.assertGreater(max(abs(v) for v in parte["origin"]), 0.99)
+
     def test_a_level_without_a_dome_keeps_every_piece(self):
         parts = self.parts_of("levels/division_47/barracks")
         self.assertTrue(parts)
