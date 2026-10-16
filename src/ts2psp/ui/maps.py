@@ -208,6 +208,8 @@ class MapTab(ttk.Frame):
         self.show_sky = tk.BooleanVar(value=True)
         self.show_unplaced = tk.BooleanVar(value=False)
         self.vertex_colors = tk.BooleanVar(value=False)
+        self.vertex_fill = tk.DoubleVar(value=50.0)
+        self._lighting_dialog = None
         self.show_textures = tk.BooleanVar(value=True)
         self.culling = tk.BooleanVar(value=True)
         left = ttk.Frame(self)
@@ -291,6 +293,7 @@ class MapTab(ttk.Frame):
         self.vertex_button = self._floating_button(
             "Vertex Colors", self.toggle_vertex_colors
         )
+        self.lighting_button = self._floating_button("Lighting…", self.show_lighting)
         self.layers_button = self._floating_button("Layers", self.toggle_layers_panel)
         self.grid_button = self._floating_button(
             "Grid", self.toggle_grid, selected=True
@@ -386,6 +389,10 @@ class MapTab(ttk.Frame):
         # Reset view en la derecha, en la fila de debajo y pegado al mismo borde
         # que Grid, que es donde se busca cuando se ha descolocado la camara.
         self.recenter_button.place(width - 10 - self.recenter_button.reqwidth, 50)
+        self.lighting_button.place(
+            width - 22 - self.recenter_button.reqwidth - self.lighting_button.reqwidth,
+            50,
+        )
         self._colocar_panel_capas()
 
     def toggle_grid(self):
@@ -714,6 +721,57 @@ class MapTab(ttk.Frame):
         self.vertex_colors.set(not self.vertex_colors.get())
         self.vertex_button.set_selected(self.vertex_colors.get())
         self.schedule()
+
+    def show_lighting(self):
+        if self._lighting_dialog is not None and self._lighting_dialog.winfo_exists():
+            self._lighting_dialog.lift()
+            return
+        dialog = tk.Toplevel(self)
+        self._lighting_dialog = dialog
+        dialog.title("Map preview lighting")
+        dialog.transient(self.winfo_toplevel())
+        dialog.resizable(False, False)
+        content = ttk.Frame(dialog, padding=16)
+        content.pack(fill="both", expand=True)
+
+        def changed(_value=None):
+            level.configure(text=f"Ambient fill: {self.vertex_fill.get():.0f}%")
+            self.vertex_button.set_selected(self.vertex_colors.get())
+            self.schedule()
+
+        ttk.Checkbutton(
+            content, text="Vertex Colors", variable=self.vertex_colors, command=changed
+        ).pack(anchor="w")
+        level = ttk.Label(content)
+        level.pack(anchor="w", pady=(12, 4))
+        ttk.Scale(
+            content,
+            from_=0,
+            to=100,
+            variable=self.vertex_fill,
+            command=changed,
+            length=320,
+        ).pack(fill="x")
+        ttk.Label(
+            content,
+            text="0% shows the stored colors exactly.\nFill light affects the preview only; exports keep source colors.",
+            wraplength=340,
+        ).pack(anchor="w", pady=12)
+        buttons = ttk.Frame(content)
+        buttons.pack(fill="x")
+
+        def preset(value):
+            self.vertex_fill.set(value)
+            changed()
+
+        ttk.Button(buttons, text="Source (0%)", command=lambda: preset(0)).pack(
+            side="left"
+        )
+        ttk.Button(buttons, text="Reset (50%)", command=lambda: preset(50)).pack(
+            side="left", padx=8
+        )
+        ttk.Button(buttons, text="Close", command=dialog.destroy).pack(side="right")
+        changed()
 
     def _filas_de_capas(self):
         filas = []
@@ -1113,7 +1171,9 @@ class MapTab(ttk.Frame):
                     sin_framing=self.nombres_del_cielo(),
                 )
                 self.objeto_key = key
-            self.objeto.fijar_vertex_colors(self.vertex_colors.get())
+            self.objeto.fijar_vertex_colors(
+                self.vertex_colors.get(), self.vertex_fill.get() / 100
+            )
             self.objeto.sin_mallas = False
             # Las apagadas se marcan por nombre y la escena las busca una vez.
             self.objeto.ocultas_mallas = frozenset(

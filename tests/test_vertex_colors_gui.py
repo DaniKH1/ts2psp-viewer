@@ -25,7 +25,7 @@ def main():
             app.tabs.select(tab)
             app.update()
             row = next(
-                r for r in tab.rows if r["ruta_interna"] == "levels/deadtree/graveyard"
+                r for r in tab.rows if r["ruta_interna"] == "levels/deadtree/hub"
             )
             tab._empezar_carga(row)
             start = time.perf_counter()
@@ -86,6 +86,16 @@ def main():
                         and tab._cache is cache
                     )
                     assert scene.posiciones is geometry and scene.UV is uv
+                tab.show_lighting()
+                app.update()
+                for fill in (0, 25, 50, 100, 0, 50):
+                    tab.vertex_fill.set(fill)
+                    tab.schedule()
+                    app.update()
+                    time.sleep(0.025)
+                    app.update()
+                    assert tab.objeto is scene and scene.posiciones is geometry
+                tab._lighting_dialog.destroy()
                 assert upload.call_count == 0
             on = np.array(scene.render(480, 320, 0.5, -0.4, 1))
             assert float(np.abs(on.astype(float) - off).mean()) > 0.1
@@ -124,6 +134,7 @@ def main():
                 json.dumps(
                     {
                         "map_switches": 21,
+                        "fill_changes": 6,
                         "prop_switches": 20,
                         "texture_reuploads": 0,
                         "map_vertices": len(geometry),

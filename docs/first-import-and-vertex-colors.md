@@ -24,6 +24,11 @@ black when enabled. The switch makes it possible to inspect the underlying atlas
 
 ## Local verification
 
+Maps now also offer an adjustable preview fill through **Lighting…**, while
+retaining exact source mode and unchanged exported colors. See
+[map Vertex Colors](map-vertex-colors.md) for the current behavior and measurements.
+The figures below record the earlier decoder/switch validation.
+
 - 110 unit/integration checks passed with the locally imported resources; the
   existing GPU/camera checks also passed.
 - Fresh ISO import through an actual empty welcome screen: 767 props loaded,

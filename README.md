@@ -168,6 +168,11 @@ Map props use their authored position, rotation and scale, including repeated
 instances and nested object references. The same placements are preserved in
 GLB exports. Click a piece to see its source prop and instance name.
 
+With **Vertex Colors** enabled, **Lighting…** adjusts a preview fill light
+(50% by default). **Source (0%)** shows the original stored shading. This helps
+inspect areas whose source vertices are black without changing exported colors,
+opacity, shadows or the sky. See [map Vertex Colors](docs/map-vertex-colors.md).
+
 **Maps > Export as... > Prop placement references (.json)** saves the resource
 paths and full transforms in PSP coordinates (X/Y ground, Z up). This reads the
 existing map archive; importing the ISO again is unnecessary for this change.
