@@ -324,6 +324,8 @@ class Escena:
         posiciones, uvs, colores, indices, tramos = [], [], [], [], []
         colores_base, modos_base = [], []
         fill_vertices = []
+        blend_coords = []
+        self.texture_layers = []
         self.alpha_modes = []
         # El nombre de la pieza de cada dibujo, en el mismo orden. Lo usa el
         # visor de mapas para apagar y encender piezas sin rehacer la escena.
@@ -357,13 +359,29 @@ class Escena:
                 )
                 alpha_textura[texture_state] = self._tiene_alpha(textura)
             color = parte.get("color")
+            second_texture = 0
+            if parte.get("texture_blend") and textura is not None:
+                second = parte["texture_layers"][1]["texture"]
+                state = (second[0], bool(parte.get("repeat_texture")))
+                if state not in ids_textura:
+                    ids_textura[state] = self._subir_textura(second, voltear, state[1])
+                second_texture = ids_textura[state]
+            self.texture_layers.append(second_texture)
+            weights = parte.get("blend_weights", [])
+            secondary_uvs = parte.get("secondary_uvs", [])
             tiene_uv = all(v[2] is not None for v in parte["vertices"])
             source = parte.get("source_texture_path", "").replace("\\", "/").casefold()
             allow_fill = not normaliza_uv and not any(
                 marker in source for marker in ("/sky/", "/lights_shadows/")
             )
             vertex_alpha = False
-            for vertice in parte["vertices"]:
+            for vertex_index, vertice in enumerate(parte["vertices"]):
+                uv2 = (
+                    secondary_uvs[vertex_index]
+                    if secondary_uvs
+                    else (vertice[2] or (0, 0))
+                )
+                blend_coords.append((*uv2, weights[vertex_index] if weights else 1.0))
                 fill_vertices.append(
                     allow_fill and vertice[1] is not None and vertice[3] is not None
                 )
@@ -395,6 +413,8 @@ class Escena:
                 if not normaliza_uv and vertice[3] is not None:
                     rgba = tuple(vertice[3])
                     rgba = rgba + (1.0,) if len(rgba) == 3 else rgba
+                    if parte.get("texture_blend"):
+                        rgba = (*rgba[:3], 1.0)
                     base = color if color is not None else (255, 255, 255, 255)
                     colores.append(tuple(rgba[j] * base[j] for j in range(4)))
                     vertex_alpha |= rgba[3] < 0.999
@@ -451,6 +471,7 @@ class Escena:
         self.UV = np.ascontiguousarray(uvs, dtype=np.float32)
         self.colores = np.ascontiguousarray(colores, dtype=np.float32) / 255.0
         self._colores_vertex = self.colores
+        self._blend_coords = np.ascontiguousarray(blend_coords, dtype=np.float32)
         self._colores_base = (
             np.ascontiguousarray(colores_base, dtype=np.float32) / 255.0
         )
@@ -956,9 +977,18 @@ class Escena:
                         gl.activar(GL_CULL_FACE)
                         culling_activo = True
                 gl.bind_textura(GL_TEXTURE_2D, textura)
+                second = self.texture_layers[indice]
+                if second:
+                    if not hasattr(gl, "terrain_blend"):
+                        from ts2psp.rendering.texture_blend import TextureBlendProgram
+
+                        gl.terrain_blend = TextureBlendProgram()
+                    gl.terrain_blend.begin(gl, second, self._blend_coords)
                 gl.dibujar(
                     GL_TRIANGLES, len(indices), GL_UNSIGNED_INT, indices.ctypes.data
                 )
+                if second:
+                    gl.terrain_blend.end(gl)
 
         # la textura se enlaza justo antes de cada dibujo: enlazarlas todas antes y
         # dibujar después dejaría activa solo la última

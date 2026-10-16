@@ -14,6 +14,11 @@ stay distinguishable. GLB stores the full internal texture path; glTF and map
 texture ZIPs preserve internal folders with PNG filenames. Differing images
 that share a source name receive a short suffix to prevent overwrites.
 
+Map terrain materials can mix two textures using vertex alpha and separate UV
+sets. The viewer keeps that mixture when toggling **Vertex Colors**; exports
+bake it into a portable texture and preserve source UVs/masks in GLB attributes.
+See [map colors and the full-map audit](docs/map-vertex-colors.md).
+
 ## Run from source
 
 Use Python 3.11 or newer (the EXE is built with Python 3.13):

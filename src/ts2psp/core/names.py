@@ -11,6 +11,10 @@ def part_label(part, texture=None):
     if not source:
         return part["name"]
     source = source.replace("\\", "/")
+    if part.get("texture_blend"):
+        source = " + ".join(
+            PurePosixPath(layer["source"]).name for layer in part["texture_layers"]
+        )
     return f'{PurePosixPath(source).name} / {part["name"]}'
 
 

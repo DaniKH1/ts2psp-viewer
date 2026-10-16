@@ -22,6 +22,7 @@ from ts2psp.formats.characters import (
 )
 from ts2psp.core.coordinates import convert_vector3
 from ts2psp.core.names import part_label
+from ts2psp.exporting.texture_blend import bake_texture_blend
 from ts2psp.formats.materials import (
     MODO_PIEZAS,
     assign_material,
@@ -410,6 +411,7 @@ def parse_rdms(data, apply_scene=True, opaco=False, ruta=None, vertex_colors=Tru
             rejected.append((i, "index range"))
             continue
         vertices = []
+        source_alphas = []
         head = off + 128 + shift
         origin = struct.unpack_from("<3f", data, head + 0x1C)
         position_scale = struct.unpack_from("<f", data, head + 0x28)[0]
@@ -464,8 +466,34 @@ def parse_rdms(data, apply_scene=True, opaco=False, ruta=None, vertex_colors=Tru
             else:
                 pos = struct.unpack_from("<fff", raw, pos_at)
             pos = tuple(origin[k] + pos[k] * position_scale for k in range(3))
+            source_alphas.append(color[3] if color is not None else 1.0)
             vertices.append((pos, normal, uv, color if vertex_colors else None))
         triangles = triangle_strip(indices)
+        secondary_uvs = []
+        secondary_offset = struct.unpack_from("<I", data, head + 0x54)[0]
+        secondary_at = vertex_at + secondary_offset
+        if secondary_offset:
+            second_type = struct.unpack_from("<I", data, head + 0x50)[0]
+            second_stride = struct.unpack_from("<I", data, head + 0x58)[0]
+            second_code = second_type & 3
+            if (
+                second_code
+                and second_stride == vertex_layout(second_type)[-1]
+                and secondary_at + vertex_count * second_stride <= end
+            ):
+                u0, v0, scale = struct.unpack_from("<3f", data, head + 0x5C)
+                for j in range(vertex_count):
+                    at = secondary_at + j * second_stride
+                    if second_code == 1:
+                        u, v = data[at] / 128.0, data[at + 1] / 128.0
+                    elif second_code == 2:
+                        u, v = (
+                            value / 32768.0
+                            for value in struct.unpack_from("<2H", data, at)
+                        )
+                    else:
+                        u, v = struct.unpack_from("<2f", data, at)
+                    secondary_uvs.append((u0 + u * scale, 1 - (v0 + v * scale)))
         if f"pieza_{i}" in CARAS_AL_REVES.get(ruta or "", ()):
             triangles = _dar_la_vuelta(triangles)
         if triangles:
@@ -474,6 +502,13 @@ def parse_rdms(data, apply_scene=True, opaco=False, ruta=None, vertex_colors=Tru
                 "vertices": vertices,
                 "indices": triangles,
                 "vtype": vtype,
+                "secondary_uvs": secondary_uvs,
+                "blend_weights": source_alphas,
+                "secondary_uv_source": (
+                    "stream"
+                    if secondary_uvs
+                    else ("shared" if not secondary_offset else "unreadable")
+                ),
             }
             alphas = [v[3][3] for v in vertices if v[3] is not None]
             if any(a < 1 for a in alphas):
@@ -489,6 +524,8 @@ def parse_rdms(data, apply_scene=True, opaco=False, ruta=None, vertex_colors=Tru
                 [v[2] for v in vertices],
                 modo=forzado.get(f"pieza_{i}", forzado.get("*")),
             )
+            if part["texture_blend"] and not secondary_offset:
+                part["secondary_uvs"] = [v[2] for v in vertices]
             anclajes = placements.get(off + 128, [])
             if off + 128 in placements and not anclajes:
                 continue
@@ -585,8 +622,9 @@ def write_rigid_glb(parts, name, target, bones=(), anclajes=None):
         # JOINTS_0 stores positions in skin.joints, never document node IDs.
         por_nodo = anclajes if anclajes is not None else order
     for part in parts:
-        vertices = part["vertices"]
         mesh_name = f"{name}/{part_label(part)}"
+        part = bake_texture_blend(part)
+        vertices = part["vertices"]
         anchor = por_nodo.get(part.get("node", -1))
         if anchor is not None and "local_vertices" in part:
             vertices = transform_vertices(
@@ -622,6 +660,14 @@ def write_rigid_glb(parts, name, target, bones=(), anclajes=None):
             attrs["COLOR_0"] = glb.accessor(
                 struct.pack("<" + "f" * len(vals), *vals), 5126, "VEC4", count, 34962
             )
+        for key, field, kind in (
+            ("_PSP_UV0", "source_uv0", "VEC2"),
+            ("_PSP_UV1", "source_uv1", "VEC2"),
+            ("_PSP_BLEND", "source_blend_weights", "SCALAR"),
+        ):
+            if field in part:
+                values = np.asarray(part[field], dtype="<f4")
+                attrs[key] = glb.accessor(values.tobytes(), 5126, kind, count, 34962)
         # Piel rigida: cada vertice pegado a peso 1.0 a su articulacion. Sin
         # esto el skin existe pero la malla no esta skineada y al abrir el GLB
         # no sale ningun vertex group.
@@ -705,6 +751,19 @@ def write_rigid_glb(parts, name, target, bones=(), anclajes=None):
             )
         if texture:
             glb.doc["meshes"][-1]["extras"]["sourceTexture"] = texture[0]
+        if part.get("baked_texture_layers"):
+            originals = part["baked_texture_layers"]
+            glb.doc["meshes"][-1]["extras"]["textureBlend"] = {
+                "sourceTextures": [t[0] for t in originals],
+                "textureIndices": [
+                    glb.add_texture(t[0], t[1], part.get("source_repeat_texture"))
+                    for t in originals
+                ],
+                "weightAttribute": "_PSP_BLEND",
+                "uvAttributes": ["_PSP_UV0", "_PSP_UV1"],
+                "atlas": "TEXCOORD_0",
+                "repeatSourceTextures": part.get("source_repeat_texture", False),
+            }
         node_idx = len(glb.doc["nodes"])
         mesh_node = {"name": mesh_name, "mesh": mesh_idx}
         if part.get("resource_path"):

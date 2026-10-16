@@ -1011,9 +1011,13 @@ class MapTab(ttk.Frame):
         # guarda su textura como (nombre, pixeles), y sin pixeles no hay miniatura.
         self.gallery.set_textures(
             {
-                part["texture"][0]: part["texture"][1]
+                texture[0]: texture[1]
                 for part in self.parts
-                if part.get("texture") and part["texture"][1]
+                for texture in (
+                    [part.get("texture")]
+                    + [layer.get("texture") for layer in part.get("texture_layers", [])]
+                )
+                if texture and texture[1]
             }
         )
         instances = {

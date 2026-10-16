@@ -11,7 +11,7 @@ import numpy as np
 from ts2psp.app import Sims2PSPApp
 
 
-def main():
+def main(map_path="levels/deadtree/hub"):
     base = Path(os.environ.get("TS2_PSP_DATA_DIR", "data"))
     errors = []
     with patch(
@@ -24,9 +24,7 @@ def main():
             tab = app.map_tab
             app.tabs.select(tab)
             app.update()
-            row = next(
-                r for r in tab.rows if r["ruta_interna"] == "levels/deadtree/hub"
-            )
+            row = next(r for r in tab.rows if r["ruta_interna"] == map_path)
             tab._empezar_carga(row)
             start = time.perf_counter()
             while (
@@ -149,4 +147,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--map", default="levels/deadtree/hub")
+    main(parser.parse_args().map)

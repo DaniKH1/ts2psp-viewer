@@ -61,6 +61,28 @@ def uv_image(part, size=768, show_lines=True):
 class UVWindow(tk.Toplevel):
     def __init__(self, parent, parts, title):
         super().__init__(parent)
+        expanded = []
+        for part in parts:
+            if part.get("texture_blend") and part.get("secondary_uvs"):
+                for i, layer in enumerate(part["texture_layers"]):
+                    uvs = (
+                        part["secondary_uvs"] if i else [v[2] for v in part["vertices"]]
+                    )
+                    expanded.append(
+                        {
+                            **part,
+                            "name": f"{part['name']} · layer {i + 1}",
+                            "texture": layer["texture"],
+                            "texture_blend": False,
+                            "vertices": [
+                                (v[0], v[1], uv, v[3])
+                                for v, uv in zip(part["vertices"], uvs)
+                            ],
+                        }
+                    )
+            else:
+                expanded.append(part)
+        parts = expanded
         self.parts = [p for p in parts if any(v[2] is not None for v in p["vertices"])]
         self.title(f"Texture maps and UVs · {title}")
         self.geometry("850x910")

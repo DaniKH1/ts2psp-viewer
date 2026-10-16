@@ -9,6 +9,7 @@ import numpy as np
 from PIL import Image
 
 from ts2psp.formats.surfaces import read_surface
+from ts2psp.formats.prop_scene import _header_sizes
 
 
 def _canal_alfa(texture_png):
@@ -225,22 +226,25 @@ def surface_textures(data, records, opaco=False):
 
 def prop_materials(data, records, opaco=False):
     surfaces, sources, shaders = {}, {}, {}
+    headers = _header_sizes(data)
     for off, texture, source in surface_textures(data, records, opaco):
-        for prefix in (0, 32):
-            surfaces[off + 128 + prefix] = texture
-            sources[off + 128 + prefix] = source
+        for header in headers:
+            surfaces[off + header] = texture
+            sources[off + header] = source
     for index, (tag, off, size, _, _) in enumerate(records):
         if tag != b"gshd":
             continue
-        head = off + 128
+        # Untextured shaders have no SURF pointer to identify their layout.
+        # Use the container header instead of interpreting the preceding bytes.
+        head = off + headers[0]
         texture, surface_address = None, None
-        for prefix in (0, 32):
-            at = head + prefix + 0x64
-            if at + 4 > min(len(data), off + 128 + size):
+        for header in headers:
+            at = off + header + 0x64
+            if at + 4 > min(len(data), off + headers[0] + size):
                 continue
             target = at + struct.unpack_from("<i", data, at)[0]
             if target in surfaces:
-                head += prefix
+                head = off + header
                 texture, surface_address = surfaces[target], target
                 break
         rgb = struct.unpack_from("<3f", data, head + 8)
@@ -250,15 +254,37 @@ def prop_materials(data, records, opaco=False):
         if not math.isfinite(opacity) or not -1e-6 <= opacity <= 1 + 1e-6:
             raise ValueError("Invalid prop material opacity")
         opacity = min(1.0, max(0.0, opacity))
+        flags = struct.unpack_from("<I", data, head + 4)[0]
+        layer_count = struct.unpack_from("<I", data, head + 0x5C)[0]
+        layers = []
+        if 0 < layer_count <= 8:
+            for layer_index in range(layer_count):
+                layer = head + 0x60 + layer_index * 0x78
+                if layer + 0x78 > min(len(data), off + headers[0] + size):
+                    break
+                target = layer + 4 + struct.unpack_from("<i", data, layer + 4)[0]
+                layers.append(
+                    {
+                        "texture": surfaces.get(target),
+                        "source": sources.get(target, ""),
+                        "mode": struct.unpack_from("<I", data, layer + 0x10)[0],
+                        "parameter": struct.unpack_from("<f", data, layer + 0x18)[0],
+                    }
+                )
         material = {
             "texture": texture,
             "surface_address": surface_address,
             "base_color": (*rgb, opacity),
             "shader_index": index,
             "source_texture_path": sources.get(surface_address, ""),
+            "texture_layers": layers,
+            # 0x1c is the two-diffuse-layer technique, unlike reflection layers.
+            "texture_blend": flags & 0x1C == 0x1C
+            and len(layers) == 2
+            and all(layer["texture"] for layer in layers),
         }
-        for prefix in (0, 32):
-            shaders[off + 128 + prefix] = material
+        for header in headers:
+            shaders[off + header] = material
     return shaders
 
 
@@ -266,6 +292,14 @@ def assign_material(part, material, uvs, modo=None):
     """Store one material per mesh part; repeating UVs stay repeating on the GPU."""
     material = material or {}
     part["texture"] = material.get("texture")
+    part["texture_layers"] = material.get("texture_layers", [])
+    part["texture_blend"] = material.get("texture_blend", False)
+    if part["texture_blend"]:
+        # Alpha selects between diffuse layers; it does not cut holes in terrain.
+        part["blend_weights"] = part.get("blend_weights") or [
+            v[3][3] if "palette" not in part and v[3] is not None else 1.0
+            for v in part["vertices"]
+        ]
     part["source_texture_path"] = material.get("source_texture_path", "")
     part["base_color"] = material.get("base_color", (1, 1, 1, 1))
     part["material_kind"] = "texture" if part["texture"] else "solid_color"
@@ -283,13 +317,18 @@ def assign_material(part, material, uvs, modo=None):
         part["alpha_mode"] = None if part["texture"] is None else "BLEND"
     else:
         # el grupo sale del alfa que pisa la malla, no del de la textura entera
-        if int(_canal_alfa(part["texture"][1]).min()) == 255:
+        coverage_texture = (
+            part["texture_layers"][1]["texture"]
+            if part["texture_blend"]
+            else part["texture"]
+        )
+        if int(_canal_alfa(coverage_texture[1]).min()) == 255:
             # Atajo: si la textura entera es opaca, la malla solo puede pisar
             # pixeles opacos. Es el caso mas comun y no hace falta rasterizar
             # nada, que es justo lo que costaba: casi 5 s de los 10 del arranque.
             alfa = 255
         else:
-            alfa = alfa_tocado(part["texture"][1], uvs, part.get("indices"))
+            alfa = alfa_tocado(coverage_texture[1], uvs, part.get("indices"))
         part["alfa_tocado"] = alfa
         if alfa < ALFA_CORTE:
             part["alpha_mode"] = "BLEND"
@@ -302,11 +341,12 @@ def assign_material(part, material, uvs, modo=None):
     part["color"] = tuple(round(v * 255) for v in part["base_color"])
     part["alpha_mode_without_vertex_colors"] = part["alpha_mode"]
     vertex_mode = part.get("vertex_alpha_mode")
-    if vertex_mode and not modo:
+    if vertex_mode and not modo and not part["texture_blend"]:
         if vertex_mode == "BLEND" or part["alpha_mode"] in (None, "OPAQUE"):
             part["alpha_mode"] = vertex_mode
     part["repeat_texture"] = any(
-        uv is not None and any(v < -0.001 or v > 1.001 for v in uv) for uv in uvs
+        uv is not None and any(v < -0.001 or v > 1.001 for v in uv)
+        for uv in (*uvs, *part.get("secondary_uvs", []))
     )
     if material.get("surface_address") is not None and part["texture"] is None:
         part["texture_warning"] = "Referenced SURF could not be decoded"
