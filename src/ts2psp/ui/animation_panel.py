@@ -657,11 +657,9 @@ class AnimationPanel(ttk.Frame):
         return self._read_clip(reference_row)
 
     def _static_model(self, character):
-        # Regenerate older cached outfits so newly supported accessories appear, and
-        # older skeletons so the hand joints land on the hand instead of inside
-        # the palm. The number is the cache version: bump it and the GLB is
-        # rebuilt from the corrected bones.
-        path = self.app.cache / ("character_" + character + "_accessories_v3.glb")
+        # Rebuild older models that lack the fixed joint orientations required
+        # by BANM rotations. Bind offsets and accessories are retained as well.
+        path = self.app.cache / ("character_" + character + "_texture_names_v5.glb")
         if not path.exists():
             convert_character(self.app.paths["characters"], character, path)
         return path
@@ -818,9 +816,7 @@ class AnimationPanel(ttk.Frame):
             self.escena.mostrar_grid = self.visor.show_grid.get()
             self.escena.fijar_poses(aplanar(mallas, self.buffer), (t,))
             self.buffer = self.escena.posiciones
-            imagen = self.escena.render(
-                width, height, *self.visor.camera_args()
-            )
+            imagen = self.escena.render(width, height, *self.visor.camera_args())
             self.visor.overlay(imagen, self.escena, doc, binary, anim, t, width, height)
             self.visor.present(imagen)
             duration = anim["extras"]["sourceDuration"]
@@ -981,8 +977,11 @@ class AnimationPanel(ttk.Frame):
             return
         self.exporting = True
         self.status.configure(
-            text=f"Exporting {model_name}…" if not incluir
-            else f"Exporting {len(rows)} clips…"
+            text=(
+                f"Exporting {model_name}…"
+                if not incluir
+                else f"Exporting {len(rows)} clips…"
+            )
         )
 
         def work():
@@ -993,8 +992,10 @@ class AnimationPanel(ttk.Frame):
                     # Solo el modelo: el GLB del personaje tal cual, sin clips.
                     # Se copia entero en vez de reconstruirlo, porque
                     # convert_character ya lo deja con texturas y materiales.
-                    destino = target if fmt == "glb" else (
-                        self.app.cache / "model_only_export.glb"
+                    destino = (
+                        target
+                        if fmt == "glb"
+                        else (self.app.cache / "model_only_export.glb")
                     )
                     shutil.copyfile(model, destino)
                     if fmt == "fbx":

@@ -37,10 +37,7 @@ def list_characters(z):
             r["personaje"]
             for r in rows
             if (
-                any(
-                    r.get(k)
-                    for k in ["bodyTorso", "bodyLegs", "bodyHead", "bodyHair"]
-                )
+                any(r.get(k) for k in ["bodyTorso", "bodyLegs", "bodyHead", "bodyHair"])
                 or character_mesh_paths(z, r)
             )
             and r["personaje"] not in PERSONAJES_OCULTOS
@@ -81,9 +78,8 @@ def load_character(zip_path, character, archetype=None):
                 part["shape_scope"] = (
                     face_base_path(path) if path.startswith("face/cas/") else path
                 ).casefold()
-                if (
-                    row["personaje"].casefold() in DOBLE_CARA
-                    and path.startswith("body/")
+                if row["personaje"].casefold() in DOBLE_CARA and path.startswith(
+                    "body/"
                 ):
                     part["double_sided"] = True
                 if (
@@ -100,9 +96,7 @@ def load_character(zip_path, character, archetype=None):
         torso_parts = [part for path, part in parts if path == row.get("bodyTorso")]
         if bones and torso_parts:
             bones = align_arm_bind_pose(bones, arm_bind_offset(bones, torso_parts))
-            bones = align_hand_bind_pose(
-                bones, hand_bind_offset(bones, torso_parts)
-            )
+            bones = align_hand_bind_pose(bones, hand_bind_offset(bones, torso_parts))
 
     textures = {}
     texture_zip = Path(zip_path).with_name("sims2_psp_personajes_texturas_png.zip")
@@ -114,6 +108,7 @@ def load_character(zip_path, character, archetype=None):
                 texture_key = character_texture_key(row, path, part["name"])
                 found = character_mesh_texture(library, row, path, part["name"])
                 if found:
+                    part["source_texture_path"] = found[0]
                     textures[texture_key] = np.asarray(
                         Image.open(io.BytesIO(found[1])).convert("RGBA")
                     )

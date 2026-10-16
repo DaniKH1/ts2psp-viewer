@@ -52,7 +52,20 @@ def smoke(exe, data=None):
     if data:
         environment["TS2_PSP_DATA_DIR"] = str(data)
     process = subprocess.Popen([str(exe)], env=environment)
-    user = ctypes.WinDLL("user32")
+    user = ctypes.WinDLL("user32", use_last_error=True)
+    user.GetWindowThreadProcessId.argtypes = [
+        wintypes.HWND,
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    user.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+    user.IsWindowVisible.argtypes = [wintypes.HWND]
+    user.GetClientRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+    user.PostMessageW.argtypes = [
+        wintypes.HWND,
+        wintypes.UINT,
+        wintypes.WPARAM,
+        wintypes.LPARAM,
+    ]
     found = []
     owned = {process.pid}
 
@@ -63,8 +76,13 @@ def smoke(exe, data=None):
         if pid.value in owned and user.IsWindowVisible(window):
             text = ctypes.create_unicode_buffer(256)
             user.GetWindowTextW(window, text, len(text))
-            if text.value.startswith("The Sims 2 PSP"):
-                found.append(window)
+            if text.value.startswith(("TS2PSP Viewer", "The Sims 2 PSP")):
+                rect = wintypes.RECT()
+                user.GetClientRect(window, ctypes.byref(rect))
+                width, height = rect.right - rect.left, rect.bottom - rect.top
+                # Hidden GL hosts and tooltips can inherit the application title.
+                if width >= 500 and height >= 300:
+                    found.append((width * height, window))
         return True
 
     try:
@@ -76,14 +94,19 @@ def smoke(exe, data=None):
             time.sleep(0.5)
         if not found:
             raise RuntimeError(f"EXE window did not appear; exit={process.poll()}")
-        user.PostMessageW(found[0], 0x0010, 0, 0)
+        # Tk exposes its window before tab construction and bindings finish.
+        time.sleep(2)
+        if not user.PostMessageW(max(found)[1], 0x0010, 0, 0):
+            raise ctypes.WinError(ctypes.get_last_error())
         process.wait(timeout=20)
         if process.returncode:
             raise RuntimeError(f"EXE exited with {process.returncode}")
         print("EXE window opened and closed successfully")
     finally:
         if process.poll() is None:
-            process.terminate()
+            subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"], capture_output=True
+            )
 
 
 if __name__ == "__main__":

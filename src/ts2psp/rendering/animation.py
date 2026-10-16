@@ -311,11 +311,17 @@ def glb_piezas(doc, binary, mallas):
                         ],
                         "indices": indices,
                         "nombre": nombre,
-                        "repeat_texture": (
-                            nombre.startswith("body/aubodynightbeast /")
-                            and int(nombre.rsplit("pieza_", 1)[-1]) > 29
-                            if "pieza_" in nombre
-                            else False
+                        "source_part": mesh.get("extras", {}).get(
+                            "sourcePart", nombre.rsplit(" / ", 1)[-1]
+                        ),
+                        "repeat_texture": mesh.get("extras", {}).get(
+                            "repeatTexture",
+                            (
+                                nombre.startswith("body/aubodynightbeast /")
+                                and int(nombre.rsplit("pieza_", 1)[-1]) > 29
+                                if "pieza_" in nombre
+                                else False
+                            ),
                         ),
                         "color": None if textura else tono_plano(nombre),
                     },

@@ -7,6 +7,13 @@ Windows app for characters, facial shape keys, props and maps. Game resources ar
 
 Three tabs: **Characters**, **Props** and **Maps**.
 
+Textures use their internal bitmap names. Hover over a thumbnail or open its
+preview to see the name. **Layers**, UV inspection and exported meshes include
+the texture name alongside the original piece ID, so pieces sharing a texture
+stay distinguishable. GLB stores the full internal texture path; glTF and map
+texture ZIPs preserve internal folders with PNG filenames. Differing images
+that share a source name receive a short suffix to prevent overwrites.
+
 ## Run from source
 
 Use Python 3.11 or newer (the EXE is built with Python 3.13):
@@ -17,6 +24,12 @@ python run_viewer.py
 ```
 
 `run.bat` starts the same app. Imported files live in `%LOCALAPPDATA%\TS2 PSP Viewer\data`. You can also place resource ZIPs in `data/` or set `TS2_PSP_DATA_DIR` to an existing resource folder.
+
+ISO extraction runs in a separate process, with visible extraction/validation
+progress and **Cancel import**. Failures are shown and recorded in
+`%LOCALAPPDATA%\TS2 PSP Viewer\last-import.log` (or your configured cache folder).
+See [ISO import checks](docs/iso-import.md) for troubleshooting and the actual
+EXE extraction test.
 
 Rendering requires an OpenGL GPU. Without one the app still opens and lists
 what it can read, and the previews come back as `SinOpenGL`.
@@ -98,7 +111,16 @@ Hand bone placement is corrected when the model is read, so wrists stay inside
 the skin; the hand bind offset is measured per branch, excluding the wrist, which
 otherwise drags one hand away from the other. See `formats/characters.py`.
 
+Character animations retain the fixed BODY joint orientations. This prevents
+Cowthulu/Beelzebeef's spine and left arm from folding through the body. The same
+composition is used in preview and exported animations; see
+[character rotation channels](docs/character-animation.md).
+
 ## Props
+
+After updating from an older build, select your ISO again through **File >
+Select ISO**. The new cache includes standalone object bitmaps and skeletal
+clips, which older ZIPs do not contain. Older caches still open with a reminder.
 
 The **Props** tab is laid out in three columns.
 
@@ -134,6 +156,37 @@ Model statistics are painted over the viewport in the bottom left corner rather
 than under the playback controls: the name and what was loaded, plus the
 duration and track count when the prop has a clip.
 
+The **Vertex colors** checkbox lets you inspect the texture without stored
+vertex shading; it does not remove colors from the exported model. Cowthulu's
+stage exposes four separate hose clips and all 13 joints. See
+[reported prop fixes and source limitations](docs/reported-props.md) for water
+materials, UV repairs and the remaining untextured authoring templates.
+
+Props and maps switch Vertex Colors using cached color arrays. Changing this
+setting does not reread the archive, reupload textures, reset the camera or
+restart an animation. Map exports follow the map's color setting; prop exports
+retain their source colors.
+See [first import and Vertex Colors validation](docs/first-import-and-vertex-colors.md)
+for the decoder changes and measured switch timings.
+
+## Maps
+
+Map props use their authored position, rotation and scale, including repeated
+instances and nested object references. The same placements are preserved in
+GLB exports. Click a piece to see its source prop and instance name.
+
+With **Vertex Colors** enabled, **Lighting…** adjusts a preview fill light
+(50% by default). **Source (0%)** shows the original stored shading. This helps
+inspect areas whose source vertices are black without changing exported colors,
+opacity, shadows or the sky. See [map Vertex Colors](docs/map-vertex-colors.md).
+
+**Maps > Export as... > Prop placement references (.json)** saves the resource
+paths and full transforms in PSP coordinates (X/Y ground, Z up). This reads the
+existing map archive; importing the ISO again is unnecessary for this change.
+
+See [map prop placements](docs/map-prop-placements.md) for binary references,
+the catalogue audit and limits involving scripted object states.
+
 ## Export
 
 Character and clip exports write to `exports/<model>_export/` inside the project
@@ -158,7 +211,7 @@ multiple export asks for a folder and writes one file per animation into it.
 | `tools/` | Build, package and diagnostic scripts |
 | `docs/` | User guide, architecture and binary format notes |
 
-Props use their shader references, texture palettes, packed coordinates, UV transforms and static scene hierarchy. Vertex colors and repeating UVs are preserved. Maps still expose mesh parts; complete terrain and playable scene placement are not reconstructed.
+Props use their shader references, texture palettes, packed coordinates, UV transforms and static scene hierarchy. Vertex colors and repeating UVs are preserved. Maps expose mesh parts and authored prop placements; complete terrain and runtime game state are not reconstructed.
 
 See [architecture](docs/architecture.md) and [format notes](docs/formats.md) for the implementation path.
 

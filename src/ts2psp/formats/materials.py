@@ -3,11 +3,12 @@
 import math
 import struct
 import io
+import hashlib
 
 import numpy as np
 from PIL import Image
 
-from ts2psp.formats.surfaces import decode_surface
+from ts2psp.formats.surfaces import read_surface
 
 
 def _canal_alfa(texture_png):
@@ -24,9 +25,7 @@ def _canal_alfa(texture_png):
         return entrada[1]
     if len(_ALFA_CACHE) > 64:
         _ALFA_CACHE.clear()
-    alfa = np.asarray(
-        Image.open(io.BytesIO(texture_png)).convert("RGBA")
-    )[:, :, 3]
+    alfa = np.asarray(Image.open(io.BytesIO(texture_png)).convert("RGBA"))[:, :, 3]
     _ALFA_CACHE[clave] = (texture_png, alfa)
     return alfa
 
@@ -71,9 +70,9 @@ def alfa_tocado(texture_png, uvs, indices):
             continue
         for vuelta_u in vueltas_u:
             for vuelta_v in vueltas_v:
-                _rasterizar(cubierta, alfa, [
-                    (u - vuelta_u, v - vuelta_v) for u, v in vertices
-                ])
+                _rasterizar(
+                    cubierta, alfa, [(u - vuelta_u, v - vuelta_v) for u, v in vertices]
+                )
     if not cubierta.any():
         return 255
     return int(alfa[cubierta].min())
@@ -126,6 +125,7 @@ def _rasterizar(cubierta, alfa, triangulo):
     t = (du1 * oy - dv1 * ox) / det
     dentro = (s >= -1e-6) & (t >= -1e-6) & (s + t <= 1 + 1e-6)
     cubierta[y0:y1, x0:x1] |= dentro
+
 
 # El pase de mezcla dibuja despues de lo opaco, apaga la escritura de profundidad
 # y ordena cada malla solo por su profundidad media. Un prop opaco que entra ahi se
@@ -190,13 +190,7 @@ MODO_PIEZAS = {
 
 
 def opaca(png):
-    """El mismo PNG con el canal alfa a opaco.
-
-    Las texturas BC3 (DXT5) se leen con el alfa desplazado, asi que salen con
-    una opacidad bajisima y el prop se dibuja casi invisible. Cambiar solo el
-    alfa deja los colores intactos y es reversible: si un dia se descifra la
-    disposicion del bloque, basta con quitar esta pasada.
-    """
+    """Opaque color copy for explicitly identified non-opacity alpha maps."""
     image = Image.open(io.BytesIO(png)).convert("RGBA")
     r, g, b, _ = image.split()
     salida = io.BytesIO()
@@ -206,18 +200,35 @@ def opaca(png):
     return salida.getvalue()
 
 
-def prop_materials(data, records, opaco=False):
-    surfaces, shaders = {}, {}
+def surface_textures(data, records, opaco=False):
+    """Name textures by their internal bitmap paths, disambiguating variants."""
+    used = {}
     for index, (tag, off, size, _, _) in enumerate(records):
         if tag != b"surf":
             continue
         try:
-            png = decode_surface(data, off, size)
+            png, source = read_surface(data, off, size)
         except (ValueError, struct.error):
-            png = None
-        texture = (f"surface_{index}", opaca(png) if opaco else png) if png else None
+            png, source = None, ""
+        texture = None
+        if png:
+            png = opaca(png) if opaco else png
+            name = source or f"unnamed_surface_{index}"
+            if name in used and used[name] != png:
+                stem, dot, suffix = name.rpartition(".")
+                digest = hashlib.sha256(png).hexdigest()[:12]
+                name = f"{stem}__{digest}.{suffix}" if dot else f"{name}__{digest}"
+            used[name] = png
+            texture = (name, png)
+        yield off, texture, source
+
+
+def prop_materials(data, records, opaco=False):
+    surfaces, sources, shaders = {}, {}, {}
+    for off, texture, source in surface_textures(data, records, opaco):
         for prefix in (0, 32):
             surfaces[off + 128 + prefix] = texture
+            sources[off + 128 + prefix] = source
     for index, (tag, off, size, _, _) in enumerate(records):
         if tag != b"gshd":
             continue
@@ -244,6 +255,7 @@ def prop_materials(data, records, opaco=False):
             "surface_address": surface_address,
             "base_color": (*rgb, opacity),
             "shader_index": index,
+            "source_texture_path": sources.get(surface_address, ""),
         }
         for prefix in (0, 32):
             shaders[off + 128 + prefix] = material
@@ -254,6 +266,7 @@ def assign_material(part, material, uvs, modo=None):
     """Store one material per mesh part; repeating UVs stay repeating on the GPU."""
     material = material or {}
     part["texture"] = material.get("texture")
+    part["source_texture_path"] = material.get("source_texture_path", "")
     part["base_color"] = material.get("base_color", (1, 1, 1, 1))
     part["material_kind"] = "texture" if part["texture"] else "solid_color"
     # tres grupos: opaco, recorte (prueba de alfa, escribe profundidad) y mezcla
@@ -287,6 +300,11 @@ def assign_material(part, material, uvs, modo=None):
         else:
             part["alpha_mode"] = "OPAQUE"
     part["color"] = tuple(round(v * 255) for v in part["base_color"])
+    part["alpha_mode_without_vertex_colors"] = part["alpha_mode"]
+    vertex_mode = part.get("vertex_alpha_mode")
+    if vertex_mode and not modo:
+        if vertex_mode == "BLEND" or part["alpha_mode"] in (None, "OPAQUE"):
+            part["alpha_mode"] = vertex_mode
     part["repeat_texture"] = any(
         uv is not None and any(v < -0.001 or v > 1.001 for v in uv) for uv in uvs
     )

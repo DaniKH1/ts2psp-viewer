@@ -42,7 +42,8 @@ class SkyDomeTests(unittest.TestCase):
 
     def lado(self, part):
         return max(
-            max(v[0][k] for v in part["vertices"]) - min(v[0][k] for v in part["vertices"])
+            max(v[0][k] for v in part["vertices"])
+            - min(v[0][k] for v in part["vertices"])
             for k in range(3)
         )
 
@@ -108,64 +109,132 @@ class SkyDomeTests(unittest.TestCase):
         )
         self.assertGreater(len(colocaciones), 300)
 
-    def test_the_levels_own_props_have_no_transform_to_apply(self):
-        """Por que las farolas y los bancos salen amontonados en el origen.
-
-        Escribo esto porque parece un fallo del parser y no lo es, y se pierde
-        mucho tiempo si no se sabe: el nodo de cada malla del nivel cuelga de
-        una cadena de transformadas que vale la identidad. Los 874 nodos de tipo
-        10 del cementerio tienen numeros de verdad, pero ninguno es ancestro de
-        una malla. La colocacion la pone el Lua del nivel (`graveyard_script.init`)
-        al cargar, y sus coordenadas no estan en este recurso.
-        """
+    def test_referenced_furniture_has_authored_world_placements(self):
+        """Compression origins describe prototypes, not their map placements."""
         import numpy as np
+        from ts2psp.formats.prop_scene import level_prop_references
 
-        from ts2psp.formats.prop_scene import _relative
+        data = self.datos("levels/division_47/barracks")
+        references = level_prop_references(data, sections(data))
+        beds = [
+            r for r in references if r["resource"].endswith("/fx_bedsinglebarracks")
+        ]
+        self.assertEqual(len(beds), 4)
+        self.assertTrue(all(r["resolved"] for r in beds))
+        np.testing.assert_allclose(beds[0]["position"], (-1.75, 3, 0), atol=1e-5)
+        np.testing.assert_allclose(beds[-1]["position"], (8.75, 7.608456, 0), atol=1e-5)
+        np.testing.assert_allclose(
+            np.array(beds[-1]["matrix"])[:3, :3],
+            ((0, -1, 0), (1, 0, 0), (0, 0, 1)),
+            atol=1e-5,
+        )
+        parts, rejected = parse_rdms(data)
+        self.assertFalse(rejected)
+        furniture = [
+            p for p in parts if p["resource_path"].endswith("/fx_bedsinglebarracks")
+        ]
+        copies = {}
+        for part in furniture:
+            copies.setdefault(part["placement_node"], []).append(part)
+        self.assertEqual(len(copies), 4)
+        self.assertTrue(all(len(group) == 5 for group in copies.values()))
+        first = next(iter(copies.values()))[0]
+        last = list(copies.values())[-1][0]
+        # Same source vertices, translated and turned by the final bed marker.
+        np.testing.assert_allclose(
+            [v[0] for v in last["vertices"]],
+            [
+                (-v[0][1] + 11.75, v[0][0] + 9.358456, v[0][2])
+                for v in first["vertices"]
+            ],
+            atol=1e-4,
+        )
+        showers = [
+            p for p in parts if p["resource_path"].endswith("/fx_shower_communal")
+        ]
+        self.assertEqual(len({p["placement_node"] for p in showers}), 3)
 
-        datos = self.datos("levels/deadtree/graveyard")
-        meshes = {
-            off + 128 + prefix: off + 128
-            for tag, off, _, _, _ in sections(datos)
-            if tag == b"rdms"
-            for prefix in (0, 32)
-        }
-        totales = identidades = 0
-        for nodes, world, head, end in node_hierarchies(datos, sections(datos)):
-            for index, (at, kind, _, _) in enumerate(nodes):
-                if kind != 25 or at + 40 > end:
-                    continue
-                group_count = struct.unpack_from("<I", datos, at + 32)[0]
-                groups = _relative(datos, at + 36)
-                if group_count > 128 or not head <= groups <= end - group_count * 44:
-                    continue
-                for group in range(group_count):
-                    block = groups + group * 44
-                    lod_count = struct.unpack_from("<I", datos, block + 36)[0]
-                    lods = _relative(datos, block + 40)
-                    if not (0 < lod_count <= 64 and head <= lods <= end - lod_count * 8):
-                        continue
-                    if _relative(datos, lods) not in meshes:
-                        continue
-                    totales += 1
-                    if np.allclose(world(index), np.eye(4)):
-                        identidades += 1
+    def test_all_levels_expose_references_and_missing_targets(self):
+        from ts2psp.formats.prop_scene import level_prop_references
 
-        self.assertGreater(totales, 300, "el nivel tiene mallas colocadas")
-        self.assertGreater(
-            identidades,
-            totales * 0.7,
-            "casi todas las mallas del nivel cuelgan de la identidad",
+        total = resolved = 0
+        missing = set()
+        for row in self.rows:
+            with self.subTest(level=row["ruta_interna"]):
+                data = self.datos(row["ruta_interna"])
+                records = sections(data)
+                refs = level_prop_references(data, records)
+                self.assertTrue(refs)
+                node_heads = {
+                    off + 160
+                    for tag, off, *_ in records
+                    if tag == b"node" and struct.unpack_from("<I", data, off + 160)[0]
+                }
+                self.assertEqual(
+                    {graph[2] for graph in node_hierarchies(data, records)}, node_heads
+                )
+                self.assertEqual(
+                    len(refs), len({(r["graph"], r["node"]) for r in refs})
+                )
+                total += len(refs)
+                resolved += sum(ref["resolved"] for ref in refs)
+                missing.update(ref["resource"] for ref in refs if not ref["resolved"])
+        self.assertGreater(total, 1400)
+        self.assertGreater(resolved / total, 0.99)
+        self.assertIn(
+            "objects/lamps_ceiling/fx_lightingceilingchandeliermoderndirty", missing
         )
 
-    def test_the_furniture_the_level_places_on_load_is_left_out(self):
-        """Esas piezas no tienen sitio en el recurso, asi que no se dibujan.
+    def test_placement_report_can_be_exported_from_the_map_tab(self):
+        import json
+        import tempfile
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from ts2psp.ui.maps import MapTab
 
-        El juego coloca el mobiliario del solar con un Lua de nivel, no con
-        coordenadas en el .res: la cabecera rdms de esas piezas trae el origen a
-        cero y se ven amontonadas en el centro. Se comprueba en los 21 niveles
-        que el filtro quita muchas en el cuartel y deja casi intacto el menu
-        principal, que es el unico nivel que ya se veia bien.
-        """
+        tab = SimpleNamespace(
+            current={"ruta_interna": "levels/division_47/barracks"},
+            data=self.datos("levels/division_47/barracks"),
+        )
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "placements.json"
+            with patch(
+                "ts2psp.ui.maps.filedialog.asksaveasfilename", return_value=str(target)
+            ):
+                MapTab.export_placements(tab)
+            report = json.loads(target.read_text())
+            self.assertIn("Z up", report["coordinates"])
+            self.assertEqual(report["map"], tab.current["ruta_interna"])
+            self.assertEqual(len(report["references"]), 93)
+
+    def test_map_glb_preserves_instance_coordinates_and_source_names(self):
+        import tempfile
+        import numpy as np
+        from ts2psp.core.coordinates import convert_vector3
+        from ts2psp.formats.props import write_rigid_glb
+        from ts2psp.formats.animations import open_glb
+        from ts2psp.rendering.animation import accessor
+
+        parts, _ = parse_rdms(self.datos("levels/division_47/barracks"))
+        parts = [
+            p for p in parts if p["resource_path"].endswith("/fx_bedsinglebarracks")
+        ]
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "beds.glb"
+            write_rigid_glb(parts, "beds", target)
+            doc, binary = open_glb(target)
+        self.assertEqual(len(doc["nodes"]), 20)
+        for node, part in zip(doc["nodes"], parts):
+            self.assertEqual(node["extras"]["sourceResource"], part["resource_path"])
+            primitive = doc["meshes"][node["mesh"]]["primitives"][0]
+            np.testing.assert_allclose(
+                accessor(doc, binary, primitive["attributes"]["POSITION"]),
+                [convert_vector3(v[0]) for v in part["vertices"]],
+                atol=1e-5,
+            )
+
+    def test_compression_origin_is_only_a_legacy_diagnostic(self):
+        """A zero RDMS origin must never be treated as an unplaced object."""
         from ts2psp.ui.maps import es_sin_colocar
 
         cuento = {}
@@ -177,13 +246,14 @@ class SkyDomeTests(unittest.TestCase):
             )
 
         cuartel = cuento["levels/division_47/barracks"]
-        self.assertGreater(cuartel[0], cuartel[1] // 2, "el cuartel va medio amontonado")
+        self.assertGreater(
+            cuartel[0], cuartel[1] // 2, "many Barracks prototypes have a zero origin"
+        )
 
         menu = cuento["levels/interface/mainmenu"]
         self.assertLess(menu[0], menu[1] // 20, "el menu principal casi no tiene")
 
-        # Y ninguna pieza colocada se quita: las del mausoleo tienen su origen
-        # lejos del centro y siguen en pantalla.
+        # Other meshes use compression origins far from the local centre.
         piezas = self.parts_of("levels/deadtree/graveyard")
         colocadas = [p for p in piezas if not es_sin_colocar(p)]
         self.assertGreater(len(colocadas), 250)
@@ -226,8 +296,7 @@ class SkyDomeTests(unittest.TestCase):
         el cesped y la carretera se quedan quietos. Sin aplicar la escena la casa
         se dibuja encima de la carretera y las paredes no cierran con el suelo.
 
-        En el cementerio los nodos valen la identidad, asi que aplicarla no cambia
-        nada: se aplica siempre.
+        Object reference transforms are checked separately with the Barracks beds.
         """
         import numpy as np
 
@@ -349,9 +418,7 @@ class SkyDomeTests(unittest.TestCase):
                 atol=1e-6,
                 err_msg=f"{nivel}/{pieza}: la normal no se ha dado la vuelta",
             )
-            self.assertEqual(
-                len(antes["vertices"]), len(despues["vertices"]), nivel
-            )
+            self.assertEqual(len(antes["vertices"]), len(despues["vertices"]), nivel)
 
         # Y solo esas tres: el resto de cada nivel llega igual.
         for nivel, (_n, excepcion) in (

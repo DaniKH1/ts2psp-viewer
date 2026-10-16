@@ -6,11 +6,13 @@ with the application source.
 
 import csv
 import io
+import json
 import mmap
 import os
 import re
 import struct
 import tempfile
+import time
 import zipfile
 from contextlib import ExitStack
 from pathlib import Path
@@ -102,6 +104,17 @@ def res_sections(data):
     ]
 
 
+def object_resource_name(data, records):
+    """Only read the resource name table, never incidental script references."""
+    header = struct.unpack_from("<I", data, 12)[0]
+    for tag, off, size, _, _ in records:
+        if tag == b"strg":
+            paths = PROP_PATH.findall(data[off + header : off + header + size])
+            if paths:
+                return paths[-1].decode("ascii")
+    return ""
+
+
 def decode_texture(data):
     if data[:4] != b"res\n" or data[0x38:0x3C] != b"surf":
         return None
@@ -142,7 +155,39 @@ def decode_texture(data):
     return internal, width, height, output.getvalue()
 
 
-def import_iso(iso_path, output_dir, progress=None):
+class ImportCancelled(Exception):
+    """The caller requested cancellation before publishing the new cache."""
+
+
+def _check_cancel(cancelled):
+    if cancelled and cancelled():
+        raise ImportCancelled()
+
+
+def _validate_archive(path, progress, cancelled):
+    """Read CRC-checked chunks so validation reports progress and can stop."""
+    with zipfile.ZipFile(path) as archive:
+        entries = archive.infolist()
+        total = sum(entry.file_size for entry in entries)
+        read = 0
+        last = 0.0
+        for entry in entries:
+            with archive.open(entry) as source:
+                while True:
+                    _check_cancel(cancelled)
+                    block = source.read(1024 * 1024)
+                    if not block:
+                        break
+                    read += len(block)
+                    now = time.monotonic()
+                    if now - last >= 0.25:
+                        progress(
+                            f"Validating {path.name}: {read * 100 // max(1, total)}%"
+                        )
+                        last = now
+
+
+def import_iso(iso_path, output_dir, progress=None, cancelled=None):
     """Create five local resource archives, reporting text progress on demand."""
     iso_path = Path(iso_path)
     output_dir = Path(output_dir)
@@ -150,6 +195,7 @@ def import_iso(iso_path, output_dir, progress=None):
         raise FileNotFoundError(iso_path)
     output_dir.mkdir(parents=True, exist_ok=True)
     progress = progress or (lambda message: None)
+    _check_cancel(cancelled)
     progress("Reading the ISO index…")
     with tempfile.TemporaryDirectory(
         prefix="sims2_psp_import_", dir=output_dir
@@ -168,6 +214,7 @@ def import_iso(iso_path, output_dir, progress=None):
             props = []
             animations = []
             maps = []
+            prop_support = {"version": 1, "textures": {}, "animations": []}
             used_meshes = set()
             used_textures = set()
             used_props = set()
@@ -184,12 +231,53 @@ def import_iso(iso_path, output_dir, progress=None):
                     for kind, name in ARCHIVES.items()
                 }
                 for i, row in enumerate(index, 1):
-                    if i % 1000 == 0:
-                        progress(f"Processing {i:,}/{len(index):,} entries…")
+                    _check_cancel(cancelled)
+                    if i == 1 or i % 100 == 0:
+                        progress(
+                            f"Extracting resources: {i:,}/{len(index):,} ({i * 100 // len(index)}%)"
+                        )
                     start = base + row["offset"]
                     data = mm[start : start + row["size"]]
                     if not data.startswith(b"res\n"):
                         continue
+                    records = res_sections(data)
+                    object_name = object_resource_name(data, records)
+                    if object_name and b".." not in object_name.encode().split(b"/"):
+                        if any(s[0] == b"surf" for s in records) and not any(
+                            s[0] in (b"bmsh", b"rdms", b"node", b"levl")
+                            for s in records
+                        ):
+                            surf = next(s for s in records if s[0] == b"surf")
+                            file = f'support/textures/{row["entry"]}.res'
+                            zips["props"].writestr(file, data)
+                            prop_support["textures"][object_name.casefold()] = {
+                                "file": file,
+                                "off": surf[1],
+                                "size": surf[2],
+                            }
+                        if any(s[0] == b"banm" for s in records):
+                            file = f'support/animations/{row["entry"]}.res'
+                            zips["props"].writestr(file, data)
+                            try:
+                                clip = parse_banm(data)
+                            except (ValueError, struct.error) as exc:
+                                prop_support.setdefault(
+                                    "unsupported_animations", []
+                                ).append(
+                                    {
+                                        "name": object_name,
+                                        "file": file,
+                                        "error": str(exc),
+                                    }
+                                )
+                            else:
+                                prop_support["animations"].append(
+                                    {
+                                        "name": object_name,
+                                        "file": file,
+                                        "duration": clip["duration"],
+                                    }
+                                )
 
                     if b"bmsh" in data:
                         paths = MESH_PATH.findall(data)
@@ -298,7 +386,7 @@ def import_iso(iso_path, output_dir, progress=None):
 
                     if b"banm" in data[:96]:
                         name = clip_name(data)
-                        if name:
+                        if name.startswith("characters/bodyanims/"):
                             clip = parse_banm(data)
                             category = name.split("/")[2]
                             file = f'res/{row["entry"]}.res'
@@ -340,6 +428,7 @@ def import_iso(iso_path, output_dir, progress=None):
                                     }
                                 )
 
+                progress("Writing resource catalogues…")
                 char_fields = ["personaje", "entry", "archivo_zip"] + sorted(
                     {
                         key
@@ -377,7 +466,9 @@ def import_iso(iso_path, output_dir, progress=None):
                         ],
                     ),
                 )
-                import json
+                zips["props"].writestr(
+                    "prop_support.json", json.dumps(prop_support, indent=2)
+                )
 
                 zips["animations"].writestr(
                     "catalog.json", json.dumps(animations, ensure_ascii=False, indent=2)
@@ -433,9 +524,10 @@ def import_iso(iso_path, output_dir, progress=None):
                     f"La ISO no produjo todos los tipos de recursos: {counts}"
                 )
         for name in ARCHIVES.values():
-            with zipfile.ZipFile(staging / name) as z:
-                if z.testzip() is not None:
-                    raise ValueError(f"Generated file is corrupt: {name}")
+            progress(f"Validating {name}…")
+            _validate_archive(staging / name, progress, cancelled)
+        _check_cancel(cancelled)
+        progress("Installing validated resource archives…")
         for name in ARCHIVES.values():
             os.replace(staging / name, output_dir / name)
     progress(

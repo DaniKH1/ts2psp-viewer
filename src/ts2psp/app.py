@@ -3,12 +3,15 @@
 import csv
 import io
 import json
+import multiprocessing
 import os
 import queue
 import shutil
 import sys
 import tempfile
-import threading
+import time
+import traceback
+from datetime import datetime, timezone
 import zipfile
 from pathlib import Path
 import tkinter as tk
@@ -22,7 +25,8 @@ from ts2psp.formats.animations import (
     open_glb,
     parse_banm,
 )
-from ts2psp.io.iso import ARCHIVES, import_iso
+from ts2psp.io.iso import ARCHIVES
+from ts2psp.io.import_job import run_import
 from ts2psp.rendering.animation import draw as draw_animation
 from ts2psp.rendering.animation import posed_meshes
 import ts2psp.rendering.opengl as gl
@@ -62,6 +66,12 @@ class Sims2PSPApp(tk.Tk):
         self.welcome = None
         self.importing = False
         self.import_messages = queue.Queue()
+        self.import_process = None
+        self.import_cancel = None
+        self.import_exit_seen = None
+        self.import_log = self.base / "last-import.log"
+        self.import_max_gap = 0.0
+        self.import_last_poll = time.monotonic()
         self.info = tk.StringVar(value="")
         self.temp = tempfile.TemporaryDirectory(prefix="sims2_psp_app_")
         self.cache = Path(self.temp.name)
@@ -90,6 +100,15 @@ class Sims2PSPApp(tk.Tk):
         self.configure(menu=menu)
         self.status_bar = ttk.Label(self, textvariable=self.info, padding=(10, 5))
         self.status_bar.pack(side="bottom", fill="x")
+        self.import_panel = ttk.Frame(self, padding=(12, 8))
+        self.import_status = tk.StringVar(value="")
+        ttk.Label(self.import_panel, textvariable=self.import_status).pack(anchor="w")
+        self.import_bar = ttk.Progressbar(self.import_panel, mode="indeterminate")
+        self.import_bar.pack(side="left", fill="x", expand=True, pady=(6, 0))
+        self.import_cancel_button = ttk.Button(
+            self.import_panel, text="Cancel import", command=self.cancel_import
+        )
+        self.import_cancel_button.pack(side="right", padx=(10, 0))
         available = next(
             (
                 folder
@@ -103,7 +122,7 @@ class Sims2PSPApp(tk.Tk):
         else:
             self.show_welcome()
         self.reportar_render()
-        self.after(100, self.poll_import)
+        self.poll_timer = self.after(100, self.poll_import)
         self.protocol("WM_DELETE_WINDOW", self.close)
 
     def _pestana_mostrada(self, _event=None):
@@ -248,7 +267,7 @@ class Sims2PSPApp(tk.Tk):
     def select_iso(self):
         if self.importing:
             return
-        if self.character_tab.animations.exporting:
+        if self.tabs is not None and self.character_tab.animations.exporting:
             messagebox.showinfo("Import", "Wait for the current export to finish.")
             return
         path = filedialog.askopenfilename(
@@ -257,55 +276,148 @@ class Sims2PSPApp(tk.Tk):
         )
         if not path:
             return
+        self.start_import(path)
+
+    def _log_import(self, event, **details):
+        record = {
+            "time": datetime.now(timezone.utc).isoformat(),
+            "event": event,
+            **details,
+        }
+        try:
+            with self.import_log.open("a", encoding="utf-8") as log:
+                log.write(json.dumps(record, ensure_ascii=False) + "\n")
+        except OSError:
+            pass
+
+    def start_import(self, path):
+        if self.importing:
+            return
         self.importing = True
         if self.welcome:
             self.import_button.configure(state="disabled")
-        self.info.set("Reading ISO…")
+        self.import_status.set("Starting ISO extraction…")
+        self.info.set(f"Extracting to {self.data_dir}")
+        self.import_panel.pack(side="bottom", fill="x")
+        self.import_cancel_button.configure(state="normal")
+        self.import_bar.start(30)
+        self.import_exit_seen = None
+        self.import_max_gap = 0.0
+        self.import_last_poll = time.monotonic()
+        self._log_import(
+            "start",
+            iso=str(path),
+            output=str(self.data_dir),
+            frozen=bool(getattr(sys, "frozen", False)),
+        )
+        try:
+            context = multiprocessing.get_context("spawn")
+            self.import_messages = context.Queue()
+            self.import_cancel = context.Event()
+            self.import_process = context.Process(
+                target=run_import,
+                args=(
+                    str(path),
+                    str(self.data_dir),
+                    self.import_messages,
+                    self.import_cancel,
+                ),
+                daemon=True,
+            )
+            self.import_process.start()
+        except Exception:
+            self._import_failed(traceback.format_exc())
 
-        def work():
-            try:
-                result = import_iso(
-                    path,
-                    self.data_dir,
-                    lambda message: self.import_messages.put(("progress", message)),
-                )
-                self.import_messages.put(("done", result))
-            except Exception as exc:
-                self.import_messages.put(("error", str(exc)))
+    def cancel_import(self):
+        if self.importing and self.import_cancel is not None:
+            self.import_cancel.set()
+            self.import_cancel_button.configure(state="disabled")
+            self.import_status.set("Cancelling import…")
+            self._log_import("cancel_requested")
 
-        threading.Thread(target=work, daemon=True).start()
+    def _finish_import(self):
+        self.importing = False
+        self.import_bar.stop()
+        self.import_panel.pack_forget()
+        if self.welcome:
+            self.import_button.configure(state="normal")
+        if self.import_process is not None and self.import_process.pid is not None:
+            self.import_process.join(timeout=0.1)
+
+    def _import_failed(self, detail):
+        self._log_import("error", detail=detail)
+        self._finish_import()
+        self.info.set("Could not import the ISO. You can select it again.")
+        messagebox.showerror(
+            "Import ISO", f"{detail}\n\nDetails saved to:\n{self.import_log}"
+        )
 
     def poll_import(self):
+        now = time.monotonic()
+        if self.importing:
+            self.import_max_gap = max(self.import_max_gap, now - self.import_last_poll)
+        self.import_last_poll = now
         try:
-            while True:
+            for _ in range(200):
                 kind, payload = self.import_messages.get_nowait()
                 if kind == "progress":
+                    self._log_import("progress", message=payload)
+                    self.import_status.set(payload)
                     self.info.set(payload)
                 elif kind == "error":
-                    self.importing = False
-                    if self.welcome:
-                        self.import_button.configure(state="normal")
-                    self.info.set("Could not import the ISO")
-                    messagebox.showerror("Import ISO", payload)
+                    self._import_failed(payload)
+                elif kind == "cancelled":
+                    self._log_import("cancelled")
+                    self._finish_import()
+                    self.info.set("Import cancelled. Existing resources were kept.")
                 elif kind == "done":
-                    self.importing = False
+                    self._log_import("extracted", counts=payload)
+                    self.import_status.set("Opening imported resources…")
                     self.temp.cleanup()
                     self.temp = tempfile.TemporaryDirectory(prefix="sims2_psp_app_")
                     self.cache = Path(self.temp.name)
                     try:
                         self.load_archives(self.data_dir)
                     except Exception as exc:
-                        messagebox.showerror("Open resources", str(exc))
+                        self._import_failed(traceback.format_exc())
                     else:
+                        self._finish_import()
                         self.info.set(
                             f'ISO imported: {payload["characters"]} characters, '
                             f'{payload["props"]} objects, '
                             f'{payload["animations"]} animations, '
                             f'{payload["maps"]} maps'
                         )
+                        self.import_max_gap = max(
+                            self.import_max_gap,
+                            time.monotonic() - self.import_last_poll,
+                        )
+                        self._log_import(
+                            "ready",
+                            counts=payload,
+                            props_loaded=len(self.prop_tab.rows),
+                            max_ui_poll_gap=self.import_max_gap,
+                        )
         except queue.Empty:
             pass
-        self.after(100, self.poll_import)
+        except (EOFError, OSError):
+            detail = traceback.format_exc()
+            self.import_messages = queue.Queue()
+            self._import_failed(detail)
+        if (
+            self.importing
+            and self.import_process is not None
+            and self.import_process.exitcode is not None
+        ):
+            # A worker can fail before Python can send an error (e.g. missing
+            # bundled DLL). Give its queue a moment to deliver a terminal event.
+            if self.import_exit_seen is None:
+                self.import_exit_seen = now
+            elif now - self.import_exit_seen > 0.5:
+                self._import_failed(
+                    f"The extraction process stopped unexpectedly (exit {self.import_process.exitcode})."
+                )
+        self.poll_timer = self.after(100, self.poll_import)
 
     def resolve_blender(self):
         if self.blender and Path(self.blender).is_file():
@@ -334,6 +446,13 @@ class Sims2PSPApp(tk.Tk):
         return None
 
     def close(self):
+        if self.import_process is not None and self.import_process.pid is not None:
+            if self.import_cancel is not None:
+                self.import_cancel.set()
+            self.import_process.join(timeout=0.3)
+            if self.import_process.is_alive():
+                self.import_process.terminate()
+                self.import_process.join(timeout=0.5)
         if self.tabs:
             self.character_tab.dispose()
             self.prop_tab.dispose()
@@ -424,7 +543,20 @@ def main():
     if len(sys.argv) > 1 and sys.argv[1] == "--self-test":
         self_test(sys.argv[2] if len(sys.argv) > 2 else default_data_base())
     else:
-        Sims2PSPApp().mainloop()
+        import argparse
+
+        parser = argparse.ArgumentParser(description="The Sims 2 PSP Viewer")
+        parser.add_argument(
+            "--iso", type=Path, help="Import this ISO after opening the window"
+        )
+        parser.add_argument(
+            "--data-dir", type=Path, help="Override the local resource cache folder"
+        )
+        args = parser.parse_args()
+        app = Sims2PSPApp(base=args.data_dir)
+        if args.iso:
+            app.after(100, lambda: app.start_import(args.iso))
+        app.mainloop()
 
 
 if __name__ == "__main__":

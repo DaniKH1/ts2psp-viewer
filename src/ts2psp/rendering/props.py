@@ -7,7 +7,9 @@ from ts2psp.formats.props import parse_rdms, parse_prop_bmsh
 import ts2psp.rendering.opengl as gl
 
 
-def prop_scene(parts, key, show_textures=True, culling=False, sin_framing=()):
+def prop_scene(
+    parts, key, show_textures=True, culling=False, sin_framing=(), vertex_colors=True
+):
     """Escena GL del prop, cacheada por clave.
 
     Se expone aparte porque al reproducir una animacion hay que reutilizar la
@@ -32,7 +34,7 @@ def prop_scene(parts, key, show_textures=True, culling=False, sin_framing=()):
     # La clave no lleva `culling`: hay sitios que vacian la cache nombrandola a
     # mano y, si el recorte se metiera dentro, se quedarian con la escena del
     # ajuste anterior. El flag lo pone `escena` en cada llamada.
-    return gl.escena(
+    scene = gl.escena(
         ("prop", key, show_textures),
         parts,
         textures,
@@ -41,6 +43,22 @@ def prop_scene(parts, key, show_textures=True, culling=False, sin_framing=()):
         culling=culling,
         sin_framing=sin_framing,
     )
+    scene.fijar_vertex_colors(vertex_colors)
+    return scene
+
+
+def without_vertex_colors(parts):
+    """Colorless export copies; keep the immutable decoded source parts intact."""
+    return [
+        {
+            **part,
+            "vertices": [(v[0], v[1], v[2], None) for v in part["vertices"]],
+            "alpha_mode": part.get(
+                "alpha_mode_without_vertex_colors", part.get("alpha_mode")
+            ),
+        }
+        for part in parts
+    ]
 
 
 def posed_positions(parts):
@@ -136,13 +154,14 @@ def bones_over(parts, bones, margen=1.3):
     return tuple({**bone, "parent": nuevo.get(bone["parent"], -1)} for bone in dentro)
 
 
-def load_parts(data, include_helpers=False, opaco=False, ruta=None):
+def load_parts(data, include_helpers=False, opaco=False, ruta=None, assets=None):
     if b"rdms" in data[:128]:
-        return [
+        parts = [
             part
             for part in parse_rdms(data, opaco=opaco, ruta=ruta)[0]
             if include_helpers or not part.get("helper")
         ]
+        return assets.repair(parts, ruta or "") if assets else parts
     parts = []
     for part in parse_prop_bmsh(data, ruta=ruta):
         # Los UV llegan en crudo desde `parse_prop_bmsh`, igual que al export,
@@ -156,5 +175,5 @@ def load_parts(data, include_helpers=False, opaco=False, ruta=None):
             )
             for pos, _, uv, _ in part["vertices"]
         ]
-        parts.append({**part, "vertices": vertices})
+        parts.append({**part, "vertices": vertices, "skin_vertices": part["vertices"]})
     return parts

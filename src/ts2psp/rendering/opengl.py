@@ -322,6 +322,8 @@ class Escena:
     # -- subida ---------------------------------------------------------------
     def _cargar(self, piezas, texturas):
         posiciones, uvs, colores, indices, tramos = [], [], [], [], []
+        colores_base, modos_base = [], []
+        fill_vertices = []
         self.alpha_modes = []
         # El nombre de la pieza de cada dibujo, en el mismo orden. Lo usa el
         # visor de mapas para apagar y encender piezas sin rehacer la escena.
@@ -356,8 +358,15 @@ class Escena:
                 alpha_textura[texture_state] = self._tiene_alpha(textura)
             color = parte.get("color")
             tiene_uv = all(v[2] is not None for v in parte["vertices"])
+            source = parte.get("source_texture_path", "").replace("\\", "/").casefold()
+            allow_fill = not normaliza_uv and not any(
+                marker in source for marker in ("/sky/", "/lights_shadows/")
+            )
             vertex_alpha = False
             for vertice in parte["vertices"]:
+                fill_vertices.append(
+                    allow_fill and vertice[1] is not None and vertice[3] is not None
+                )
                 posiciones.append(tuple(v * escala_pos for v in vertice[0]))
                 # los personajes traen UV crudos en 1/4096: se normalizan con el v
                 # invertido, igual que los usa el rasterizador de CPU. En los props
@@ -373,6 +382,16 @@ class Escena:
                     uvs.append(vertice[2])
                 else:
                     uvs.append((0.0, 0.0))
+                base_color = (
+                    color
+                    if color is not None
+                    else (
+                        (255, 255, 255, 255)
+                        if textura is not None
+                        else self._tono(parte.get("nombre", ruta)) + (255,)
+                    )
+                )
+                colores_base.append(base_color)
                 if not normaliza_uv and vertice[3] is not None:
                     rgba = tuple(vertice[3])
                     rgba = rgba + (1.0,) if len(rgba) == 3 else rgba
@@ -412,18 +431,34 @@ class Escena:
             if self.tipo != "prop":
                 # en los personajes solo se mezcla si el material lo pide; el
                 # resto de las piezas con alfa van a recorte
-                modo = "BLEND" if modo == "BLEND" else ("MASK" if transparent else "OPAQUE")
+                modo = (
+                    "BLEND"
+                    if modo == "BLEND"
+                    else ("MASK" if transparent else "OPAQUE")
+                )
             elif not modo and transparent:
                 # los props respetan el grupo que les asigno el material. Sin
                 # material resuelto se cae en mezcla, que es lo que se hacia
                 # antes con cualquier textura que tuviera un pixel de alfa bajo
                 modo = "BLEND"
             self.alpha_modes.append(modo or "OPAQUE")
+            modos_base.append(
+                parte.get("alpha_mode_without_vertex_colors", modo) or "OPAQUE"
+            )
         if not posiciones or not indices:
             raise SinOpenGL("the scene has no geometry")
         self.posiciones = np.ascontiguousarray(posiciones, dtype=np.float32)
         self.UV = np.ascontiguousarray(uvs, dtype=np.float32)
         self.colores = np.ascontiguousarray(colores, dtype=np.float32) / 255.0
+        self._colores_vertex = self.colores
+        self._colores_base = (
+            np.ascontiguousarray(colores_base, dtype=np.float32) / 255.0
+        )
+        self._modos_vertex = self.alpha_modes
+        self._modos_base = modos_base
+        self._fill_vertices = np.asarray(fill_vertices, dtype=bool)
+        self._fill_value = None
+        self._colores_fill = None
         indices = np.ascontiguousarray(indices, dtype=np.uint32)
         self.dibujos = [
             (indices[inicio : inicio + n], textura, alfa, es_peinado)
@@ -607,9 +642,7 @@ class Escena:
         if not self.sin_framing:
             return self.posiciones
         mascara = np.ones(len(self.posiciones), dtype=bool)
-        for nombre, (inicio, cuenta) in zip(
-            self.nombres, self.tramos_vertices
-        ):
+        for nombre, (inicio, cuenta) in zip(self.nombres, self.tramos_vertices):
             if nombre in self.sin_framing:
                 mascara[inicio : inicio + cuenta] = False
         return self.posiciones[mascara]
@@ -641,6 +674,23 @@ class Escena:
         """Replaces the positions (shape keys or skinning) without re-uploading indices."""
         self.posiciones = np.ascontiguousarray(posiciones, dtype=np.float32)
         self.pose = pose
+
+    def fijar_vertex_colors(self, enabled, ambient_fill=0.0):
+        """Cached preview fill; source colors, alpha and exported data stay intact."""
+        fill = min(1.0, max(0.0, round(float(ambient_fill), 3)))
+        if enabled and fill:
+            if fill != self._fill_value:
+                self._colores_fill = self._colores_vertex.copy()
+                mask = self._fill_vertices
+                source = self._colores_vertex[mask, :3]
+                self._colores_fill[mask, :3] = source + fill * (
+                    self._colores_base[mask, :3] - source
+                )
+                self._fill_value = fill
+            self.colores = self._colores_fill
+        else:
+            self.colores = self._colores_vertex if enabled else self._colores_base
+        self.alpha_modes = self._modos_vertex if enabled else self._modos_base
 
     def pose_actual(self):
         return self.pose
@@ -1018,12 +1068,10 @@ def escena(
     if clave not in _escenas:
         _escenas[clave] = Escena(piezas, texturas, tipo, fondo, sin_framing)
     escena_actual = _escenas[clave]
-    nombre = (
-        clave[1] if isinstance(clave, (tuple, list)) and len(clave) > 1 else clave
-    )
-    escena_actual.sin_culling = (
-        tipo == "prop" and not culling
-    ) or str(nombre) in SIN_CULLING
+    nombre = clave[1] if isinstance(clave, (tuple, list)) and len(clave) > 1 else clave
+    escena_actual.sin_culling = (tipo == "prop" and not culling) or str(
+        nombre
+    ) in SIN_CULLING
     return escena_actual
 
 

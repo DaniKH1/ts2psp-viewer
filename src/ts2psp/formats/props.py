@@ -21,23 +21,16 @@ from ts2psp.formats.characters import (
     section,
 )
 from ts2psp.core.coordinates import convert_vector3
+from ts2psp.core.names import part_label
 from ts2psp.formats.materials import (
     MODO_PIEZAS,
     assign_material,
     prop_materials,
 )
 
-# Props cuyo canal alfa no se puede leer y se dibujan casi invisibles.
-#
-# Los BC3 (DXT5) se descifran con el alfa desplazado: de 447 texturas BC3 del
-# catalogo, 326 se quedan sin un solo pixel opaco. Se sabe que el lector va mal,
-# pero la disposicion correcta no esta averiguada, y cambiar las 447 de golpe
-# para tapar dos puertas es jugarsela. Asi que se listan una a una las que se
-# han reportado y se les fuerza el alfa a opaco; el resto sigue con su alfa
-# leido, mejor que antes.
-#
-# Para quitar una entrada de aqui no hay que hacer nada mas: cuando se sepa la
-# disposicion del bloque BC3, `materials.opaca` sobra entero.
+# Solid doors use texture alpha for a surface effect rather than visibility.
+# Keep this explicit until more shader techniques have been decoded. The PSP
+# BC3 block layout is already correct; other textures must retain their alpha.
 ALFA_ILEGIBLE = frozenset(
     {
         "objects/doors/fx_d47mechdoor",
@@ -47,12 +40,17 @@ ALFA_ILEGIBLE = frozenset(
 from ts2psp.formats.prop_scene import (
     node_hierarchy,
     rigid_placements,
+    rigid_placement_details,
+    RigidPlacement,
+    _header_sizes,
     transform_vertices,
     transform_pivot,
     transform_values,
     transform_matrix,
     is_transform,
     mesh_is_helper,
+    node_name,
+    rest_values,
 )
 
 
@@ -144,7 +142,7 @@ def prop_joints(data, include_helpers=False):
             node = nodes[index]
             local = node[3]
             if is_transform(data, node):
-                values = list(transform_values(data, node))
+                values = rest_values(data, node)
                 # Bind at unit scale. Tiny or zero effect scales otherwise lose
                 # float32 vertex precision when an animation expands the mesh.
                 values[7:10] = [1.0, 1.0, 1.0]
@@ -205,21 +203,32 @@ def prop_bones(data):
     return count, names
 
 
+def _color5(value):
+    value &= 31
+    return ((value << 3) | (value >> 2)) / 255.0
+
+
+def _color6(value):
+    value &= 63
+    return ((value << 2) | (value >> 4)) / 255.0
+
+
 def decode_color(raw, code):
+    """PSP color channels expand to bytes by repeating the high bits."""
     if code in (4, 5, 6):
         value = int.from_bytes(raw, "little")
         if code == 4:  # PSP RGB565
             return (
-                (value & 31) / 31,
-                ((value >> 5) & 63) / 63,
-                ((value >> 11) & 31) / 31,
+                _color5(value),
+                _color6(value >> 5),
+                _color5(value >> 11),
                 1.0,
             )
         if code == 5:  # PSP RGBA5551
             return (
-                (value & 31) / 31,
-                ((value >> 5) & 31) / 31,
-                ((value >> 10) & 31) / 31,
+                _color5(value),
+                _color5(value >> 5),
+                _color5(value >> 10),
                 (value >> 15) & 1,
             )
         return (
@@ -244,7 +253,13 @@ def vertex_layout(vtype):
     pos_size = {1: 3, 2: 6, 3: 12}.get(pos_code)
     if color_size is None or pos_size is None:
         raise ValueError("VTYPE no soportado")
-    cursor = tex_size + color_size + normal_size
+    color_align = 4 if color_code == 7 else 2 if color_code else 1
+    color_at = (tex_size + color_align - 1) // color_align * color_align
+    normal_align = {0: 1, 1: 1, 2: 2, 3: 4}[normal_code]
+    normal_at = (
+        (color_at + color_size + normal_align - 1) // normal_align * normal_align
+    )
+    cursor = normal_at + normal_size
     align = {1: 1, 2: 2, 3: 4}[pos_code]
     pos_at = (cursor + align - 1) // align * align
     vertex_align = max(
@@ -257,19 +272,15 @@ def vertex_layout(vtype):
     return tex_code, color_code, normal_code, pos_code, pos_at, stride
 
 
-def rdms_indices(data, index_at, index_count, vertex_count, index_width, end):
-    """Los indices de una pieza rdms, en el ancho que de verdad tienen.
+def rdms_indices(
+    data, index_at, index_count, vertex_count, index_width, end, vertex_at=None
+):
+    """Use the allocated index span to detect incorrectly advertised U8 data.
 
-    El vtype declara el ancho y casi siempre acierta, pero hay piezas que
-    declaran indices de un byte con mas de 128 vertices, que es imposible: un
-    indice de un byte solo llega a 127, asi que la mitad de los vertices se
-    quedan sin usar y la tira sale descosida, con triangulos que cruzan la pieza
-    entera. Ahi el ancho real es el otro.
-
-    Solo se cambia cuando el declarado es manifiestamente imposible y el otro
-    deja indices dentro de rango. Asi las demas piezas, que tambien tienen mas de
-    128 vertices pero si salen bien, se quedan como estaban.
+    Fallen bookcases store U16 indices despite their U8 VTYPE. An actual U8
+    index can reach 255; unused vertices alone do not justify changing width.
     """
+
     def leer(ancho):
         total = index_count * ancho
         if total > end - index_at:
@@ -280,8 +291,14 @@ def rdms_indices(data, index_at, index_count, vertex_count, index_width, end):
     indices = leer(index_width)
     if indices is None or max(indices) >= vertex_count:
         return None
-    if vertex_count > 128 and max(indices) < vertex_count - 1:
-        otro = leer(2 if index_width == 1 else 1)
+    if (
+        index_width == 1
+        and vertex_count > 128
+        and index_count > 16
+        and vertex_at is not None
+        and 0 <= vertex_at - index_at - 2 * index_count < 16
+    ):
+        otro = leer(2)
         if otro is not None and max(otro) < vertex_count:
             indices = otro
     return indices
@@ -327,15 +344,15 @@ def parse_rdms(data, apply_scene=True, opaco=False, ruta=None, vertex_colors=Tru
     rejected = []
     records = sections(data)
     materials = prop_materials(data, records, opaco=opaco)
-    placements = rigid_placements(data, records) if apply_scene else {}
-    nodes = node_hierarchy(data, records)[0] if apply_scene else []
+    placements = rigid_placement_details(data, records) if apply_scene else {}
+    has_nodes = any(row[0] == b"node" for row in records) if apply_scene else False
     for i, (tag, off, size, _, _) in enumerate(records):
         if tag != b"rdms":
             continue
         shift = next(
             (
                 extra
-                for extra in (0, 32)
+                for extra in (header - 128 for header in _header_sizes(data))
                 if off + 0xC4 + extra <= len(data)
                 and struct.unpack_from("<I", data, off + 0xB8 + extra)[0] >> 24 == 0x12
             ),
@@ -381,7 +398,13 @@ def parse_rdms(data, apply_scene=True, opaco=False, ruta=None, vertex_colors=Tru
             )
             continue
         indices = rdms_indices(
-            data, index_at, index_count, vertex_count, index_width, end
+            data,
+            index_at,
+            index_count,
+            vertex_count,
+            index_width,
+            end,
+            vertex_at=vertex_at,
         )
         if indices is None:
             rejected.append((i, "index range"))
@@ -415,8 +438,11 @@ def parse_rdms(data, apply_scene=True, opaco=False, ruta=None, vertex_colors=Tru
             color = None
             if color_code:
                 width = 4 if color_code == 7 else 2
+                cursor = (cursor + width - 1) // width * width
                 color = decode_color(raw[cursor : cursor + width], color_code)
                 cursor += width
+            normal_align = {0: 1, 1: 1, 2: 2, 3: 4}[normal_code]
+            cursor = (cursor + normal_align - 1) // normal_align * normal_align
             if normal_code == 1:
                 normal = struct.unpack_from("<bbb", raw, cursor)
                 length = max(1.0, math.sqrt(sum(x * x for x in normal)))
@@ -449,6 +475,11 @@ def parse_rdms(data, apply_scene=True, opaco=False, ruta=None, vertex_colors=Tru
                 "indices": triangles,
                 "vtype": vtype,
             }
+            alphas = [v[3][3] for v in vertices if v[3] is not None]
+            if any(a < 1 for a in alphas):
+                part["vertex_alpha_mode"] = (
+                    "BLEND" if any(0 < a < 1 for a in alphas) else "MASK"
+                )
             shader_at = off + 128 + shift
             shader = shader_at + struct.unpack_from("<i", data, shader_at)[0]
             forzado = MODO_PIEZAS.get(ruta or "", {})
@@ -462,8 +493,13 @@ def parse_rdms(data, apply_scene=True, opaco=False, ruta=None, vertex_colors=Tru
             if off + 128 in placements and not anclajes:
                 continue
             if not anclajes:
-                anclajes = [(-1, np.eye(4))]
-            for instance, (node_index, matrix) in enumerate(anclajes):
+                anclajes = [RigidPlacement(-1, np.eye(4), [])]
+            for instance, placement in enumerate(anclajes):
+                node_index, matrix, nodes = (
+                    placement.node,
+                    placement.matrix,
+                    placement.nodes,
+                )
                 name = (
                     part["name"]
                     if instance == 0
@@ -474,16 +510,20 @@ def parse_rdms(data, apply_scene=True, opaco=False, ruta=None, vertex_colors=Tru
                         **part,
                         "name": name,
                         "node": node_index,
+                        "node_name": (
+                            node_name(data, nodes[node_index])
+                            if 0 <= node_index < len(nodes)
+                            else ""
+                        ),
                         "helper": mesh_is_helper(
                             data, nodes, node_index, textured=bool(part["texture"])
                         )
-                        or (bool(nodes) and node_index < 0),
+                        or (has_nodes and node_index < 0),
+                        "resource_path": placement.resource,
+                        "placement_node": placement.instance,
                         "local_vertices": vertices,
                         "vertices": transform_vertices(vertices, matrix),
-                        # Donde declara la cabecera rdms que cae la malla. En un
-                        # prop es su sitio en el mundo; en un nivel, las piezas
-                        # que el juego coloca al cargar lo traen a cero porque su
-                        # sitio no esta escrito en el recurso.
+                        # RDMS compression origin, before NODE placement.
                         "origin": tuple(float(v) for v in origin),
                     }
                 )
@@ -499,6 +539,13 @@ def parse_prop_bmsh(data, ruta=None):
     dos veces y los UV salirian a la mitad.
     """
     parts = parse_mesh(data)
+    # GU texture coordinates are unsigned shorts, biased around 0x8000.
+    # Keep the legacy +32768 consumer convention across the signed boundary.
+    for part in parts:
+        part["vertices"] = [
+            (pos, normal, tuple((v & 65535) - 65536 for v in uv), weights)
+            for pos, normal, uv, weights in part["vertices"]
+        ]
     materials = prop_materials(data, sections(data))
     off, _, _ = section(data, b"bmsh")
     forzado = MODO_PIEZAS.get(ruta or "", {})
@@ -539,6 +586,7 @@ def write_rigid_glb(parts, name, target, bones=(), anclajes=None):
         por_nodo = anclajes if anclajes is not None else order
     for part in parts:
         vertices = part["vertices"]
+        mesh_name = f"{name}/{part_label(part)}"
         anchor = por_nodo.get(part.get("node", -1))
         if anchor is not None and "local_vertices" in part:
             vertices = transform_vertices(
@@ -625,17 +673,19 @@ def write_rigid_glb(parts, name, target, bones=(), anclajes=None):
             with Image.open(io.BytesIO(texture[1])) as image:
                 has_alpha |= image.convert("RGBA").getchannel("A").getextrema()[0] < 255
         material = {
-            "name": f'{name}/{part["name"]}',
+            "name": mesh_name,
             "doubleSided": True,
             "pbrMetallicRoughness": pbr,
         }
-        if has_alpha:
-            material["alphaMode"] = "BLEND"
+        material["alphaMode"] = part.get("alpha_mode") or (
+            "BLEND" if has_alpha else "OPAQUE"
+        )
         glb.doc["materials"].append(material)
         mesh_idx = len(glb.doc["meshes"])
         glb.doc["meshes"].append(
             {
-                "name": f'{name}/{part["name"]}',
+                "name": mesh_name,
+                "extras": {"sourcePart": part["name"]},
                 "primitives": [
                     {
                         "attributes": attrs,
@@ -646,8 +696,22 @@ def write_rigid_glb(parts, name, target, bones=(), anclajes=None):
                 ],
             }
         )
+        if part.get("uv_source") or part.get("texture_warning"):
+            glb.doc["meshes"][-1]["extras"].update(
+                {
+                    "uvSource": part.get("uv_source", "source"),
+                    "materialNote": part.get("texture_warning", ""),
+                }
+            )
+        if texture:
+            glb.doc["meshes"][-1]["extras"]["sourceTexture"] = texture[0]
         node_idx = len(glb.doc["nodes"])
-        mesh_node = {"name": f'{name}/{part["name"]}', "mesh": mesh_idx}
+        mesh_node = {"name": mesh_name, "mesh": mesh_idx}
+        if part.get("resource_path"):
+            mesh_node["extras"] = {
+                "sourceResource": part["resource_path"],
+                "sourcePlacement": part["placement_node"],
+            }
         # Las mallas NO se cuelgan del esqueleto: parse_rdms ya las deja en
         # espacio mundo (les aplica la matriz de su nodo), y colgar-las
         # componia la transformacion local del hueso encima y las desplazaba.
@@ -660,15 +724,17 @@ def write_rigid_glb(parts, name, target, bones=(), anclajes=None):
     return glb
 
 
-def convert_prop(data, name, target, include_helpers=False):
+def convert_prop(
+    data, name, target, include_helpers=False, assets=None, animation=None
+):
     if b"rdms" in data[:128]:
-        parts, rejected = parse_rdms(
-            data, opaco=name in ALFA_ILEGIBLE, ruta=name
-        )
+        parts, rejected = parse_rdms(data, opaco=name in ALFA_ILEGIBLE, ruta=name)
         if not include_helpers:
             parts = [part for part in parts if not part.get("helper")]
         if not parts:
             raise ValueError(f"No compatible RDMS parts: {rejected[:3]}")
+        if assets:
+            assets.repair(parts, name)
         bones, anclajes = prop_joints(data, include_helpers=include_helpers)
         glb = write_rigid_glb(parts, name, target, bones=bones, anclajes=anclajes)
         from ts2psp.exporting.prop_animation import add_prop_animation
@@ -703,9 +769,22 @@ def convert_prop(data, name, target, include_helpers=False):
         textures = {part["name"]: part["texture"] for part in parts}
         glb.add_mesh(name, parts, skin, len(bones), textures)
         glb.save(target)
+        clips = assets.clips(name) if assets else []
+        if clips:
+            from ts2psp.formats.animations import attach_animations
+
+            reference = next(
+                (c for c in clips if c["name"].endswith("idle-breathe")), clips[0]
+            )
+            selected = (
+                [c for c in clips if c["name"] == animation] if animation else clips
+            )
+            attach_animations(target, selected, reference, target)
         return {
             "name": name,
             "format": "BMSH",
+            "bones": len(bones),
+            "animations": len(selected) if clips else 0,
             "parts": len(parts),
             "vertices": sum(len(p["vertices"]) for p in parts),
             "triangles": sum(len(p["indices"]) // 3 for p in parts),
@@ -718,6 +797,8 @@ def convert_prop(data, name, target, include_helpers=False):
 
 
 def main():
+    from ts2psp.formats.prop_assets import PropAssets
+
     ap = argparse.ArgumentParser(description="Extrae props de Los Sims 2 PSP a GLB")
     ap.add_argument("archive", type=Path)
     ap.add_argument("entry", help="ID del inventario_props.csv")
@@ -733,11 +814,13 @@ def main():
         if row is None:
             raise ValueError("ID no encontrado")
         result = convert_prop(
-            z.read(row["archivo_zip"]), row["ruta_interna"], args.output
+            z.read(row["archivo_zip"]),
+            row["ruta_interna"],
+            args.output,
+            assets=PropAssets(z),
         )
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
     main()
-

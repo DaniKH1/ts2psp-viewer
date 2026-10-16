@@ -40,6 +40,8 @@ class PropPlaybackTests(unittest.TestCase):
         self.tab.position = Value(0)
         self.tab.loop = Value(True)
         self.tab.show_textures = Value(True)
+        self.tab.show_vertex_colors = Value(True)
+        self.tab.fps_index = 0
         self.tab.show_bones = Value(True)
         self.tab.parts = [{"vertices": [((0, 0, 0), None, None, None)]}]
         self.tab.posed_parts = lambda: self.tab.parts

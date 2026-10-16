@@ -48,6 +48,7 @@ class TextureGallery(ttk.Frame):
         # son pocas: a 44 px se quedan media columna en blanco.
         self.tile = tile
         self.textures = {}
+        self.names = {}
         self.thumbnails = []
         self.buttons = []
         self.selected_key = ""
@@ -76,6 +77,13 @@ class TextureGallery(ttk.Frame):
         self.grid.bind("<MouseWheel>", self._mousewheel)
         marco.bind("<MouseWheel>", self._mousewheel)
         self.bind("<MouseWheel>", self._mousewheel)
+        name_frame = ttk.Frame(self, height=42)
+        name_frame.pack(fill="x", pady=(4, 0))
+        name_frame.pack_propagate(False)
+        self.name_label = ttk.Label(
+            name_frame, text="", width=1, anchor="w", wraplength=180
+        )
+        self.name_label.pack(fill="both", expand=True)
 
     def rueda_sobre_la_galeria(self, event):
         """Desplaza la galeria y avisa de si queda algo mas, para las pruebas.
@@ -90,11 +98,15 @@ class TextureGallery(ttk.Frame):
 
     # -- contenido ---------------------------------------------------------
 
-    def set_textures(self, textures, selected=""):
+    def set_textures(self, textures, selected="", names=None):
         """Pinta las miniaturas de `textures`, un diccionario nombre -> pixeles."""
         self.hide_preview()
         self.textures = textures or {}
+        self.names = names or {}
         self.selected_key = selected if selected in self.textures else ""
+        self.name_label.configure(
+            text=self.names.get(self.selected_key, self.selected_key)
+        )
         for widget in self.grid.winfo_children():
             widget.destroy()
         self.thumbnails = []
@@ -108,9 +120,7 @@ class TextureGallery(ttk.Frame):
             self.scroll.pack_forget()
         for columna in range(self._columnas()):
             # Ancho fijo, el de la miniatura: es lo que las centra en su celda.
-            self.grid.columnconfigure(
-                columna, weight=0, minsize=self._alto_fila()
-            )
+            self.grid.columnconfigure(columna, weight=0, minsize=self._alto_fila())
         fondo = self.canvas.cget("background")
         for indice, (nombre, pixeles) in enumerate(sorted(self.textures.items())):
             imagen = a_imagen(pixeles)
@@ -168,6 +178,7 @@ class TextureGallery(ttk.Frame):
 
     def _pick(self, key):
         self.selected_key = key
+        self.name_label.configure(text=self.names.get(key, key))
         self._refresh_selection()
         self.show_preview(key)
         if self.on_pick is not None:
@@ -199,7 +210,11 @@ class TextureGallery(ttk.Frame):
         radio = max(5, size // 6)
         borde = "#20df61" if selected else "#18275d"
         draw.rounded_rectangle(
-            (1, 1, size - 2, size - 2), radius=radio, fill="#374456", outline=borde, width=2
+            (1, 1, size - 2, size - 2),
+            radius=radio,
+            fill="#374456",
+            outline=borde,
+            width=2,
         )
         mask = Image.new("L", miniatura.size, 0)
         ImageDraw.Draw(mask).rounded_rectangle(
@@ -216,6 +231,8 @@ class TextureGallery(ttk.Frame):
         return ImageTk.PhotoImage(tile, master=self)
 
     def _hover(self, boton, hovering):
+        key = boton.image_key if hovering else self.selected_key
+        self.name_label.configure(text=self.names.get(key, key))
         selected = boton.image_key == self.selected_key
         boton.configure(
             image=boton.tile_images["selected" if selected or hovering else "normal"]
@@ -240,7 +257,7 @@ class TextureGallery(ttk.Frame):
         Se usa al rellenar y al redimensionar: el lienzo se estira al ancho de su
         columna y el grupo se queda con el suyo, que depende de cuantas texturas
         haya. Si solo se recolocara al cambiar de tamano, al cargar otro modelo el
-        grupo se quedaria donde estaba la lista anterior.        """
+        grupo se quedaria donde estaba la lista anterior."""
         ancho = self._ancho_grid()
         self.canvas.itemconfigure(self.window, width=ancho)
         self.canvas.coords(
@@ -248,6 +265,7 @@ class TextureGallery(ttk.Frame):
         )
 
     def _canvas_resized(self, event):
+        self.name_label.configure(wraplength=max(80, event.width - 8))
         self._centrar()
 
     def _mousewheel(self, event):
@@ -306,7 +324,7 @@ class TextureGallery(ttk.Frame):
         )
         ttk.Label(
             panel,
-            text=name,
+            text=self.names.get(name, name),
             anchor="center",
             wraplength=preview_width - 32,
             font=(root._sims_font_family, 11, "bold"),
@@ -322,7 +340,9 @@ class TextureGallery(ttk.Frame):
         self.preview_photo = ImageTk.PhotoImage(image, master=root)
         area = ttk.Frame(panel)
         area.pack(fill="both", expand=True)
-        ttk.Label(area, image=self.preview_photo).place(relx=0.5, rely=0.5, anchor="center")
+        ttk.Label(area, image=self.preview_photo).place(
+            relx=0.5, rely=0.5, anchor="center"
+        )
         self.preview_window.lift()
         self.preview_window.focus_force()
         # Se recorta al final, cuando la ventana ya tiene su tamaño real.
@@ -344,6 +364,7 @@ class TextureGallery(ttk.Frame):
         # (abrir otra preview, cambiar de modelo) no deben tocar la seleccion.
         if clear_selection and self.selected_key:
             self.selected_key = ""
+            self.name_label.configure(text="")
             self._refresh_selection()
 
     def _preview_moved(self, _event=None):

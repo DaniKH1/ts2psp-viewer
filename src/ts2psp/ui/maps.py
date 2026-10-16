@@ -2,6 +2,7 @@
 
 import csv
 import io
+import json
 import math
 import queue
 import threading
@@ -14,9 +15,11 @@ from PIL import Image, ImageTk
 
 from ts2psp.ui.camera import CAMERA_HINT, OrbitController, Viewport
 import ts2psp.rendering.opengl as gl
-from ts2psp.rendering.props import prop_scene, render_prop
+from ts2psp.rendering.props import prop_scene, render_prop, without_vertex_colors
 from ts2psp.formats.props import parse_rdms, sections, write_rigid_glb
-from ts2psp.formats.surfaces import decode_surface
+from ts2psp.formats.prop_scene import level_prop_references
+from ts2psp.formats.materials import surface_textures
+from ts2psp.core.names import part_label, part_filename, texture_paths
 from ts2psp.ui.floating_button import FloatingButton
 from ts2psp.ui.textured_list import TexturedListbox, panel_redondeado
 from ts2psp.ui.texture_gallery import TextureGallery
@@ -59,16 +62,8 @@ SIN_RECORTAR = {
     "levels/deadtree/hub": ("pieza_292", "pieza_293"),
 }
 
-# Las piezas que el nivel coloca al cargar y no al leer.
-#
-# El juego pone el mobiliario del solar (camas, neveras, butacas, alfombras)
-# con un Lua de nivel, no con coordenadas en el .res: la cabecera rdms de esas
-# piezas trae el origen a cero y se dibujan todas amontonadas en el centro del
-# solar. Se comprueba pieza a pieza en los 21 niveles: en el cuartel son 154 de
-# 304 con el origen a menos de 1, y el menu principal solo 3 de 413, que es
-# justo el unico nivel que se veia bien.
-#
-# No se borran: el boton del visor las vuelve a ensenar.
+# Legacy compression-origin diagnostic. NODE references, rather than RDMS
+# origins, determine whether a prop has an authored placement.
 SIN_COLOCAR = 1.0
 
 # Tamano de la columna de la izquierda. La lista va al ancho de la galeria de
@@ -83,12 +78,7 @@ MARGEN_CAPAS = 9
 
 
 def es_sin_colocar(part):
-    """Si la pieza llega al recurso sin sitio: su cabecera rdms la deja en el centro.
-
-    Esto ya no aparta nada del dibujo. Se queda como detector porque el filtro
-    escondia muebles que si estan colocados, y mientras se estuvo aplicando no
-    se podia saber cuales eran: lo que no se ve, no se comprueba.
-    """
+    """Legacy origin diagnostic, never a visibility or placement filter."""
     origen = part.get("origin")
     if origen is None:
         return False
@@ -101,9 +91,7 @@ def es_cupula(part):
     if len(vertices) != CUPULA_VERTICES:
         return False
     puntos = [v[0] for v in vertices]
-    lado = max(
-        max(p[k] for p in puntos) - min(p[k] for p in puntos) for k in range(3)
-    )
+    lado = max(max(p[k] for p in puntos) - min(p[k] for p in puntos) for k in range(3))
     return abs(lado - CUPULA_LADO) <= CUPULA_LADO * CUPULA_TOLERANCIA
 
 
@@ -189,7 +177,6 @@ class MapTab(ttk.Frame):
     _cache = None
     objeto = None
     objeto_key = None
-    _carga_color = False
     _resumen = ""
     ocultas = frozenset()
 
@@ -218,11 +205,12 @@ class MapTab(ttk.Frame):
         # Estas cuatro ya no tienen casilla: la cupula y el mobiliario sin
         # colocar se quedan fuera a proposito, las texturas se ven siempre y el
         # recorte de caras traseras va activo. Los colores de vertice siguen
-        # teniendo su boton flotante, que es la unica opcion que cambia el
-        # parseo y obliga a recargar el nivel.
+        # teniendo su boton flotante; se conservan en memoria incluso apagados.
         self.show_sky = tk.BooleanVar(value=True)
         self.show_unplaced = tk.BooleanVar(value=False)
         self.vertex_colors = tk.BooleanVar(value=False)
+        self.vertex_fill = tk.DoubleVar(value=50.0)
+        self._lighting_dialog = None
         self.show_textures = tk.BooleanVar(value=True)
         self.culling = tk.BooleanVar(value=True)
         left = ttk.Frame(self)
@@ -302,12 +290,11 @@ class MapTab(ttk.Frame):
         self.floating_buttons = []
         self.camera.ignores = self._over_floating_button
         self.export_button = self._floating_button("Export as...", self.export_as)
-        self.recenter_button = self._floating_button(
-            "Reset view", self.camera.reset
-        )
+        self.recenter_button = self._floating_button("Reset view", self.camera.reset)
         self.vertex_button = self._floating_button(
             "Vertex Colors", self.toggle_vertex_colors
         )
+        self.lighting_button = self._floating_button("Lighting…", self.show_lighting)
         self.layers_button = self._floating_button("Layers", self.toggle_layers_panel)
         self.grid_button = self._floating_button(
             "Grid", self.toggle_grid, selected=True
@@ -403,6 +390,10 @@ class MapTab(ttk.Frame):
         # Reset view en la derecha, en la fila de debajo y pegado al mismo borde
         # que Grid, que es donde se busca cuando se ha descolocado la camara.
         self.recenter_button.place(width - 10 - self.recenter_button.reqwidth, 50)
+        self.lighting_button.place(
+            width - 22 - self.recenter_button.reqwidth - self.lighting_button.reqwidth,
+            50,
+        )
         self._colocar_panel_capas()
 
     def toggle_grid(self):
@@ -727,16 +718,69 @@ class MapTab(ttk.Frame):
             self._colocar_panel_capas()
 
     def toggle_vertex_colors(self):
-        """El boton flotante de los colores de vertice: recargan el nivel entero."""
+        """Change cached shading; keep geometry, textures, layers and camera."""
         self.vertex_colors.set(not self.vertex_colors.get())
         self.vertex_button.set_selected(self.vertex_colors.get())
-        self.reload()
+        self.schedule()
+
+    def show_lighting(self):
+        if self._lighting_dialog is not None and self._lighting_dialog.winfo_exists():
+            self._lighting_dialog.lift()
+            return
+        dialog = tk.Toplevel(self)
+        self._lighting_dialog = dialog
+        dialog.title("Map preview lighting")
+        dialog.transient(self.winfo_toplevel())
+        dialog.resizable(False, False)
+        content = ttk.Frame(dialog, padding=16)
+        content.pack(fill="both", expand=True)
+
+        def changed(_value=None):
+            level.configure(text=f"Ambient fill: {self.vertex_fill.get():.0f}%")
+            self.vertex_button.set_selected(self.vertex_colors.get())
+            self.schedule()
+
+        ttk.Checkbutton(
+            content, text="Vertex Colors", variable=self.vertex_colors, command=changed
+        ).pack(anchor="w")
+        level = ttk.Label(content)
+        level.pack(anchor="w", pady=(12, 4))
+        ttk.Scale(
+            content,
+            from_=0,
+            to=100,
+            variable=self.vertex_fill,
+            command=changed,
+            length=320,
+        ).pack(fill="x")
+        ttk.Label(
+            content,
+            text="0% shows the stored colors exactly.\nFill light affects the preview only; exports keep source colors.",
+            wraplength=340,
+        ).pack(anchor="w", pady=12)
+        buttons = ttk.Frame(content)
+        buttons.pack(fill="x")
+
+        def preset(value):
+            self.vertex_fill.set(value)
+            changed()
+
+        ttk.Button(buttons, text="Source (0%)", command=lambda: preset(0)).pack(
+            side="left"
+        )
+        ttk.Button(buttons, text="Reset (50%)", command=lambda: preset(50)).pack(
+            side="left", padx=8
+        )
+        ttk.Button(buttons, text="Close", command=dialog.destroy).pack(side="right")
+        changed()
 
     def _filas_de_capas(self):
         filas = []
         for part in self.parts:
             marca = " " if part["name"] in self.ocultas else "x"
-            filas.append(f"[{marca}] {part['name']} · {len(part['vertices'])} verts")
+            filas.append(
+                f"[{marca}] {part_label(part)} · {len(part['vertices'])} verts"
+            )
         return filas
 
     def _alternar_capa(self, index):
@@ -775,15 +819,16 @@ class MapTab(ttk.Frame):
         elegido = tk.StringVar(value="glb")
         contenido = ttk.Frame(dialog, padding=16)
         contenido.pack(fill="both", expand=True)
-        ttk.Label(
-            contenido, text=f"Export {self.current['ruta_interna']} as:"
-        ).pack(anchor="w", pady=(0, 8))
+        ttk.Label(contenido, text=f"Export {self.current['ruta_interna']} as:").pack(
+            anchor="w", pady=(0, 8)
+        )
         for etiqueta, valor in (
             ("Every 3D piece as GLB (.glb)", "glb"),
             ("The selected piece as GLB (.glb)", "parte_glb"),
             ("The selected piece as FBX (.fbx) — needs Blender", "parte_fbx"),
             ("The original map file (.res)", "res"),
             ("All the textures as a ZIP", "texturas"),
+            ("Prop placement references (.json)", "placements"),
         ):
             ttk.Radiobutton(
                 contenido, text=etiqueta, value=valor, variable=elegido
@@ -814,6 +859,31 @@ class MapTab(ttk.Frame):
             self.export_res()
         elif destino == "texturas":
             self.export_textures()
+        elif destino == "placements":
+            self.export_placements()
+
+    def export_placements(self):
+        if not self.current or self.data is None:
+            return
+        target = filedialog.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[("JSON", "*.json")],
+            initialfile=self.current["ruta_interna"].rsplit("/", 1)[-1] + "_props.json",
+        )
+        if not target:
+            return
+        try:
+            report = {
+                "map": self.current["ruta_interna"],
+                "coordinates": "PSP: X/Y ground, Z up; column-vector matrices, row-major JSON",
+                "note": "Authored references; game scripts may select alternate states or move objects.",
+                "references": level_prop_references(self.data, sections(self.data)),
+            }
+            Path(target).write_text(
+                json.dumps(report, indent=2) + "\n", encoding="utf-8"
+            )
+        except Exception as exc:
+            messagebox.showerror("Export prop placements", str(exc))
 
     def select_map(self, _event=None):
         """Elige un mapa. Parsearlo va en un hilo salvo que ya este cacheado.
@@ -835,17 +905,11 @@ class MapTab(ttk.Frame):
             return
         if self._carga_entrada == row["entry"]:
             return  # este mapa ya esta cargandose
-        if self._cache is not None and self._cache[0] == self._clave_de_cache():
+        if self._cache is not None and self._cache[0] == row["entry"]:
             _, data, parts, rejected = self._cache
             self._aplicar_mapa(row, data, parts, rejected)
             return
         self._empezar_carga(row)
-
-    def _clave_de_cache(self):
-        """La cache del ultimo mapa, con los ajustes que cambian el parseo."""
-        if self.current is None:
-            return None
-        return (self.current["entry"], self.vertex_colors.get())
 
     def reload(self, _event=None):
         """Vuelve a parsear el mapa actual, para cuando cambia una opcion."""
@@ -874,7 +938,6 @@ class MapTab(ttk.Frame):
         self.status.configure(text=f'{row["ruta_interna"]}: loading...')
         path = self.app.paths["maps"]
         archivo = row["archivo_zip"]
-        con_color = self._carga_color = self.vertex_colors.get()
 
         def work():
             try:
@@ -883,7 +946,7 @@ class MapTab(ttk.Frame):
                 parts, rejected = parse_rdms(
                     data,
                     apply_scene=True,
-                    vertex_colors=con_color,
+                    vertex_colors=True,
                     # La ruta hace falta para las excepciones que van por nivel,
                     # como las piezas a las que hay que dar la vuelta a las caras.
                     ruta=row["ruta_interna"],
@@ -903,7 +966,9 @@ class MapTab(ttk.Frame):
         if self.disposed or self._carga_cola is None:
             return
         try:
-            generacion, row, data, parts, rejected, error = self._carga_cola.get_nowait()
+            generacion, row, data, parts, rejected, error = (
+                self._carga_cola.get_nowait()
+            )
         except queue.Empty:
             self._carga_poll = self.after(50, self._poll_carga)
             return
@@ -915,7 +980,7 @@ class MapTab(ttk.Frame):
             return
         if generacion != self._carga_generacion:
             return  # mientras cargaba se eligio otro mapa: este ya no vale
-        self._cache = (row["entry"], self._carga_color, data, parts, rejected)
+        self._cache = (row["entry"], data, parts, rejected)
         self._aplicar_mapa(row, data, parts, rejected)
 
     def _aplicar_mapa(self, row, data, parts, rejected):
@@ -951,18 +1016,17 @@ class MapTab(ttk.Frame):
                 if part.get("texture") and part["texture"][1]
             }
         )
-        sin_colocar = sum(1 for p in self.parts if es_sin_colocar(p))
+        instances = {
+            p.get("placement_node") for p in self.parts if p.get("placement_node")
+        }
         self._resumen = (
             f'{row["ruta_interna"]} · {len(self.parts)} RDMS parts · '
             f'{row["terrenos"]} TERN sections · '
             f'{row["superficies"]} surfaces · '
             f"{len(rejected)} skipped parts"
         )
-        if sin_colocar:
-            self._resumen += (
-                f" · {sin_colocar} pieces with no place in the file, drawn where "
-                f"the resource leaves them"
-            )
+        if instances:
+            self._resumen += f" · {len(instances)} placed prop instances"
         self._avisar_capas()
         # No se elige ninguna pieza: el visor pinta el mapa entero, asi que
         # escolher la mas grande solo tapaba el resumen con el nombre de una
@@ -976,11 +1040,16 @@ class MapTab(ttk.Frame):
         part = self.selected_part()
         if part:
             self.status.configure(
-                text=f'{self.current["ruta_interna"]} · {part["name"]} · '
+                text=f'{self.current["ruta_interna"]} · {part_label(part)} · '
                 f'{len(part["vertices"])} vertices · '
                 f'{len(part["indices"]) // 3} triangles · '
                 f'{"texture" if part["texture"] else "no texture"} · '
                 f'{"Vertex Color" if any(v[3] is not None for v in part["vertices"]) else "no vertex colors"}'
+                + (
+                    f' · {part["resource_path"]} · {part["placement_node"]}'
+                    if part.get("resource_path")
+                    else ""
+                )
             )
             self.schedule()
 
@@ -1105,6 +1174,9 @@ class MapTab(ttk.Frame):
                     sin_framing=self.nombres_del_cielo(),
                 )
                 self.objeto_key = key
+            self.objeto.fijar_vertex_colors(
+                self.vertex_colors.get(), self.vertex_fill.get() / 100
+            )
             self.objeto.sin_mallas = False
             # Las apagadas se marcan por nombre y la escena las busca una vez.
             self.objeto.ocultas_mallas = frozenset(
@@ -1169,7 +1241,7 @@ class MapTab(ttk.Frame):
         part = self.selected_part()
         if not part:
             return
-        name = f'{Path(self.current["ruta_interna"]).name}_{part["name"]}.{fmt}'
+        name = f'{Path(self.current["ruta_interna"]).name}_{part_filename(part)}.{fmt}'
         target = filedialog.asksaveasfilename(
             defaultextension="." + fmt,
             initialfile=name,
@@ -1182,7 +1254,7 @@ class MapTab(ttk.Frame):
             if fmt == "fbx" and not blender:
                 return
             glb = self.app.cache / "map_piece.glb" if blender else target
-            write_rigid_glb([part], name, glb)
+            write_rigid_glb(self._export_parts([part]), name, glb)
             if blender:
                 self.fbx_export(glb, target, blender)
             self.status.configure(text=f"Part saved: {target}")
@@ -1218,13 +1290,16 @@ class MapTab(ttk.Frame):
             with zipfile.ZipFile(
                 target, "w", compression=zipfile.ZIP_DEFLATED
             ) as output:
-                for i, (tag, off, size, _, _) in enumerate(sections(self.data)):
-                    if tag != b"surf":
-                        continue
-                    png = decode_surface(self.data, off, size)
-                    if png:
-                        output.writestr(f"surface_{i:04d}.png", png)
-                        count += 1
+                textures = {
+                    texture[0]: texture[1]
+                    for _, texture, _ in surface_textures(
+                        self.data, sections(self.data)
+                    )
+                    if texture
+                }
+                for key, path in texture_paths(textures).items():
+                    output.writestr(path, textures[key])
+                    count += 1
             self.status.configure(text=f"{count} PNG textures saved: {target}")
         except Exception as exc:
             messagebox.showerror("Extract textures", str(exc))
@@ -1241,13 +1316,18 @@ class MapTab(ttk.Frame):
         if not target:
             return
         try:
-            write_rigid_glb(self.parts, self.current["ruta_interna"], target)
+            write_rigid_glb(
+                self._export_parts(self.parts), self.current["ruta_interna"], target
+            )
             self.status.configure(
                 text=f"{len(self.parts)} GLB parts saved without "
                 f"global placement: {target}"
             )
         except Exception as exc:
             messagebox.showerror("Export map parts", str(exc))
+
+    def _export_parts(self, parts):
+        return parts if self.vertex_colors.get() else without_vertex_colors(parts)
 
     def dispose(self):
         self.disposed = True

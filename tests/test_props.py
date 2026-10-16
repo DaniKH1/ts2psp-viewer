@@ -105,17 +105,15 @@ class PropResourceTests(unittest.TestCase):
         parts, rejected = parse_rdms(self.resource("fx_bookcase_newlow"))
         self.assertFalse(rejected)
         self.assertEqual(
-            {part["texture"][0] for part in parts}, {"surface_0", "surface_1"}
+            {part["texture"][0] for part in parts},
+            {
+                "objects/bookcases/bookcasebooks-texture.tif",
+                "objects/bookcases/bookcasecheap-mahogany.tif",
+            },
         )
 
     def test_wide_index_buffers_are_read_at_their_real_width(self):
-        """Un rdms con 8 bits de indice no puede tener mas de 128 vertices.
-
-        El fx_fallenbookcase declara indices de un byte en el vtype y tiene 256
-        vertices, que no caben: leidos a un byte solo llegaban a 127 y la mitad de
-        la malla se quedaba sin usar. La tira salia descosida, con triangulos
-        que cruzaban la pieza entera y la estanteria se veia como una plancha.
-        """
+        """The bookcase's index allocation is U16 despite its U8 VTYPE."""
         for name in ("fx_fallenbookcase", "fx_fallenbookcase02", "fx_fallenbookcase03"):
             with self.subTest(prop=name):
                 parts, rejected = parse_rdms(self.resource(name))
@@ -129,7 +127,9 @@ class PropResourceTests(unittest.TestCase):
                 )
                 # Y ningun triangulo puede medir mas que la diagonal de la pieza.
                 points = np.array([v[0] for v in carcass["vertices"]])
-                diagonal = float(np.linalg.norm(points.max(axis=0) - points.min(axis=0)))
+                diagonal = float(
+                    np.linalg.norm(points.max(axis=0) - points.min(axis=0))
+                )
                 longest = 0.0
                 idx = carcass["indices"]
                 for t in range(0, len(idx), 3):
@@ -152,11 +152,13 @@ class PropResourceTests(unittest.TestCase):
         donde mas se nota.
         """
         secciones = node_hierarchies(
-            self.resource("fx_stereoboombox"), sections(self.resource("fx_stereoboombox"))
+            self.resource("fx_stereoboombox"),
+            sections(self.resource("fx_stereoboombox")),
         )
         self.assertGreater(len(secciones), 1, "el fixture deberia traer varias")
         piezas, rechazadas = parse_rdms(
-            self.resource("fx_stereoboombox"), apply_scene=True,
+            self.resource("fx_stereoboombox"),
+            apply_scene=True,
             ruta="objects/stereos/fx_stereoboombox",
         )
         self.assertFalse(rechazadas)

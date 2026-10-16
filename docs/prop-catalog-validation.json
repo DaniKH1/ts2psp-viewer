@@ -2,8 +2,8 @@
   "props": 767,
   "surfaces": 1619,
   "joint_nodes": 22,
-  "helper_parts": 356,
-  "textured_parts": 3977,
+  "helper_parts": 352,
+  "textured_parts": 3994,
   "solid_color_parts": 503,
   "mixed_wrap_props": 185,
   "errors": [],
@@ -16,6 +16,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.233347955381344,
@@ -37,6 +39,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.41796875,
@@ -58,6 +62,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.09384765764843905,
@@ -79,6 +85,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.01404259407755895,
@@ -100,6 +108,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.1207557934757636,
@@ -121,6 +131,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.1171875,
@@ -142,6 +154,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.1403515338897705,
@@ -163,6 +177,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.02984625895393273,
@@ -184,6 +200,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.036406250851657385,
@@ -205,6 +223,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.06898914882288444,
@@ -226,6 +246,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.07944387849420309,
@@ -247,6 +269,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.037237264681607485,
@@ -268,6 +292,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0054293055670774845,
@@ -289,6 +315,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.1672158855732509,
@@ -310,6 +338,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.2335450503311534,
@@ -331,6 +361,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.09625841106335487,
@@ -352,6 +384,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.08984374773759399,
@@ -373,6 +407,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.16378855976977472,
@@ -394,6 +430,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.1044921875,
@@ -415,6 +453,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.09344863855789076,
@@ -436,6 +476,8 @@
       "helper_parts": 0,
       "textured_parts": 24,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.03417968865101133,
@@ -457,6 +499,8 @@
       "helper_parts": 0,
       "textured_parts": 24,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.20146860561838903,
@@ -478,6 +522,8 @@
       "helper_parts": 0,
       "textured_parts": 24,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0947265625,
@@ -499,16 +545,18 @@
       "helper_parts": 0,
       "textured_parts": 18,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.04875781247392297,
           -0.04084375128149997,
-          -0.0329996757209301
+          -0.011507812887430191
         ],
         [
           0.05475781252607703,
           0.24919531121850003,
-          0.12814811244606972
+          0.08008135163661004
         ]
       ]
     },
@@ -520,6 +568,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.04562497138977051,
@@ -541,6 +591,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.033203125,
@@ -562,6 +614,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.076171875,
@@ -583,6 +637,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.111328125,
@@ -604,6 +660,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.3544921875,
@@ -625,6 +683,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.1103515625,
@@ -646,6 +706,8 @@
       "helper_parts": 0,
       "textured_parts": 8,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.1103515625,
@@ -667,6 +729,8 @@
       "helper_parts": 0,
       "textured_parts": 8,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.1103515625,
@@ -688,6 +752,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.1103515625,
@@ -709,6 +775,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.1103515625,
@@ -730,6 +798,8 @@
       "helper_parts": 0,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1240234375,
@@ -751,6 +821,8 @@
       "helper_parts": 0,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1240234375,
@@ -772,6 +844,8 @@
       "helper_parts": 0,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1240234375,
@@ -793,6 +867,8 @@
       "helper_parts": 0,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1240234375,
@@ -814,6 +890,8 @@
       "helper_parts": 0,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1240234375,
@@ -835,6 +913,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0696729628513157,
@@ -856,6 +936,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0243574054287097,
@@ -877,6 +959,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.333,
@@ -898,6 +982,8 @@
       "helper_parts": 6,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.3251953125,
@@ -919,6 +1005,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.150390625,
@@ -940,6 +1028,8 @@
       "helper_parts": 0,
       "textured_parts": 8,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -1.5,
@@ -961,6 +1051,10 @@
       "helper_parts": 0,
       "textured_parts": 0,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [
+        "Source template has no bitmap or UV coordinates"
+      ],
       "bounds": [
         [
           -0.04296875,
@@ -982,6 +1076,8 @@
       "helper_parts": 0,
       "textured_parts": 8,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.025390564043101162,
@@ -1003,6 +1099,8 @@
       "helper_parts": 0,
       "textured_parts": 8,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.025390585296667215,
@@ -1024,6 +1122,8 @@
       "helper_parts": 0,
       "textured_parts": 8,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.025390585296667215,
@@ -1043,8 +1143,12 @@
       "format": "rdms",
       "parts": 4,
       "helper_parts": 0,
-      "textured_parts": 3,
-      "solid_color_parts": 1,
+      "textured_parts": 4,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           -0.0537109375,
@@ -1064,8 +1168,12 @@
       "format": "rdms",
       "parts": 4,
       "helper_parts": 0,
-      "textured_parts": 3,
-      "solid_color_parts": 1,
+      "textured_parts": 4,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           -4.3495275552874636e-08,
@@ -1085,8 +1193,12 @@
       "format": "rdms",
       "parts": 4,
       "helper_parts": 0,
-      "textured_parts": 3,
-      "solid_color_parts": 1,
+      "textured_parts": 4,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           -4.3495275552874636e-08,
@@ -1106,8 +1218,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 4,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.14837495244676785,
@@ -1127,8 +1243,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 4,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.28415620765135147,
@@ -1148,8 +1268,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 4,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.14837495244676785,
@@ -1169,8 +1293,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 4,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.19589636848124098,
@@ -1190,8 +1318,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 4,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.2841562076892815,
@@ -1211,8 +1343,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 4,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.1750903072107722,
@@ -1232,8 +1368,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 4,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.14837495244676785,
@@ -1253,8 +1393,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 4,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           -0.02693755378220358,
@@ -1274,8 +1418,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 4,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           -0.02693755378220358,
@@ -1295,8 +1443,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 4,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           -0.02693755378220358,
@@ -1316,8 +1468,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 4,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.12446870158246101,
@@ -1337,8 +1493,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 4,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.14837495244676785,
@@ -1358,8 +1518,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 4,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.28415620765135147,
@@ -1379,8 +1543,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 4,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.12446870158246101,
@@ -1400,8 +1568,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 4,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.14837495244676785,
@@ -1421,8 +1593,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 4,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.12446870158246101,
@@ -1442,8 +1618,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 4,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.28415620765135147,
@@ -1463,8 +1643,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 4,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.28415620765135147,
@@ -1484,8 +1668,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 4,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.28415620765135147,
@@ -1505,8 +1693,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 4,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.28415620765135147,
@@ -1526,8 +1718,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 4,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.17673432518114335,
@@ -1547,8 +1743,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 4,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.2216562032972873,
@@ -1568,8 +1768,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 4,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.28415620765135147,
@@ -1589,8 +1793,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 4,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.2695077691268658,
@@ -1612,6 +1820,8 @@
       "helper_parts": 0,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.08313326452314211,
@@ -1633,6 +1843,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.060546875,
@@ -1654,6 +1866,8 @@
       "helper_parts": 0,
       "textured_parts": 23,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.063,
@@ -1675,6 +1889,8 @@
       "helper_parts": 0,
       "textured_parts": 23,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.063,
@@ -1696,6 +1912,8 @@
       "helper_parts": 0,
       "textured_parts": 23,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.063,
@@ -1717,6 +1935,8 @@
       "helper_parts": 0,
       "textured_parts": 23,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.063,
@@ -1738,6 +1958,8 @@
       "helper_parts": 0,
       "textured_parts": 14,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.058,
@@ -1759,6 +1981,8 @@
       "helper_parts": 0,
       "textured_parts": 14,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.058,
@@ -1780,6 +2004,8 @@
       "helper_parts": 0,
       "textured_parts": 14,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.058,
@@ -1801,6 +2027,8 @@
       "helper_parts": 0,
       "textured_parts": 14,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.058,
@@ -1822,6 +2050,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0615234375,
@@ -1843,6 +2073,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 2,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.130859375,
@@ -1864,6 +2096,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 2,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.130859375,
@@ -1885,6 +2119,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0615234375,
@@ -1906,6 +2142,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 2,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0615234375,
@@ -1927,6 +2165,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 2,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0615234375,
@@ -1948,6 +2188,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0615234375,
@@ -1969,6 +2211,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 2,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0615234375,
@@ -1990,6 +2234,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 2,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0615234375,
@@ -2011,6 +2257,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0615234375,
@@ -2032,6 +2280,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 2,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0615234375,
@@ -2053,6 +2303,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 2,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0615234375,
@@ -2074,6 +2326,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.10546875,
@@ -2095,6 +2349,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.056640625,
@@ -2116,6 +2372,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 2,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.056640625,
@@ -2137,6 +2395,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 2,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.056640625,
@@ -2158,6 +2418,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.056640625,
@@ -2179,6 +2441,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 2,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.056640625,
@@ -2200,6 +2464,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 2,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.056640625,
@@ -2221,6 +2487,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.056640625,
@@ -2242,6 +2510,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 2,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.056640625,
@@ -2263,6 +2533,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 2,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.056640625,
@@ -2284,6 +2556,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.056640625,
@@ -2305,6 +2579,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 2,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.056640625,
@@ -2326,6 +2602,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 2,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.056640625,
@@ -2347,6 +2625,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.479,
@@ -2368,6 +2648,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.115234375,
@@ -2389,6 +2671,8 @@
       "helper_parts": 1,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.03247630596160889,
@@ -2410,6 +2694,8 @@
       "helper_parts": 1,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.03247630596160889,
@@ -2431,6 +2717,8 @@
       "helper_parts": 1,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.03247630596160889,
@@ -2452,6 +2740,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.027094006538391113,
@@ -2473,6 +2763,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.027094006538391113,
@@ -2494,6 +2786,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.027094006538391113,
@@ -2515,6 +2809,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           9.46484375,
@@ -2536,6 +2832,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           9.46484375,
@@ -2557,6 +2855,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           9.46484375,
@@ -2578,6 +2878,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.08785158395767212,
@@ -2599,6 +2901,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.08785158395767212,
@@ -2620,6 +2924,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.08785158395767212,
@@ -2641,6 +2947,8 @@
       "helper_parts": 1,
       "textured_parts": 4,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.5400390625,
@@ -2662,6 +2970,8 @@
       "helper_parts": 1,
       "textured_parts": 4,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.5400390625,
@@ -2683,6 +2993,8 @@
       "helper_parts": 1,
       "textured_parts": 4,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.5400390625,
@@ -2704,6 +3016,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -1.5654296875,
@@ -2725,6 +3039,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -1.5654296875,
@@ -2746,6 +3062,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -1.5654296875,
@@ -2767,6 +3085,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0498046875,
@@ -2788,6 +3108,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.1171875,
@@ -2809,6 +3131,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0537109375,
@@ -2830,6 +3154,8 @@
       "helper_parts": 0,
       "textured_parts": 8,
       "solid_color_parts": 3,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -2.528113160005112,
@@ -2851,6 +3177,8 @@
       "helper_parts": 0,
       "textured_parts": 68,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.5149674546251504,
@@ -2872,6 +3200,8 @@
       "helper_parts": 0,
       "textured_parts": 10,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -7.1982421875,
@@ -2893,6 +3223,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.95703125,
@@ -2914,6 +3246,8 @@
       "helper_parts": 0,
       "textured_parts": 19,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -3.1235473811024006,
@@ -2935,6 +3269,8 @@
       "helper_parts": 0,
       "textured_parts": 9,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.191372603199852,
@@ -2956,6 +3292,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0419921875,
@@ -2977,6 +3315,8 @@
       "helper_parts": 0,
       "textured_parts": 51,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1015625,
@@ -2998,6 +3338,10 @@
       "helper_parts": 3,
       "textured_parts": 12,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [
+        "Source placeholder replaced with the object's ISO bitmap"
+      ],
       "bounds": [
         [
           -0.0849609375,
@@ -3019,6 +3363,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.224609375,
@@ -3040,6 +3386,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.2451171875,
@@ -3061,6 +3409,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.13671875,
@@ -3082,6 +3432,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.13671875,
@@ -3103,6 +3455,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1650390625,
@@ -3124,6 +3478,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1650390625,
@@ -3145,6 +3501,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1650390625,
@@ -3166,6 +3524,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1650390625,
@@ -3187,6 +3547,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1650390625,
@@ -3208,6 +3570,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1650390625,
@@ -3229,6 +3593,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1650390625,
@@ -3250,6 +3616,8 @@
       "helper_parts": 0,
       "textured_parts": 16,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.03125,
@@ -3271,6 +3639,8 @@
       "helper_parts": 0,
       "textured_parts": 16,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.03125,
@@ -3292,6 +3662,8 @@
       "helper_parts": 0,
       "textured_parts": 16,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.03125,
@@ -3313,6 +3685,8 @@
       "helper_parts": 0,
       "textured_parts": 16,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.03125,
@@ -3334,6 +3708,8 @@
       "helper_parts": 0,
       "textured_parts": 16,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.03125,
@@ -3355,6 +3731,8 @@
       "helper_parts": 0,
       "textured_parts": 16,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.03125,
@@ -3376,6 +3754,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.013671875,
@@ -3397,6 +3777,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.013671875,
@@ -3418,6 +3800,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.013671875,
@@ -3439,6 +3823,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.013671875,
@@ -3460,6 +3846,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.013671875,
@@ -3481,6 +3869,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.012634150683879852,
@@ -3502,6 +3892,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1650390625,
@@ -3523,6 +3915,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1650390625,
@@ -3544,6 +3938,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1650390625,
@@ -3565,6 +3961,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1650390625,
@@ -3586,6 +3984,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1650390625,
@@ -3607,6 +4007,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1650390625,
@@ -3628,6 +4030,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.2333984375,
@@ -3649,6 +4053,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1650390625,
@@ -3670,6 +4076,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1650390625,
@@ -3691,6 +4099,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1650390625,
@@ -3712,6 +4122,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1650390625,
@@ -3733,6 +4145,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1650390625,
@@ -3754,6 +4168,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1650390625,
@@ -3775,6 +4191,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0048828125,
@@ -3796,6 +4214,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0048828125,
@@ -3817,6 +4237,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0048828125,
@@ -3838,6 +4260,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0048828125,
@@ -3859,6 +4283,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0048828125,
@@ -3880,6 +4306,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.064453125,
@@ -3901,6 +4329,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.064453125,
@@ -3922,6 +4352,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.064453125,
@@ -3943,6 +4375,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.064453125,
@@ -3964,6 +4398,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.064453125,
@@ -3985,6 +4421,8 @@
       "helper_parts": 0,
       "textured_parts": 14,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.046875,
@@ -4006,6 +4444,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1376953125,
@@ -4027,6 +4467,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1376953125,
@@ -4048,6 +4490,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0361328125,
@@ -4069,6 +4513,8 @@
       "helper_parts": 0,
       "textured_parts": 22,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0712890625,
@@ -4090,6 +4536,8 @@
       "helper_parts": 0,
       "textured_parts": 22,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0712890625,
@@ -4111,6 +4559,8 @@
       "helper_parts": 0,
       "textured_parts": 22,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0712890625,
@@ -4132,6 +4582,8 @@
       "helper_parts": 0,
       "textured_parts": 10,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -4153,6 +4605,8 @@
       "helper_parts": 0,
       "textured_parts": 10,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -4174,6 +4628,8 @@
       "helper_parts": 0,
       "textured_parts": 10,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -4195,6 +4651,8 @@
       "helper_parts": 0,
       "textured_parts": 19,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0517578125,
@@ -4216,6 +4674,8 @@
       "helper_parts": 0,
       "textured_parts": 19,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0517578125,
@@ -4237,6 +4697,8 @@
       "helper_parts": 0,
       "textured_parts": 19,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0517578125,
@@ -4258,6 +4720,8 @@
       "helper_parts": 0,
       "textured_parts": 10,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -4279,6 +4743,8 @@
       "helper_parts": 0,
       "textured_parts": 10,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -4300,6 +4766,8 @@
       "helper_parts": 0,
       "textured_parts": 10,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -4321,6 +4789,8 @@
       "helper_parts": 0,
       "textured_parts": 18,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0517578125,
@@ -4342,6 +4812,8 @@
       "helper_parts": 0,
       "textured_parts": 18,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0517578125,
@@ -4363,6 +4835,8 @@
       "helper_parts": 0,
       "textured_parts": 18,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0517578125,
@@ -4384,6 +4858,8 @@
       "helper_parts": 0,
       "textured_parts": 22,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0712890625,
@@ -4405,6 +4881,8 @@
       "helper_parts": 0,
       "textured_parts": 22,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0712890625,
@@ -4426,6 +4904,8 @@
       "helper_parts": 0,
       "textured_parts": 22,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0712890625,
@@ -4447,6 +4927,8 @@
       "helper_parts": 0,
       "textured_parts": 8,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1681799590587616,
@@ -4468,6 +4950,8 @@
       "helper_parts": 0,
       "textured_parts": 19,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0517578125,
@@ -4489,6 +4973,8 @@
       "helper_parts": 0,
       "textured_parts": 19,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0517578125,
@@ -4510,6 +4996,8 @@
       "helper_parts": 0,
       "textured_parts": 19,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0517578125,
@@ -4531,6 +5019,8 @@
       "helper_parts": 0,
       "textured_parts": 10,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -4552,6 +5042,8 @@
       "helper_parts": 0,
       "textured_parts": 10,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -4573,6 +5065,8 @@
       "helper_parts": 0,
       "textured_parts": 10,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -4594,6 +5088,8 @@
       "helper_parts": 0,
       "textured_parts": 22,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0712890625,
@@ -4615,6 +5111,8 @@
       "helper_parts": 0,
       "textured_parts": 22,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0712890625,
@@ -4636,6 +5134,8 @@
       "helper_parts": 0,
       "textured_parts": 22,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0712890625,
@@ -4657,6 +5157,8 @@
       "helper_parts": 0,
       "textured_parts": 10,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -4678,6 +5180,8 @@
       "helper_parts": 0,
       "textured_parts": 10,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -4699,6 +5203,8 @@
       "helper_parts": 0,
       "textured_parts": 10,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -4720,6 +5226,8 @@
       "helper_parts": 0,
       "textured_parts": 18,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0517578125,
@@ -4741,6 +5249,8 @@
       "helper_parts": 0,
       "textured_parts": 18,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0517578125,
@@ -4762,6 +5272,8 @@
       "helper_parts": 0,
       "textured_parts": 18,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0517578125,
@@ -4783,6 +5295,8 @@
       "helper_parts": 0,
       "textured_parts": 22,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0712890625,
@@ -4804,6 +5318,8 @@
       "helper_parts": 0,
       "textured_parts": 22,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0712890625,
@@ -4825,6 +5341,8 @@
       "helper_parts": 0,
       "textured_parts": 22,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0712890625,
@@ -4846,6 +5364,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0654296875,
@@ -4867,6 +5387,8 @@
       "helper_parts": 0,
       "textured_parts": 8,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.107421875,
@@ -4888,6 +5410,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1669921875,
@@ -4909,6 +5433,8 @@
       "helper_parts": 0,
       "textured_parts": 16,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0517578125,
@@ -4930,6 +5456,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.03417968796566129,
@@ -4951,6 +5479,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -3.9169921875,
@@ -4972,6 +5502,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -4993,6 +5525,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5014,6 +5548,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5035,6 +5571,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0712890625,
@@ -5056,6 +5594,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0712890625,
@@ -5077,6 +5617,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0712890625,
@@ -5098,6 +5640,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5119,6 +5663,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5140,6 +5686,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5161,6 +5709,8 @@
       "helper_parts": 0,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5182,6 +5732,8 @@
       "helper_parts": 0,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5203,6 +5755,8 @@
       "helper_parts": 0,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5224,6 +5778,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.4248046875,
@@ -5245,6 +5801,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.4248046875,
@@ -5266,6 +5824,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.4248046875,
@@ -5287,6 +5847,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5308,6 +5870,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5329,6 +5893,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5350,6 +5916,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5371,6 +5939,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5392,6 +5962,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5413,6 +5985,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.42578125,
@@ -5434,6 +6008,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.42578125,
@@ -5455,6 +6031,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.42578125,
@@ -5476,6 +6054,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5497,6 +6077,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5518,6 +6100,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5539,6 +6123,8 @@
       "helper_parts": 0,
       "textured_parts": 16,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5560,6 +6146,8 @@
       "helper_parts": 0,
       "textured_parts": 16,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5581,6 +6169,8 @@
       "helper_parts": 0,
       "textured_parts": 16,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5602,6 +6192,8 @@
       "helper_parts": 0,
       "textured_parts": 16,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5623,6 +6215,8 @@
       "helper_parts": 0,
       "textured_parts": 16,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5644,6 +6238,8 @@
       "helper_parts": 0,
       "textured_parts": 16,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5665,6 +6261,8 @@
       "helper_parts": 0,
       "textured_parts": 16,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5686,6 +6284,8 @@
       "helper_parts": 0,
       "textured_parts": 16,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5707,6 +6307,8 @@
       "helper_parts": 0,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0751953125,
@@ -5728,6 +6330,8 @@
       "helper_parts": 0,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0751953125,
@@ -5749,6 +6353,8 @@
       "helper_parts": 0,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0751953125,
@@ -5770,6 +6376,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 4,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5791,6 +6399,8 @@
       "helper_parts": 1,
       "textured_parts": 6,
       "solid_color_parts": 4,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5812,6 +6422,8 @@
       "helper_parts": 1,
       "textured_parts": 6,
       "solid_color_parts": 4,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5833,6 +6445,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0751953125,
@@ -5854,6 +6468,8 @@
       "helper_parts": 1,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0751953125,
@@ -5875,6 +6491,8 @@
       "helper_parts": 1,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0751953125,
@@ -5896,6 +6514,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0751953125,
@@ -5917,6 +6537,8 @@
       "helper_parts": 1,
       "textured_parts": 6,
       "solid_color_parts": 4,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5938,6 +6560,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 4,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5959,6 +6583,8 @@
       "helper_parts": 1,
       "textured_parts": 6,
       "solid_color_parts": 4,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -5980,6 +6606,8 @@
       "helper_parts": 1,
       "textured_parts": 6,
       "solid_color_parts": 4,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -6001,6 +6629,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 4,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -6022,6 +6652,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -8.01171875,
@@ -6043,6 +6675,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.325,
@@ -6064,6 +6698,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.3349609375,
@@ -6085,6 +6721,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0869140625,
@@ -6106,6 +6744,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.38085946440696716,
@@ -6127,6 +6767,8 @@
       "helper_parts": 0,
       "textured_parts": 14,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -2.570569038368807,
@@ -6148,6 +6790,8 @@
       "helper_parts": 0,
       "textured_parts": 14,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -4.626416206337555,
@@ -6169,6 +6813,8 @@
       "helper_parts": 0,
       "textured_parts": 14,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -2.570569038368807,
@@ -6190,6 +6836,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.20211149833014996,
@@ -6211,6 +6859,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -2.635,
@@ -6232,6 +6882,8 @@
       "helper_parts": 2,
       "textured_parts": 15,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1728515625,
@@ -6253,6 +6905,10 @@
       "helper_parts": 6,
       "textured_parts": 0,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [
+        "Source template has no bitmap or UV coordinates"
+      ],
       "bounds": [
         [
           0.3203125,
@@ -6274,6 +6930,10 @@
       "helper_parts": 6,
       "textured_parts": 0,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [
+        "Source template has no bitmap or UV coordinates"
+      ],
       "bounds": [
         [
           0.3203125,
@@ -6295,6 +6955,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0029296875,
@@ -6316,6 +6978,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0390625,
@@ -6337,6 +7001,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0390625,
@@ -6358,6 +7024,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0390625,
@@ -6379,6 +7047,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0390625,
@@ -6400,6 +7070,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0390625,
@@ -6421,6 +7093,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0390625,
@@ -6442,6 +7116,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0283203125,
@@ -6463,6 +7139,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.052734375,
@@ -6484,6 +7162,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.052734375,
@@ -6505,6 +7185,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.052734375,
@@ -6526,6 +7208,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.052734375,
@@ -6547,6 +7231,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.052734375,
@@ -6568,6 +7254,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.007,
@@ -6589,6 +7277,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.7265625,
@@ -6610,6 +7300,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.375,
@@ -6631,6 +7323,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.416686580348183,
@@ -6652,6 +7346,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.126953125,
@@ -6673,6 +7369,8 @@
       "helper_parts": 0,
       "textured_parts": 10,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0517578125,
@@ -6694,6 +7392,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -6715,6 +7415,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -6736,6 +7438,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -6757,6 +7461,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -6778,6 +7484,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -6799,6 +7507,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -6820,6 +7530,8 @@
       "helper_parts": 0,
       "textured_parts": 11,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0517578125,
@@ -6841,6 +7553,8 @@
       "helper_parts": 0,
       "textured_parts": 11,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0517578125,
@@ -6862,6 +7576,8 @@
       "helper_parts": 0,
       "textured_parts": 11,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0517578125,
@@ -6883,6 +7599,8 @@
       "helper_parts": 0,
       "textured_parts": 14,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0712890625,
@@ -6904,6 +7622,8 @@
       "helper_parts": 0,
       "textured_parts": 14,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0712890625,
@@ -6925,6 +7645,8 @@
       "helper_parts": 0,
       "textured_parts": 14,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0712890625,
@@ -6946,6 +7668,8 @@
       "helper_parts": 0,
       "textured_parts": 14,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0712890625,
@@ -6967,6 +7691,8 @@
       "helper_parts": 0,
       "textured_parts": 14,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0712890625,
@@ -6988,6 +7714,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.03758688223385692,
@@ -7009,6 +7737,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.13805198662858967,
@@ -7030,6 +7760,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.2672665925346163,
@@ -7051,6 +7783,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.06837751473464894,
@@ -7072,6 +7806,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.18749997616396286,
@@ -7093,6 +7829,8 @@
       "helper_parts": 6,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.3102865426335484,
@@ -7114,6 +7852,8 @@
       "helper_parts": 0,
       "textured_parts": 9,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0078125,
@@ -7135,6 +7875,8 @@
       "helper_parts": 0,
       "textured_parts": 9,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0078125,
@@ -7156,6 +7898,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.48250579833984375,
@@ -7177,6 +7921,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -7198,6 +7944,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.1669924259154137,
@@ -7219,6 +7967,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.1669924259154137,
@@ -7240,6 +7990,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.1669924259154137,
@@ -7261,6 +8013,8 @@
       "helper_parts": 0,
       "textured_parts": 12,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -7282,6 +8036,8 @@
       "helper_parts": 0,
       "textured_parts": 7,
       "solid_color_parts": 2,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.087890625,
@@ -7303,6 +8059,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0078125,
@@ -7324,6 +8082,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0078125,
@@ -7345,6 +8105,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0078125,
@@ -7366,6 +8128,8 @@
       "helper_parts": 1,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.4292439657479959,
@@ -7387,6 +8151,8 @@
       "helper_parts": 0,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -1.8779296875,
@@ -7408,6 +8174,8 @@
       "helper_parts": 0,
       "textured_parts": 10,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.00037696259009933897,
@@ -7429,6 +8197,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0017866561576490858,
@@ -7450,6 +8220,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.016166865825653076,
@@ -7471,6 +8243,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.138671875,
@@ -7492,6 +8266,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0341796875,
@@ -7513,6 +8289,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1796189537408891,
@@ -7534,6 +8312,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -1.76809424161911,
@@ -7555,6 +8335,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.126953125,
@@ -7576,6 +8358,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.011930073359654916,
@@ -7597,6 +8381,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.126953125,
@@ -7618,6 +8404,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.10576079432284508,
@@ -7639,6 +8427,8 @@
       "helper_parts": 0,
       "textured_parts": 8,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1210937741429915,
@@ -7660,6 +8450,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1210937741429915,
@@ -7681,6 +8473,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.001953125,
@@ -7702,6 +8496,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.00390625,
@@ -7723,6 +8519,8 @@
       "helper_parts": 0,
       "textured_parts": 10,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.091796875,
@@ -7744,6 +8542,8 @@
       "helper_parts": 0,
       "textured_parts": 9,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.053054485399179896,
@@ -7765,6 +8565,8 @@
       "helper_parts": 0,
       "textured_parts": 10,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.091796875,
@@ -7786,6 +8588,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0126953125,
@@ -7807,6 +8611,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0546875,
@@ -7828,6 +8634,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0546875,
@@ -7849,6 +8657,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0546875,
@@ -7870,6 +8680,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.24138169088791905,
@@ -7891,6 +8703,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.04483477900646403,
@@ -7912,6 +8726,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.3009765771119053,
@@ -7933,6 +8749,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.1533203125,
@@ -7954,6 +8772,8 @@
       "helper_parts": 0,
       "textured_parts": 10,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.5009765625,
@@ -7975,6 +8795,8 @@
       "helper_parts": 0,
       "textured_parts": 10,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.5009765625,
@@ -7996,6 +8818,8 @@
       "helper_parts": 4,
       "textured_parts": 9,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1982421875,
@@ -8017,6 +8841,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0458984375,
@@ -8038,6 +8864,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.23615264454530546,
@@ -8059,6 +8887,8 @@
       "helper_parts": 0,
       "textured_parts": 19,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.5849609375,
@@ -8080,6 +8910,8 @@
       "helper_parts": 0,
       "textured_parts": 19,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.5849609375,
@@ -8101,6 +8933,8 @@
       "helper_parts": 0,
       "textured_parts": 19,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.5849609375,
@@ -8122,6 +8956,8 @@
       "helper_parts": 0,
       "textured_parts": 19,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.5849609375,
@@ -8143,6 +8979,8 @@
       "helper_parts": 0,
       "textured_parts": 19,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.5849609375,
@@ -8164,6 +9002,8 @@
       "helper_parts": 0,
       "textured_parts": 19,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.5849609375,
@@ -8185,6 +9025,8 @@
       "helper_parts": 0,
       "textured_parts": 10,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.4345703125,
@@ -8206,6 +9048,8 @@
       "helper_parts": 0,
       "textured_parts": 10,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.2314453125,
@@ -8227,6 +9071,8 @@
       "helper_parts": 0,
       "textured_parts": 10,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.2314453125,
@@ -8248,6 +9094,8 @@
       "helper_parts": 0,
       "textured_parts": 10,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.4345703125,
@@ -8269,6 +9117,8 @@
       "helper_parts": 0,
       "textured_parts": 10,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.4345703125,
@@ -8290,6 +9140,8 @@
       "helper_parts": 0,
       "textured_parts": 10,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.4345703125,
@@ -8311,6 +9163,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.6533203125,
@@ -8332,6 +9186,8 @@
       "helper_parts": 0,
       "textured_parts": 17,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -4.04541069162633,
@@ -8353,6 +9209,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.00562970892512199,
@@ -8374,6 +9232,10 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [
+        "Source template has no bitmap or UV coordinates"
+      ],
       "bounds": [
         [
           0.4560546875,
@@ -8395,6 +9257,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.11174052953720093,
@@ -8416,6 +9280,8 @@
       "helper_parts": 2,
       "textured_parts": 15,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.072265625,
@@ -8437,6 +9303,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.07328539144580386,
@@ -8458,6 +9326,8 @@
       "helper_parts": 0,
       "textured_parts": 9,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.021293867873888317,
@@ -8479,6 +9349,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0784619189798832,
@@ -8500,6 +9372,8 @@
       "helper_parts": 0,
       "textured_parts": 8,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.8166563510894775,
@@ -8519,8 +9393,12 @@
       "format": "rdms",
       "parts": 2,
       "helper_parts": 9,
-      "textured_parts": 0,
-      "solid_color_parts": 2,
+      "textured_parts": 2,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 2,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.2255859375,
@@ -8540,8 +9418,12 @@
       "format": "rdms",
       "parts": 2,
       "helper_parts": 9,
-      "textured_parts": 0,
-      "solid_color_parts": 2,
+      "textured_parts": 2,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 2,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.2255859375,
@@ -8561,8 +9443,12 @@
       "format": "rdms",
       "parts": 2,
       "helper_parts": 9,
-      "textured_parts": 0,
-      "solid_color_parts": 2,
+      "textured_parts": 2,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 2,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           -0.0439453125,
@@ -8582,8 +9468,12 @@
       "format": "rdms",
       "parts": 2,
       "helper_parts": 9,
-      "textured_parts": 0,
-      "solid_color_parts": 2,
+      "textured_parts": 2,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 2,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.2255859375,
@@ -8603,8 +9493,12 @@
       "format": "rdms",
       "parts": 2,
       "helper_parts": 9,
-      "textured_parts": 0,
-      "solid_color_parts": 2,
+      "textured_parts": 2,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 2,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.2255859375,
@@ -8624,8 +9518,12 @@
       "format": "rdms",
       "parts": 2,
       "helper_parts": 9,
-      "textured_parts": 0,
-      "solid_color_parts": 2,
+      "textured_parts": 2,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 2,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.2255859375,
@@ -8645,8 +9543,12 @@
       "format": "rdms",
       "parts": 2,
       "helper_parts": 9,
-      "textured_parts": 0,
-      "solid_color_parts": 2,
+      "textured_parts": 2,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 2,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.2255859375,
@@ -8666,8 +9568,12 @@
       "format": "rdms",
       "parts": 2,
       "helper_parts": 9,
-      "textured_parts": 0,
-      "solid_color_parts": 2,
+      "textured_parts": 2,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 2,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.2255859375,
@@ -8687,8 +9593,12 @@
       "format": "rdms",
       "parts": 2,
       "helper_parts": 9,
-      "textured_parts": 0,
-      "solid_color_parts": 2,
+      "textured_parts": 2,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 2,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.4560546875,
@@ -8708,8 +9618,12 @@
       "format": "rdms",
       "parts": 2,
       "helper_parts": 9,
-      "textured_parts": 0,
-      "solid_color_parts": 2,
+      "textured_parts": 2,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 2,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.4560546875,
@@ -8729,8 +9643,12 @@
       "format": "rdms",
       "parts": 2,
       "helper_parts": 9,
-      "textured_parts": 0,
-      "solid_color_parts": 2,
+      "textured_parts": 2,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 2,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.4560546875,
@@ -8750,8 +9668,12 @@
       "format": "rdms",
       "parts": 2,
       "helper_parts": 9,
-      "textured_parts": 0,
-      "solid_color_parts": 2,
+      "textured_parts": 2,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 2,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.4560546875,
@@ -8771,8 +9693,12 @@
       "format": "rdms",
       "parts": 2,
       "helper_parts": 9,
-      "textured_parts": 0,
-      "solid_color_parts": 2,
+      "textured_parts": 2,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 2,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.4560546875,
@@ -8794,6 +9720,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.11328125,
@@ -8815,6 +9743,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.1875,
@@ -8836,6 +9766,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.1982421875,
@@ -8857,6 +9789,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0810546875,
@@ -8878,6 +9812,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.30078125,
@@ -8899,6 +9835,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.1171875,
@@ -8920,6 +9858,8 @@
       "helper_parts": 0,
       "textured_parts": 9,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.021484375,
@@ -8941,6 +9881,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -1.2060546875,
@@ -8962,6 +9904,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.2049547854715843,
@@ -8983,6 +9927,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.3508129230176965,
@@ -9004,6 +9950,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.32368600302695455,
@@ -9025,6 +9973,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.6172460947349415,
@@ -9046,6 +9996,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.35323483511100906,
@@ -9067,6 +10019,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.41696149662667625,
@@ -9088,6 +10042,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.32496742055846584,
@@ -9109,6 +10065,8 @@
       "helper_parts": 0,
       "textured_parts": 9,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0673828125,
@@ -9130,6 +10088,8 @@
       "helper_parts": 0,
       "textured_parts": 11,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.13671875,
@@ -9151,6 +10111,8 @@
       "helper_parts": 0,
       "textured_parts": 11,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.13671875,
@@ -9171,7 +10133,9 @@
       "parts": 0,
       "helper_parts": 1,
       "textured_parts": 0,
-      "solid_color_parts": 0
+      "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": []
     },
     {
       "entry": "170944",
@@ -9180,7 +10144,9 @@
       "parts": 0,
       "helper_parts": 1,
       "textured_parts": 0,
-      "solid_color_parts": 0
+      "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": []
     },
     {
       "entry": "170980",
@@ -9189,21 +10155,25 @@
       "parts": 0,
       "helper_parts": 1,
       "textured_parts": 0,
-      "solid_color_parts": 0
+      "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": []
     },
     {
       "entry": "171100",
       "name": "objects/jukebox/fx_stereojukebox",
       "format": "rdms",
-      "parts": 2,
-      "helper_parts": 1,
-      "textured_parts": 2,
+      "parts": 5,
+      "helper_parts": 0,
+      "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
-          0.0751953125,
-          0.0,
-          -7.808208465576172e-06
+          -0.08300781250000006,
+          -3.62838686538897e-09,
+          -0.08300781250000007
         ],
         [
           0.9248046875,
@@ -9220,6 +10190,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.2705078217488284,
@@ -9241,6 +10213,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.375,
@@ -9262,6 +10236,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.10546875,
@@ -9283,6 +10259,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.134765625,
@@ -9304,6 +10282,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.150390625,
@@ -9325,6 +10305,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.30078125,
@@ -9346,6 +10328,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.205078125,
@@ -9367,6 +10351,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.5011385363718064,
@@ -9388,6 +10374,8 @@
       "helper_parts": 0,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.326171875,
@@ -9409,6 +10397,8 @@
       "helper_parts": 0,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.326171875,
@@ -9430,6 +10420,8 @@
       "helper_parts": 0,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.326171875,
@@ -9451,6 +10443,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1982421875,
@@ -9472,6 +10466,8 @@
       "helper_parts": 0,
       "textured_parts": 8,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1669921875,
@@ -9493,6 +10489,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.419921875,
@@ -9514,6 +10512,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.3779296875,
@@ -9535,6 +10535,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.3779296875,
@@ -9556,6 +10558,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.01171875,
@@ -9577,6 +10581,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           14.755859375,
@@ -9598,6 +10604,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           14.755859375,
@@ -9619,6 +10627,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           69.27109072134762,
@@ -9640,6 +10650,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           69.27109072134762,
@@ -9661,6 +10673,8 @@
       "helper_parts": 0,
       "textured_parts": 8,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1357421875,
@@ -9682,6 +10696,8 @@
       "helper_parts": 0,
       "textured_parts": 29,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.525390625,
@@ -9703,6 +10719,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0615234375,
@@ -9724,6 +10742,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0615234375,
@@ -9745,6 +10765,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0615234375,
@@ -9766,6 +10788,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0615234375,
@@ -9787,6 +10811,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0615234375,
@@ -9808,6 +10834,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0615234375,
@@ -9829,6 +10857,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.02734375,
@@ -9850,6 +10880,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.02734375,
@@ -9871,6 +10903,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.02734375,
@@ -9892,6 +10926,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.02734375,
@@ -9913,6 +10949,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.02734375,
@@ -9934,6 +10972,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0029296875,
@@ -9955,6 +10995,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0029296875,
@@ -9976,6 +11018,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0029296875,
@@ -9997,6 +11041,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0029296875,
@@ -10018,6 +11064,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0029296875,
@@ -10039,6 +11087,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.1416015625,
@@ -10060,6 +11110,8 @@
       "helper_parts": 0,
       "textured_parts": 16,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.008,
@@ -10081,6 +11133,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0078125,
@@ -10102,6 +11156,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.21085125207901,
@@ -10123,6 +11179,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.15599143088942036,
@@ -10144,6 +11202,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -2.2119140625,
@@ -10165,6 +11225,8 @@
       "helper_parts": 0,
       "textured_parts": 28,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0205078125,
@@ -10186,6 +11248,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.04218749701976776,
@@ -10207,6 +11271,8 @@
       "helper_parts": 0,
       "textured_parts": 8,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0771484375,
@@ -10228,6 +11294,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.04218749701976776,
@@ -10249,6 +11317,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0625,
@@ -10270,6 +11340,8 @@
       "helper_parts": 0,
       "textured_parts": 12,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.189453125,
@@ -10291,6 +11363,8 @@
       "helper_parts": 0,
       "textured_parts": 12,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.189453125,
@@ -10312,6 +11386,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 3,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.9326171875,
@@ -10333,6 +11409,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.2470703125,
@@ -10354,6 +11432,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.02693022494981684,
@@ -10375,6 +11455,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.02693022494981684,
@@ -10396,6 +11478,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.07421875,
@@ -10417,6 +11501,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.07421875,
@@ -10438,6 +11524,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.07421875,
@@ -10459,6 +11547,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.09767097351728435,
@@ -10480,6 +11570,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.025443851947784424,
@@ -10501,6 +11593,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.28515625000000033,
@@ -10522,6 +11616,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.1455078125,
@@ -10543,6 +11639,8 @@
       "helper_parts": 0,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0771484375,
@@ -10564,6 +11662,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.3544921875,
@@ -10585,6 +11685,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.1884765625,
@@ -10606,6 +11708,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0634765625,
@@ -10627,6 +11731,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0927734375,
@@ -10648,6 +11754,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.091796875,
@@ -10669,6 +11777,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.04094688594341278,
@@ -10690,6 +11800,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.1953125,
@@ -10711,6 +11823,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.1953125,
@@ -10732,6 +11846,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.2021484375,
@@ -10753,6 +11869,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -10774,6 +11892,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.3251953125,
@@ -10795,6 +11915,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.150390625,
@@ -10816,6 +11938,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1787109412252903,
@@ -10837,6 +11961,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.111328125,
@@ -10858,6 +11984,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.279296875,
@@ -10879,6 +12007,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.22429081425070763,
@@ -10900,6 +12030,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.6198728829622269,
@@ -10921,6 +12053,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.6201171889033685,
@@ -10942,6 +12076,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.6201171889033685,
@@ -10963,6 +12099,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.085,
@@ -10984,6 +12122,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.085,
@@ -11005,6 +12145,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1376953125,
@@ -11026,6 +12168,8 @@
       "helper_parts": 9,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.44921875,
@@ -11047,6 +12191,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.130859375,
@@ -11068,6 +12214,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.04003906255035422,
@@ -11089,6 +12237,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.1357421875,
@@ -11110,6 +12260,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.193359375,
@@ -11131,6 +12283,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.3408203125,
@@ -11152,6 +12306,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.3408203125,
@@ -11173,6 +12329,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0791015625,
@@ -11194,6 +12352,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.28515625,
@@ -11215,6 +12375,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.2224753206955478,
@@ -11236,6 +12398,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.23863480552194333,
@@ -11257,6 +12421,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.23828125,
@@ -11278,6 +12444,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.17325421834236826,
@@ -11299,6 +12467,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.1985926637824777,
@@ -11320,6 +12490,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.12890625000000056,
@@ -11340,7 +12512,9 @@
       "parts": 0,
       "helper_parts": 4,
       "textured_parts": 0,
-      "solid_color_parts": 0
+      "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": []
     },
     {
       "entry": "181468",
@@ -11349,7 +12523,9 @@
       "parts": 0,
       "helper_parts": 4,
       "textured_parts": 0,
-      "solid_color_parts": 0
+      "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": []
     },
     {
       "entry": "181492",
@@ -11359,6 +12535,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.2978515625,
@@ -11380,6 +12558,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.2978515625,
@@ -11401,6 +12581,8 @@
       "helper_parts": 0,
       "textured_parts": 11,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.12890624948775328,
@@ -11422,6 +12604,8 @@
       "helper_parts": 0,
       "textured_parts": 11,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.12890624948775328,
@@ -11443,6 +12627,8 @@
       "helper_parts": 0,
       "textured_parts": 11,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.12890624948775328,
@@ -11464,6 +12650,8 @@
       "helper_parts": 2,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.2978515625,
@@ -11485,6 +12673,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.07904369896277785,
@@ -11506,6 +12696,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.353515625,
@@ -11525,8 +12717,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 2,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [
+        "ISO water bitmap restored; original UVs preserved"
+      ],
       "bounds": [
         [
           0.22109374217689037,
@@ -11546,8 +12742,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 2,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [
+        "ISO water bitmap restored; original UVs preserved"
+      ],
       "bounds": [
         [
           0.22109374217689037,
@@ -11567,8 +12767,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 2,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [
+        "ISO water bitmap restored; original UVs preserved"
+      ],
       "bounds": [
         [
           0.31738280737772584,
@@ -11588,8 +12792,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 2,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [
+        "ISO water bitmap restored; original UVs preserved"
+      ],
       "bounds": [
         [
           0.31738280737772584,
@@ -11609,8 +12817,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 2,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [
+        "ISO water bitmap restored; original UVs preserved"
+      ],
       "bounds": [
         [
           0.31738280737772584,
@@ -11630,8 +12842,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 2,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [
+        "ISO water bitmap restored; original UVs preserved"
+      ],
       "bounds": [
         [
           0.392578125,
@@ -11651,8 +12867,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 2,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [
+        "ISO water bitmap restored; original UVs preserved"
+      ],
       "bounds": [
         [
           0.392578125,
@@ -11672,8 +12892,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 2,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [
+        "ISO water bitmap restored; original UVs preserved"
+      ],
       "bounds": [
         [
           0.31738280737772584,
@@ -11693,8 +12917,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 2,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [
+        "ISO water bitmap restored; original UVs preserved"
+      ],
       "bounds": [
         [
           0.31738280737772584,
@@ -11716,6 +12944,8 @@
       "helper_parts": 0,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -11735,8 +12965,12 @@
       "format": "rdms",
       "parts": 7,
       "helper_parts": 0,
-      "textured_parts": 6,
-      "solid_color_parts": 1,
+      "textured_parts": 7,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.0,
@@ -11756,8 +12990,12 @@
       "format": "rdms",
       "parts": 7,
       "helper_parts": 0,
-      "textured_parts": 6,
-      "solid_color_parts": 1,
+      "textured_parts": 7,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 1,
+      "notes": [
+        "ISO water bitmap; generated UVs (the template has none)"
+      ],
       "bounds": [
         [
           0.0,
@@ -11779,6 +13017,8 @@
       "helper_parts": 0,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -11800,6 +13040,8 @@
       "helper_parts": 0,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -11821,6 +13063,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1162109375,
@@ -11842,6 +13086,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1162109375,
@@ -11863,6 +13109,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1162109375,
@@ -11884,6 +13132,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.12406617414671928,
@@ -11905,6 +13155,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.12406617414671928,
@@ -11926,6 +13178,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.12406617414671928,
@@ -11947,6 +13201,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1259765625,
@@ -11968,6 +13224,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1259765625,
@@ -11989,6 +13247,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1259765625,
@@ -12010,6 +13270,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.12406617414671928,
@@ -12031,6 +13293,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.12406617414671928,
@@ -12052,6 +13316,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.12406617414671928,
@@ -12073,6 +13339,10 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 4,
+      "notes": [
+        "Reprojected UVs for the source pedestal atlas"
+      ],
       "bounds": [
         [
           0.12406617414671928,
@@ -12094,6 +13364,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.162109375,
@@ -12115,6 +13387,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.162109375,
@@ -12136,6 +13410,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.162109375,
@@ -12157,6 +13433,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.162109375,
@@ -12178,6 +13456,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1513671875,
@@ -12199,6 +13479,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -263.9208984375,
@@ -12220,6 +13502,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -263.9208984375,
@@ -12241,6 +13525,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.025390625,
@@ -12262,6 +13548,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.037109375,
@@ -12283,6 +13571,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.037109375,
@@ -12304,6 +13594,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.025390625,
@@ -12325,6 +13617,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.025390625,
@@ -12346,6 +13640,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0244140625,
@@ -12367,6 +13663,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0244140625,
@@ -12388,6 +13686,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0244140625,
@@ -12409,6 +13709,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0244140625,
@@ -12430,6 +13732,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0244140625,
@@ -12451,6 +13755,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.025390625,
@@ -12472,6 +13778,8 @@
       "helper_parts": 3,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.115234375,
@@ -12493,6 +13801,8 @@
       "helper_parts": 3,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.115234375,
@@ -12514,6 +13824,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.115234375,
@@ -12535,6 +13847,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.025390625,
@@ -12556,6 +13870,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.025390625,
@@ -12577,6 +13893,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.025390625,
@@ -12598,6 +13916,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.025390625,
@@ -12619,6 +13939,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.025390625,
@@ -12640,6 +13962,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.025390625,
@@ -12661,6 +13985,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.025390625,
@@ -12682,6 +14008,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.025390625,
@@ -12703,6 +14031,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.025390625,
@@ -12724,6 +14054,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.025390625,
@@ -12745,6 +14077,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.025390625,
@@ -12766,6 +14100,8 @@
       "helper_parts": 1,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.3525390625,
@@ -12787,6 +14123,8 @@
       "helper_parts": 1,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.3525390625,
@@ -12808,6 +14146,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.025390625,
@@ -12829,6 +14169,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.025390625,
@@ -12850,6 +14192,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.025390625,
@@ -12871,6 +14215,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.025390625,
@@ -12892,6 +14238,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.025390625,
@@ -12913,6 +14261,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.3271484375,
@@ -12934,6 +14284,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.3271484375,
@@ -12955,6 +14307,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.025390625,
@@ -12972,10 +14326,12 @@
       "entry": "188776",
       "name": "objects/stereos/fx_stereoboombox",
       "format": "rdms",
-      "parts": 1,
-      "helper_parts": 1,
-      "textured_parts": 1,
+      "parts": 7,
+      "helper_parts": 0,
+      "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.2353515625,
@@ -12993,10 +14349,12 @@
       "entry": "188788",
       "name": "objects/stereos/fx_stereoboombox_saloon",
       "format": "rdms",
-      "parts": 2,
-      "helper_parts": 1,
-      "textured_parts": 2,
+      "parts": 8,
+      "helper_parts": 0,
+      "textured_parts": 8,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.2021484375,
@@ -13014,10 +14372,12 @@
       "entry": "188800",
       "name": "objects/stereos/fx_stereoboombox_table",
       "format": "rdms",
-      "parts": 5,
-      "helper_parts": 1,
-      "textured_parts": 5,
+      "parts": 11,
+      "helper_parts": 0,
+      "textured_parts": 11,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0771484375,
@@ -13039,6 +14399,8 @@
       "helper_parts": 1,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.126953125,
@@ -13060,6 +14422,10 @@
       "helper_parts": 2,
       "textured_parts": 0,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [
+        "Source template has no bitmap or UV coordinates"
+      ],
       "bounds": [
         [
           0.014508792678250615,
@@ -13081,6 +14447,10 @@
       "helper_parts": 2,
       "textured_parts": 0,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [
+        "Source template has no bitmap or UV coordinates"
+      ],
       "bounds": [
         [
           0.9215634068360262,
@@ -13102,6 +14472,10 @@
       "helper_parts": 2,
       "textured_parts": 0,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [
+        "Source template has no bitmap or UV coordinates"
+      ],
       "bounds": [
         [
           -0.25406862439332073,
@@ -13123,6 +14497,10 @@
       "helper_parts": 2,
       "textured_parts": 0,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [
+        "Source template has no bitmap or UV coordinates"
+      ],
       "bounds": [
         [
           0.5851057943157153,
@@ -13144,6 +14522,10 @@
       "helper_parts": 2,
       "textured_parts": 0,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [
+        "Source template has no bitmap"
+      ],
       "bounds": [
         [
           0.014468221454432079,
@@ -13165,6 +14547,10 @@
       "helper_parts": 2,
       "textured_parts": 0,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [
+        "Source template has no bitmap or UV coordinates"
+      ],
       "bounds": [
         [
           0.06126255526041527,
@@ -13186,6 +14572,10 @@
       "helper_parts": 2,
       "textured_parts": 0,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [
+        "Source template has no bitmap or UV coordinates"
+      ],
       "bounds": [
         [
           0.06130694570256186,
@@ -13207,6 +14597,10 @@
       "helper_parts": 2,
       "textured_parts": 0,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [
+        "Source template has no bitmap or UV coordinates"
+      ],
       "bounds": [
         [
           -0.1877687187833017,
@@ -13228,6 +14622,10 @@
       "helper_parts": 2,
       "textured_parts": 0,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [
+        "Source template has no bitmap or UV coordinates"
+      ],
       "bounds": [
         [
           0.4808017879241934,
@@ -13249,6 +14647,10 @@
       "helper_parts": 2,
       "textured_parts": 0,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [
+        "Source template has no bitmap or UV coordinates"
+      ],
       "bounds": [
         [
           0.46803364650005896,
@@ -13270,6 +14672,10 @@
       "helper_parts": 2,
       "textured_parts": 0,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [
+        "Source template has no bitmap or UV coordinates"
+      ],
       "bounds": [
         [
           0.4338510313312815,
@@ -13291,6 +14697,10 @@
       "helper_parts": 2,
       "textured_parts": 0,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [
+        "Source template has no bitmap or UV coordinates"
+      ],
       "bounds": [
         [
           0.46697263223609353,
@@ -13312,6 +14722,10 @@
       "helper_parts": 2,
       "textured_parts": 0,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [
+        "Source template has no bitmap or UV coordinates"
+      ],
       "bounds": [
         [
           0.4265361351248888,
@@ -13333,6 +14747,10 @@
       "helper_parts": 2,
       "textured_parts": 0,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [
+        "Source template has no bitmap or UV coordinates"
+      ],
       "bounds": [
         [
           0.43522925671371726,
@@ -13354,6 +14772,10 @@
       "helper_parts": 2,
       "textured_parts": 0,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [
+        "Source template has no bitmap or UV coordinates"
+      ],
       "bounds": [
         [
           0.7014978268404242,
@@ -13375,6 +14797,10 @@
       "helper_parts": 2,
       "textured_parts": 0,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [
+        "Source template has no bitmap or UV coordinates"
+      ],
       "bounds": [
         [
           0.33604425062284493,
@@ -13396,6 +14822,10 @@
       "helper_parts": 2,
       "textured_parts": 0,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [
+        "Source template has no bitmap or UV coordinates"
+      ],
       "bounds": [
         [
           0.19250564941235357,
@@ -13417,6 +14847,8 @@
       "helper_parts": 0,
       "textured_parts": 9,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0439453125,
@@ -13438,6 +14870,8 @@
       "helper_parts": 0,
       "textured_parts": 9,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0439453125,
@@ -13459,6 +14893,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -13480,6 +14916,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0126953125,
@@ -13501,6 +14939,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0126953125,
@@ -13522,6 +14962,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -13543,6 +14985,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0,
@@ -13564,6 +15008,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0126953125,
@@ -13585,6 +15031,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0771484375,
@@ -13606,6 +15054,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0771484375,
@@ -13627,6 +15077,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0016797662994747498,
@@ -13648,6 +15100,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0016797662994747498,
@@ -13669,6 +15123,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0016797662994747498,
@@ -13690,6 +15146,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0016797662994747498,
@@ -13711,6 +15169,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0016797662994747498,
@@ -13732,6 +15192,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0751953125,
@@ -13753,6 +15215,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0751953125,
@@ -13774,6 +15238,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0751953125,
@@ -13795,6 +15261,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0751953125,
@@ -13816,6 +15284,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0751953125,
@@ -13837,6 +15307,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.029296875,
@@ -13858,6 +15330,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.029296875,
@@ -13879,6 +15353,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.029296875,
@@ -13900,6 +15376,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.029296875,
@@ -13921,6 +15399,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.029296875,
@@ -13942,6 +15422,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.03125,
@@ -13963,6 +15445,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.115234375,
@@ -13984,6 +15468,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.115234375,
@@ -14005,6 +15491,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.115234375,
@@ -14026,6 +15514,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.115234375,
@@ -14047,6 +15537,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.115234375,
@@ -14068,6 +15560,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.087890625,
@@ -14089,6 +15583,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0546875,
@@ -14110,6 +15606,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0546875,
@@ -14131,6 +15629,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0546875,
@@ -14152,6 +15652,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0546875,
@@ -14173,6 +15675,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0546875,
@@ -14194,6 +15698,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.001953125,
@@ -14215,6 +15721,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.001953125,
@@ -14236,6 +15744,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.001953125,
@@ -14257,6 +15767,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.001953125,
@@ -14278,6 +15790,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.001953125,
@@ -14299,6 +15813,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.080078125,
@@ -14320,6 +15836,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.080078125,
@@ -14341,6 +15859,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.080078125,
@@ -14362,6 +15882,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.080078125,
@@ -14383,6 +15905,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.080078125,
@@ -14404,6 +15928,8 @@
       "helper_parts": 0,
       "textured_parts": 19,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           28.621926363041663,
@@ -14425,6 +15951,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.318359375,
@@ -14444,8 +15972,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 1,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [
+        "ISO water bitmap restored; original UVs preserved"
+      ],
       "bounds": [
         [
           0.3603515625,
@@ -14465,8 +15997,12 @@
       "format": "rdms",
       "parts": 1,
       "helper_parts": 1,
-      "textured_parts": 0,
-      "solid_color_parts": 1,
+      "textured_parts": 1,
+      "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [
+        "ISO water bitmap restored; original UVs preserved"
+      ],
       "bounds": [
         [
           0.3603515625,
@@ -14487,7 +16023,9 @@
       "parts": 0,
       "helper_parts": 1,
       "textured_parts": 0,
-      "solid_color_parts": 0
+      "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": []
     },
     {
       "entry": "191884",
@@ -14496,7 +16034,9 @@
       "parts": 0,
       "helper_parts": 1,
       "textured_parts": 0,
-      "solid_color_parts": 0
+      "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": []
     },
     {
       "entry": "191896",
@@ -14506,6 +16046,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.5185653567314148,
@@ -14527,6 +16069,8 @@
       "helper_parts": 0,
       "textured_parts": 16,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.0849609375,
@@ -14548,6 +16092,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1962890625,
@@ -14569,6 +16115,8 @@
       "helper_parts": 0,
       "textured_parts": 8,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.181640625,
@@ -14590,6 +16138,8 @@
       "helper_parts": 0,
       "textured_parts": 8,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.318359375,
@@ -14611,6 +16161,8 @@
       "helper_parts": 0,
       "textured_parts": 8,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.318359375,
@@ -14632,6 +16184,8 @@
       "helper_parts": 0,
       "textured_parts": 8,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.181640625,
@@ -14653,6 +16207,8 @@
       "helper_parts": 0,
       "textured_parts": 8,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.181640625,
@@ -14674,6 +16230,8 @@
       "helper_parts": 0,
       "textured_parts": 8,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.181640625,
@@ -14695,6 +16253,8 @@
       "helper_parts": 0,
       "textured_parts": 8,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.181640625,
@@ -14716,6 +16276,8 @@
       "helper_parts": 1,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.255859375,
@@ -14737,6 +16299,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.072265625,
@@ -14758,6 +16322,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1142578125,
@@ -14779,6 +16345,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.14839975908398628,
@@ -14800,6 +16368,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.123046875,
@@ -14821,6 +16391,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.2275390625,
@@ -14842,6 +16414,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.2724609375,
@@ -14863,6 +16437,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.20703125,
@@ -14884,6 +16460,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.29296875,
@@ -14905,6 +16483,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1943359375,
@@ -14926,6 +16506,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -1.8662109375,
@@ -14947,6 +16529,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0576171875,
@@ -14968,6 +16552,8 @@
       "helper_parts": 0,
       "textured_parts": 4,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -1.966796875,
@@ -14989,6 +16575,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -1.4658203125,
@@ -15010,6 +16598,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1328125,
@@ -15031,6 +16621,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.005796998739242554,
@@ -15052,6 +16644,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.330078125,
@@ -15073,6 +16667,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 1,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.05078125,
@@ -15094,6 +16690,8 @@
       "helper_parts": 2,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.240234375,
@@ -15115,6 +16713,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.4091796875,
@@ -15136,6 +16736,8 @@
       "helper_parts": 0,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.01953125,
@@ -15157,6 +16759,8 @@
       "helper_parts": 0,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.01953125,
@@ -15178,6 +16782,8 @@
       "helper_parts": 0,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.01953125,
@@ -15199,6 +16805,8 @@
       "helper_parts": 0,
       "textured_parts": 9,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.01953125,
@@ -15220,6 +16828,8 @@
       "helper_parts": 0,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.01953125,
@@ -15241,6 +16851,8 @@
       "helper_parts": 0,
       "textured_parts": 14,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1298828125,
@@ -15262,6 +16874,8 @@
       "helper_parts": 0,
       "textured_parts": 7,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -2.140625,
@@ -15283,6 +16897,8 @@
       "helper_parts": 0,
       "textured_parts": 5,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1640625,
@@ -15304,6 +16920,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.44503581523895264,
@@ -15325,6 +16943,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1896392762719188,
@@ -15346,6 +16966,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -1.8203125,
@@ -15367,6 +16989,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1596641689538956,
@@ -15388,6 +17012,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.025852250249553288,
@@ -15409,6 +17035,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.818359375,
@@ -15430,6 +17058,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0439453125,
@@ -15451,6 +17081,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -1.2343730926513672,
@@ -15472,6 +17104,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.26953125,
@@ -15493,6 +17127,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0966796875,
@@ -15514,6 +17150,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1318359375,
@@ -15535,6 +17173,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0263671875,
@@ -15556,6 +17196,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0849609375,
@@ -15577,6 +17219,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0556640625,
@@ -15598,6 +17242,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1728515625,
@@ -15619,6 +17265,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.1171875,
@@ -15640,6 +17288,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.08984375,
@@ -15661,6 +17311,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.29580683210786757,
@@ -15682,6 +17334,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.27345192536876584,
@@ -15703,6 +17357,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.27345192536876584,
@@ -15724,6 +17380,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.24989360431225624,
@@ -15745,6 +17403,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.27345192536876584,
@@ -15766,6 +17426,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.2891163898270709,
@@ -15787,6 +17449,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.2891163898270709,
@@ -15808,6 +17472,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0615234375,
@@ -15829,6 +17495,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0966796875,
@@ -15850,6 +17518,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.021484375,
@@ -15871,6 +17541,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           5.257963180541992,
@@ -15892,6 +17564,8 @@
       "helper_parts": 0,
       "textured_parts": 3,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.0966796875,
@@ -15913,6 +17587,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.1623823344707489,
@@ -15934,6 +17610,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -1.0,
@@ -15955,6 +17633,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.3887442797422409,
@@ -15976,6 +17656,8 @@
       "helper_parts": 0,
       "textured_parts": 2,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -0.8887442797422409,
@@ -15997,6 +17679,8 @@
       "helper_parts": 0,
       "textured_parts": 1,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           0.119140625,
@@ -16018,6 +17702,8 @@
       "helper_parts": 0,
       "textured_parts": 6,
       "solid_color_parts": 0,
+      "generated_uv_parts": 0,
+      "notes": [],
       "bounds": [
         [
           -2.103816032409668,
@@ -16031,5 +17717,8 @@
         ]
       ]
     }
-  ]
+  ],
+  "preview_textured_parts": 4032,
+  "standalone_surfaces": 1167,
+  "generated_uv_parts": 59
 }
