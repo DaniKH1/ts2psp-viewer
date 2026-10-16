@@ -323,7 +323,8 @@ class Escena:
     def _cargar(self, piezas, texturas):
         posiciones, uvs, colores, indices, tramos = [], [], [], [], []
         colores_base, modos_base = [], []
-        fill_vertices = []
+        blend_coords = []
+        self.texture_layers = []
         self.alpha_modes = []
         # El nombre de la pieza de cada dibujo, en el mismo orden. Lo usa el
         # visor de mapas para apagar y encender piezas sin rehacer la escena.
@@ -357,16 +358,25 @@ class Escena:
                 )
                 alpha_textura[texture_state] = self._tiene_alpha(textura)
             color = parte.get("color")
+            second_texture = 0
+            if parte.get("texture_blend") and textura is not None:
+                second = parte["texture_layers"][1]["texture"]
+                state = (second[0], bool(parte.get("repeat_texture")))
+                if state not in ids_textura:
+                    ids_textura[state] = self._subir_textura(second, voltear, state[1])
+                second_texture = ids_textura[state]
+            self.texture_layers.append(second_texture)
+            weights = parte.get("blend_weights", [])
+            secondary_uvs = parte.get("secondary_uvs", [])
             tiene_uv = all(v[2] is not None for v in parte["vertices"])
-            source = parte.get("source_texture_path", "").replace("\\", "/").casefold()
-            allow_fill = not normaliza_uv and not any(
-                marker in source for marker in ("/sky/", "/lights_shadows/")
-            )
             vertex_alpha = False
-            for vertice in parte["vertices"]:
-                fill_vertices.append(
-                    allow_fill and vertice[1] is not None and vertice[3] is not None
+            for vertex_index, vertice in enumerate(parte["vertices"]):
+                uv2 = (
+                    secondary_uvs[vertex_index]
+                    if secondary_uvs
+                    else (vertice[2] or (0, 0))
                 )
+                blend_coords.append((*uv2, weights[vertex_index] if weights else 1.0))
                 posiciones.append(tuple(v * escala_pos for v in vertice[0]))
                 # los personajes traen UV crudos en 1/4096: se normalizan con el v
                 # invertido, igual que los usa el rasterizador de CPU. En los props
@@ -395,6 +405,8 @@ class Escena:
                 if not normaliza_uv and vertice[3] is not None:
                     rgba = tuple(vertice[3])
                     rgba = rgba + (1.0,) if len(rgba) == 3 else rgba
+                    if parte.get("texture_blend"):
+                        rgba = (*rgba[:3], 1.0)
                     base = color if color is not None else (255, 255, 255, 255)
                     colores.append(tuple(rgba[j] * base[j] for j in range(4)))
                     vertex_alpha |= rgba[3] < 0.999
@@ -451,14 +463,12 @@ class Escena:
         self.UV = np.ascontiguousarray(uvs, dtype=np.float32)
         self.colores = np.ascontiguousarray(colores, dtype=np.float32) / 255.0
         self._colores_vertex = self.colores
+        self._blend_coords = np.ascontiguousarray(blend_coords, dtype=np.float32)
         self._colores_base = (
             np.ascontiguousarray(colores_base, dtype=np.float32) / 255.0
         )
         self._modos_vertex = self.alpha_modes
         self._modos_base = modos_base
-        self._fill_vertices = np.asarray(fill_vertices, dtype=bool)
-        self._fill_value = None
-        self._colores_fill = None
         indices = np.ascontiguousarray(indices, dtype=np.uint32)
         self.dibujos = [
             (indices[inicio : inicio + n], textura, alfa, es_peinado)
@@ -675,21 +685,9 @@ class Escena:
         self.posiciones = np.ascontiguousarray(posiciones, dtype=np.float32)
         self.pose = pose
 
-    def fijar_vertex_colors(self, enabled, ambient_fill=0.0):
-        """Cached preview fill; source colors, alpha and exported data stay intact."""
-        fill = min(1.0, max(0.0, round(float(ambient_fill), 3)))
-        if enabled and fill:
-            if fill != self._fill_value:
-                self._colores_fill = self._colores_vertex.copy()
-                mask = self._fill_vertices
-                source = self._colores_vertex[mask, :3]
-                self._colores_fill[mask, :3] = source + fill * (
-                    self._colores_base[mask, :3] - source
-                )
-                self._fill_value = fill
-            self.colores = self._colores_fill
-        else:
-            self.colores = self._colores_vertex if enabled else self._colores_base
+    def fijar_vertex_colors(self, enabled):
+        """Switch cached source shading without changing geometry or textures."""
+        self.colores = self._colores_vertex if enabled else self._colores_base
         self.alpha_modes = self._modos_vertex if enabled else self._modos_base
 
     def pose_actual(self):
@@ -956,9 +954,18 @@ class Escena:
                         gl.activar(GL_CULL_FACE)
                         culling_activo = True
                 gl.bind_textura(GL_TEXTURE_2D, textura)
+                second = self.texture_layers[indice]
+                if second:
+                    if not hasattr(gl, "terrain_blend"):
+                        from ts2psp.rendering.texture_blend import TextureBlendProgram
+
+                        gl.terrain_blend = TextureBlendProgram()
+                    gl.terrain_blend.begin(gl, second, self._blend_coords)
                 gl.dibujar(
                     GL_TRIANGLES, len(indices), GL_UNSIGNED_INT, indices.ctypes.data
                 )
+                if second:
+                    gl.terrain_blend.end(gl)
 
         # la textura se enlaza justo antes de cada dibujo: enlazarlas todas antes y
         # dibujar después dejaría activa solo la última

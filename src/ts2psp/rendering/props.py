@@ -31,6 +31,10 @@ def prop_scene(
             texture = part.get("texture")
             if texture and texture[1]:
                 textures[texture[0]] = texture
+            for layer in part.get("texture_layers", []):
+                texture = layer.get("texture")
+                if texture:
+                    textures[texture[0]] = texture
     # La clave no lleva `culling`: hay sitios que vacian la cache nombrandola a
     # mano y, si el recorte se metiera dentro, se quedarian con la escena del
     # ajuste anterior. El flag lo pone `escena` en cada llamada.
@@ -52,6 +56,7 @@ def without_vertex_colors(parts):
     return [
         {
             **part,
+            "blend_weights": part.get("blend_weights", []),
             "vertices": [(v[0], v[1], v[2], None) for v in part["vertices"]],
             "alpha_mode": part.get(
                 "alpha_mode_without_vertex_colors", part.get("alpha_mode")

@@ -563,9 +563,13 @@ class PropTab(ttk.Frame):
             # La galeria enseña lo que se pinta: cada parte lleva su textura en
             # `texture` como (nombre, pixeles), y sin pixeles no se ve nada.
             self.textures = {
-                part["texture"][0]: part["texture"][1]
+                texture[0]: texture[1]
                 for part in self.parts
-                if part.get("texture") and part["texture"][1]
+                for texture in (
+                    [part.get("texture")]
+                    + [layer.get("texture") for layer in part.get("texture_layers", [])]
+                )
+                if texture and texture[1]
             }
             self.gallery.set_textures(self.textures)
             self.playhead = 0.0

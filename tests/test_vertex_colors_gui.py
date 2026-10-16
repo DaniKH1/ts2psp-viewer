@@ -11,7 +11,7 @@ import numpy as np
 from ts2psp.app import Sims2PSPApp
 
 
-def main():
+def main(map_path="levels/deadtree/hub"):
     base = Path(os.environ.get("TS2_PSP_DATA_DIR", "data"))
     errors = []
     with patch(
@@ -24,9 +24,7 @@ def main():
             tab = app.map_tab
             app.tabs.select(tab)
             app.update()
-            row = next(
-                r for r in tab.rows if r["ruta_interna"] == "levels/deadtree/hub"
-            )
+            row = next(r for r in tab.rows if r["ruta_interna"] == map_path)
             tab._empezar_carga(row)
             start = time.perf_counter()
             while (
@@ -86,16 +84,30 @@ def main():
                         and tab._cache is cache
                     )
                     assert scene.posiciones is geometry and scene.UV is uv
-                tab.show_lighting()
+                assert not hasattr(tab, "lighting_button")
+                assert tab.vertex_button.text == "Vertex Color"
+                tab.toggle_layers_panel()
+                tab.layer_filter.set("counter")
                 app.update()
-                for fill in (0, 25, 50, 100, 0, 50):
-                    tab.vertex_fill.set(fill)
-                    tab.schedule()
-                    app.update()
-                    time.sleep(0.025)
-                    app.update()
-                    assert tab.objeto is scene and scene.posiciones is geometry
-                tab._lighting_dialog.destroy()
+                assert tab.layer_search.cget("style") == "CharacterSearch.TEntry"
+                for index in tab.layer_indices:
+                    assert (
+                        "counter"
+                        in tab._filas_de_capas()[
+                            tab.layer_indices.index(index)
+                        ].casefold()
+                    )
+                if tab.layer_indices:
+                    target = tab.parts[tab.layer_indices[0]]["name"]
+                    tab.part_list._choose(0)
+                    assert target in tab.ocultas
+                    assert tab.selected_part()["name"] == target
+                    tab.layer_filter.set("no matching texture name")
+                    assert not tab.layer_indices and tab.selected_part() is None
+                    assert target in tab.ocultas
+                    tab.layer_filter.set("")
+                    assert len(tab.layer_indices) == len(tab.parts)
+                assert tab.objeto is scene and scene.posiciones is geometry
                 assert upload.call_count == 0
             on = np.array(scene.render(480, 320, 0.5, -0.4, 1))
             assert float(np.abs(on.astype(float) - off).mean()) > 0.1
@@ -134,7 +146,6 @@ def main():
                 json.dumps(
                     {
                         "map_switches": 21,
-                        "fill_changes": 6,
                         "prop_switches": 20,
                         "texture_reuploads": 0,
                         "map_vertices": len(geometry),
@@ -149,4 +160,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--map", default="levels/deadtree/hub")
+    main(parser.parse_args().map)
