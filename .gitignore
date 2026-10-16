@@ -13,12 +13,9 @@ exports/
 *.glb
 *.fbx
 *.banm
-salida_caras/
-salida_capas/
-chk.txt
-cielo.txt
-s3.txt
-sonda_caras.py
-sonda_cielo.py
-sonda_piezas.py
-sonda3.py
+# Sondas y salidas de la sesion de trabajo: no son parte del proyecto. Antes
+# estaban una a una en la lista y se perdian mas; con estos patrones entra
+# cualquier sonda nueva sin tocar este fichero.
+sonda_*.py
+salida_*/
+tmp/
