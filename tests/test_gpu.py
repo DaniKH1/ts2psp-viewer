@@ -938,6 +938,61 @@ def comprobar_barra_de_capas(app, tab):
     )
 
 
+def comprobar_columna_izquierda(app, tab):
+    """La lista de maps y la galeria miden lo mismo, y la galeria llega al final.
+
+    Las dos cajas no se parten a mitades de la columna a pelo: la galeria gasta
+    por el camino su banda con el nombre de la textura elegida ademas de la raya
+    y el rotulo, y si se hiciera asi su lienzo saldria mas corto que la lista.
+    """
+    app.update_idletasks()
+    lista = tab.map_list.winfo_height()
+    galeria = tab.gallery.canvas.winfo_height()
+    comprobar(
+        abs(lista - galeria) <= 2,
+        f"MapTab: la lista de maps y la galeria miden lo mismo ({lista} y {galeria})",
+    )
+    comprobar(
+        len(tab.winfo_children()) == 2,
+        "MapTab: la pestana solo tiene la columna y el visor, no hay otro panel "
+        "colgado que se coma el ancho",
+    )
+    sobra = tab.winfo_width() - tab.reparto.winfo_width() - tab.canvas.winfo_width()
+    comprobar(
+        abs(sobra) <= 24,
+        f"MapTab: el visor ocupa todo el ancho que queda (sobran {sobra} px)",
+    )
+    # Y que al ensanchar la ventana el visor crezca con ella: la columna no puede
+    # quitarle ancho, y al maximizar la ventana el visor se quedaba en el ancho
+    # viejo con un panel duplicado colgando. Al final se devuelve el tamano, que
+    # las comprobaciones que vienen miden que la ventana no se mueva al girar.
+    antes = tab.canvas.winfo_width()
+    ventana = app.winfo_geometry()
+    app.geometry(f"{app.winfo_width() + 120}x{app.winfo_height()}")
+    for _ in range(12):
+        app.update()
+    comprobar(
+        tab.canvas.winfo_width() > antes,
+        "MapTab: el visor se ensancha con la ventana",
+    )
+    comprobar(
+        len(tab.winfo_children()) == 2,
+        "MapTab: al cambiar el tamano no aparece otro panel en la pestana",
+    )
+    sobra = tab.winfo_width() - tab.reparto.winfo_width() - tab.canvas.winfo_width()
+    comprobar(
+        abs(sobra) <= 24,
+        "MapTab:Insetsanchada, el visor sigue ocupando el ancho (sobran "
+        f"{sobra} px)",    )
+    app.geometry(ventana)
+    for _ in range(12):
+        app.update()
+    comprobar(
+        app.winfo_geometry() == ventana,
+        f"y la ventana vuelve a su tamano ({app.winfo_geometry()} de {ventana})",
+    )
+
+
 def prueba_app():
     seccion("App completa")
     app = Sims2PSPApp(base=DATOS)
@@ -1054,6 +1109,7 @@ def prueba_app():
             tab.render()
             app.update()
             comprobar_barra_de_capas(app, tab)
+            comprobar_columna_izquierda(app, tab)
         app.update_idletasks()
         # La camara se prueba sobre algo que se pueda mover. La pestana de
         # personajes abre con Bella Goth cargado; si no lo estuviera, sin modelo

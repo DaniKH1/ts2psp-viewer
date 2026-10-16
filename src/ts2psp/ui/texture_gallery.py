@@ -55,9 +55,23 @@ class TextureGallery(ttk.Frame):
         self.preview_photo = None
         self.preview_window = None
         self.dimmer = None
+        # Tope de lo que pide la galeria en alto. Es una peticion, no el alto que
+        # tiene: la rejilla se estira con `expand` hasta donde le deje su columna,
+        # y esto solo evita que pida mas de lo que le toca. En la columna de maps
+        # la galeria comparte el alto con la lista de arriba a partes iguales, asi
+        # que ahi se baja a un minimo y deja que el reparto lo decida.
+        self.alto_maximo = 196
+        # Alto impuesto desde fuera. La galeria no decide el suyo cuando este vale
+        # otra cosa: lo usa el visor de mapas para igualarla con la lista de al
+        # lado, que es lo unico que se mide en pixeles y no reparte solo.
+        self.alto_forzado = 0
 
         marco = ttk.Frame(self)
         marco.pack(fill="both", expand=True)
+        # Se guarda porque quien monte la galeria necesita medir lo que se gasta
+        # la galeria en su propia decoracion (la banda con el nombre de la textura
+        # elegida): es el marco de las miniaturas, y lo que sobra es cromo.
+        self.marco = marco
         # El ancho solo es el que se pide: el gestor lo estira al de la columna
         # donde se monte, que en personajes es bastante mas estrecho que en
         # props. Las miniaturas se reparten con `weight`, asi que da igual.
@@ -84,18 +98,35 @@ class TextureGallery(ttk.Frame):
             name_frame, text="", width=1, anchor="w", wraplength=180
         )
         self.name_label.pack(fill="both", expand=True)
+<<<<<<< Updated upstream
+=======
+
+    def fijar_alto(self, alto):
+        """Impone el alto del lienzo de las miniaturas, en pixeles.
+
+        Con cero se vuelve al alto que pidan las texturas. Se usa en la columna de
+        maps, que reparte el alto con la lista de a su lado: las dos cajas tienen
+        que medir lo mismo y eso no lo saca solo nadie.
+        """
+        self.alto_forzado = int(alto)
+        self.canvas.configure(height=self.alto_forzado)
+        self._centrar()
+
+    def cromo_vertical(self):
+        """Cuanto alto gasta la galeria en todo lo que no son miniaturas.
+
+        Es la banda con el nombre de la textura elegida. Se mide con lo que los
+        widgets piden y no con el alto que tienen: si se midiera con el alto ya
+        repartido, al pedir el reparto salia cero y no habia nada que compensar.
+        """
+        return max(0, self.winfo_reqheight() - self.marco.winfo_reqheight())
+>>>>>>> Stashed changes
 
     def rueda_sobre_la_galeria(self, event):
-        """Desplaza la galeria y avisa de si queda algo mas, para las pruebas.
-
-        Devuelve cuanto se ha movido: cero si no habia nada que desplazar, que es
-        el caso de una galeria con todas sus texturas a la vista.
-        """
         antes = self.canvas.yview()[0]
         self._mousewheel(event)
         despues = self.canvas.yview()[0]
         return abs(despues - antes)
-
     # -- contenido ---------------------------------------------------------
 
     def set_textures(self, textures, selected="", names=None):
@@ -112,7 +143,10 @@ class TextureGallery(ttk.Frame):
         self.thumbnails = []
         self.buttons = []
         filas = (len(self.textures) + self._columnas() - 1) // self._columnas()
-        alto = min(max(filas, 1) * self._alto_fila(), 196)
+        if self.alto_forzado:
+            alto = self.alto_forzado
+        else:
+            alto = min(max(filas, 1) * self._alto_fila(), self.alto_maximo)
         self.canvas.configure(height=alto)
         if filas > 4:
             self.scroll.pack(side="right", fill="y")

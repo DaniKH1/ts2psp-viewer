@@ -69,8 +69,15 @@ SIN_COLOCAR = 1.0
 # Tamano de la columna de la izquierda. La lista va al ancho de la galeria de
 # texturas que tiene debajo, para que no se queden dos medidas distintas en la
 # misma columna. Las alturas van en pixeles porque las listas son canvas.
-ALTO_LISTA_MAPS = 178
+#
+# La lista de maps y la galeria se reparten la columna a mitades, asi que estos
+# dos altos son solo lo que cada una pide antes de que el reparto lo reparta:
+# mientras sean iguales, da igual cuanto valgan. `uniform` los iguala al mayor y
+# despues el `weight` reparte el sobrante a partes iguales, asi que basta con que
+# los dos sean el mismo numero pequeno.
+ALTO_LISTA_MAPS = 120
 ANCHO_LISTA_MAPS = 214
+ALTO_MITAD_MINIMA = 120
 ALTO_LISTA_CAPAS = 300
 ANCHO_LISTA_CAPAS = 178
 # Holgura entre el borde redondeado del panel y lo que va dentro, en pixeles.
@@ -228,12 +235,23 @@ class MapTab(ttk.Frame):
         )
         entry.pack(fill="x", pady=(5, 10))
         entry.bind("<KeyRelease>", self.refresh)
-        map_list_frame = ttk.Frame(left)
-        # Sin `expand`: si lo tuviera, el marco se estiraria a todo lo que quedase
-        # de la columna y la lista ocuparia el alto entero del visor, que es lo
-        # que hacia que `ALTO_LISTA_MAPS` no sirviera de nada. Lo que se estira es
-        # la galeria de debajo, que es la que puede aprovechar el hueco.
-        map_list_frame.pack(fill="both")
+
+        # Las dos cajas de la columna, la lista de maps arriba y la galeria de
+        # texturas abajo, con el mismo alto. El reparto no sale solo, y por eso
+        # se calcula en `_repartir_la_columna`: las dos no piden lo mismo, la
+        # galeria gasta ademas 101 px en su propia decoracion (la raya, el
+        # rotulo y la banda con el nombre de la textura elegida), y con `pack` o
+        # con `grid` a pelo se queda una de las dos mas corta y con hueco
+        # debajo. `grid` las coloca en dos filas; las alturas las ponemos
+        # nosotros, y la de la fila de abajo lleva el sobrante del redondeo.
+        reparto = ttk.Frame(left)
+        reparto.pack(fill="both", expand=True)
+        reparto.rowconfigure(1, weight=1)
+        reparto.bind("<Configure>", self._repartir_la_columna)
+        self.reparto = reparto
+
+        map_list_frame = ttk.Frame(reparto)
+        map_list_frame.grid(row=0, column=0, sticky="nsew")
         self.map_list = TexturedListbox(
             map_list_frame,
             LIST_PANEL_PATH,
@@ -248,20 +266,27 @@ class MapTab(ttk.Frame):
         map_scroll.pack(side="right", fill="y")
         self.map_list.pack(side="left", fill="both", expand=True)
         self.map_list.bind("<<ListboxSelect>>", self.select_map)
+
         # Debajo de la lista, las texturas del nivel que este cargado. Se separa
         # con una raya porque es otra cosa: la lista elige donde mirar y estas
-        # enseñan que lleva cada malla.
-        ttk.Separator(left, orient="horizontal").pack(fill="x", pady=(16, 12))
+        # enseñan que lleva cada malla. La raya y el rotulo van en la mitad de la
+        # galeria y no sueltos en la columna, para que el lienzo de las texturas
+        # sea lo que llega hasta el final de abajo.
+        texturas = ttk.Frame(reparto)
+        texturas.grid(row=1, column=0, sticky="nsew")
+        self.panel_texturas = texturas
+        ttk.Separator(texturas, orient="horizontal").pack(fill="x", pady=(16, 12))
         ttk.Label(
-            left,
+            texturas,
             text="Textures",
             anchor="center",
             font=(self.app._sims_font_family, 11, "bold"),
         ).pack(fill="x", pady=(0, 4))
-        self.gallery = TextureGallery(left, self.app)
-        # La galeria es la que se estira con el hueco que deja la lista. Lleva
-        # scroll propio, asi que quepa mas o menos no importa: si no cabe entera,
-        # se rueda con la rueda del raton.
+        self.gallery = TextureGallery(texturas, self.app)
+        # La galeria no pide alto: lo recibe del reparto, que es lo que la deja
+        # igualada con la lista y llegar al final de la columna. Lleva scroll
+        # propio, asi que lo que no cabe se rueda con la rueda del raton.
+        self.gallery.alto_maximo = ALTO_MITAD_MINIMA
         self.gallery.pack(fill="both", expand=True)
 
         right = ttk.Frame(self)
@@ -310,6 +335,39 @@ class MapTab(ttk.Frame):
             # El mapa se carga la primera vez que se abre la pestaña, no al
             # construirla: parsearlo son varios segundos y hay quien solo quiere
             # personajes o props.
+
+    def _repartir_la_columna(self, _event=None):
+        """Lista de maps y galeria con el mismo alto, y la galeria hasta abajo.
+
+        Las dos cajas miden lo mismo, no las dos mitades de la columna: la galeria
+        se come por el camino la raya de separacion, el rotulo y la banda con el
+        nombre de la textura elegida. Si se partiese la columna a mitades a pelo,
+        el lienzo de las texturas saldria 101 px mas corto que la lista.
+
+        Va atada al `<Configure>` de la columna, asi que se llama con cada cambio
+        de tamano. Solo toca dos numeros y solo si han cambiado: si se reconfigura
+        en cada llamada, el cambio dispara otro `<Configure>` y la ventana se
+        queda repintando sola.
+        """
+        if not hasattr(self, "reparto") or not hasattr(self, "gallery"):
+            return
+        alto = self.reparto.winfo_height()
+        if alto < 4 * ALTO_MITAD_MINIMA:
+            return
+        # El cromo son dos cosas: lo que gasta la galeria en su banda con el
+        # nombre de la textura elegida, y lo que gasta su marco en la raya de
+        # separacion y el rotulo. Las dos se miden con lo que piden, que no
+        # depende de como haya quedado el reparto anterior.
+        cromo = self.gallery.cromo_vertical() + (
+            self.panel_texturas.winfo_reqheight() - self.gallery.winfo_reqheight()
+        )
+        mitad = int((alto - cromo) / 2)
+        if mitad < ALTO_MITAD_MINIMA:
+            return
+        if self.map_list.winfo_reqheight() != mitad:
+            self.map_list.configure(height=mitad)
+        if self.gallery.canvas.winfo_reqheight() != mitad:
+            self.gallery.fijar_alto(mitad)
 
     def on_shown(self):
         """Carga el primer mapa la primera vez que se muestra la pestaña."""
