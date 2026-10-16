@@ -18,7 +18,8 @@ import ts2psp.rendering.opengl as gl
 from ts2psp.rendering.props import prop_scene, render_prop, without_vertex_colors
 from ts2psp.formats.props import parse_rdms, sections, write_rigid_glb
 from ts2psp.formats.prop_scene import level_prop_references
-from ts2psp.formats.surfaces import decode_surface
+from ts2psp.formats.materials import surface_textures
+from ts2psp.core.names import part_label, part_filename, texture_paths
 from ts2psp.ui.floating_button import FloatingButton
 from ts2psp.ui.textured_list import TexturedListbox, panel_redondeado
 from ts2psp.ui.texture_gallery import TextureGallery
@@ -777,7 +778,9 @@ class MapTab(ttk.Frame):
         filas = []
         for part in self.parts:
             marca = " " if part["name"] in self.ocultas else "x"
-            filas.append(f"[{marca}] {part['name']} · {len(part['vertices'])} verts")
+            filas.append(
+                f"[{marca}] {part_label(part)} · {len(part['vertices'])} verts"
+            )
         return filas
 
     def _alternar_capa(self, index):
@@ -1037,7 +1040,7 @@ class MapTab(ttk.Frame):
         part = self.selected_part()
         if part:
             self.status.configure(
-                text=f'{self.current["ruta_interna"]} · {part["name"]} · '
+                text=f'{self.current["ruta_interna"]} · {part_label(part)} · '
                 f'{len(part["vertices"])} vertices · '
                 f'{len(part["indices"]) // 3} triangles · '
                 f'{"texture" if part["texture"] else "no texture"} · '
@@ -1238,7 +1241,7 @@ class MapTab(ttk.Frame):
         part = self.selected_part()
         if not part:
             return
-        name = f'{Path(self.current["ruta_interna"]).name}_{part["name"]}.{fmt}'
+        name = f'{Path(self.current["ruta_interna"]).name}_{part_filename(part)}.{fmt}'
         target = filedialog.asksaveasfilename(
             defaultextension="." + fmt,
             initialfile=name,
@@ -1287,13 +1290,16 @@ class MapTab(ttk.Frame):
             with zipfile.ZipFile(
                 target, "w", compression=zipfile.ZIP_DEFLATED
             ) as output:
-                for i, (tag, off, size, _, _) in enumerate(sections(self.data)):
-                    if tag != b"surf":
-                        continue
-                    png = decode_surface(self.data, off, size)
-                    if png:
-                        output.writestr(f"surface_{i:04d}.png", png)
-                        count += 1
+                textures = {
+                    texture[0]: texture[1]
+                    for _, texture, _ in surface_textures(
+                        self.data, sections(self.data)
+                    )
+                    if texture
+                }
+                for key, path in texture_paths(textures).items():
+                    output.writestr(path, textures[key])
+                    count += 1
             self.status.configure(text=f"{count} PNG textures saved: {target}")
         except Exception as exc:
             messagebox.showerror("Extract textures", str(exc))

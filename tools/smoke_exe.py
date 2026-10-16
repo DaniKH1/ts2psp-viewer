@@ -94,6 +94,8 @@ def smoke(exe, data=None):
             time.sleep(0.5)
         if not found:
             raise RuntimeError(f"EXE window did not appear; exit={process.poll()}")
+        # Tk exposes its window before tab construction and bindings finish.
+        time.sleep(2)
         if not user.PostMessageW(max(found)[1], 0x0010, 0, 0):
             raise ctypes.WinError(ctypes.get_last_error())
         process.wait(timeout=20)

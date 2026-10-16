@@ -659,7 +659,7 @@ class AnimationPanel(ttk.Frame):
     def _static_model(self, character):
         # Rebuild older models that lack the fixed joint orientations required
         # by BANM rotations. Bind offsets and accessories are retained as well.
-        path = self.app.cache / ("character_" + character + "_joint_orient_v4.glb")
+        path = self.app.cache / ("character_" + character + "_texture_names_v5.glb")
         if not path.exists():
             convert_character(self.app.paths["characters"], character, path)
         return path

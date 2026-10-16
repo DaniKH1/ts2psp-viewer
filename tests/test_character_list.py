@@ -1001,10 +1001,9 @@ class CharacterListTests(unittest.TestCase):
                         body = [
                             (key, part)
                             for key, part in pieces
-                            if part["nombre"].startswith(
-                                "body/aubodynightbeast / pieza_"
-                            )
-                            and int(part["nombre"].rsplit("pieza_", 1)[-1]) > 29
+                            if part["nombre"].startswith("body/aubodynightbeast / ")
+                            and part["source_part"].startswith("pieza_")
+                            and int(part["source_part"].removeprefix("pieza_")) > 29
                         ]
                         self.assertEqual(len(body), 8)
                         self.assertTrue(all(part["repeat_texture"] for _, part in body))

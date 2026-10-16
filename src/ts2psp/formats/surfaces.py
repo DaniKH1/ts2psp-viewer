@@ -162,23 +162,32 @@ def _decode_surface_at(data, off, section_size, head):
     return output.getvalue()
 
 
-def decode_surface(data, off, section_size):
+def read_surface(data, off, section_size):
+    """Return pixels and the source name from the same validated SURF header."""
     # Leaf resources use 96 bytes; bundles use 128, sometimes with a prefix.
     header = struct.unpack_from("<I", data, 12)[0]
     deltas = (0x60, 0x80, 0xA0) if header == 0x60 else (0x80, 0xA0)
     for delta in deltas:
         result = _decode_surface_at(data, off, section_size, off + delta)
         if result is not None:
-            return result
-    return None
+            return result, surface_source(data, off + delta)
+    return None, ""
+
+
+def decode_surface(data, off, section_size):
+    return read_surface(data, off, section_size)[0]
 
 
 def surface_source(data, head):
     """Read the source bitmap path through the SURF relative string pointer."""
     at = head + 4
+    if not 0 <= at <= len(data) - 4:
+        return ""
     target = at + struct.unpack_from("<i", data, at)[0]
     if not 0 <= target < len(data):
         return ""
     path = data[target : target + 1024].split(b"\0", 1)[0].decode("latin1")
     path = path.replace("\\", "/").casefold()
+    if not path or not path.isprintable() or "\ufffd" in path:
+        return ""
     return path.split("/data/", 1)[-1]

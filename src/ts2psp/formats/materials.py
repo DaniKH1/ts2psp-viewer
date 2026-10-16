@@ -3,11 +3,12 @@
 import math
 import struct
 import io
+import hashlib
 
 import numpy as np
 from PIL import Image
 
-from ts2psp.formats.surfaces import decode_surface, surface_source
+from ts2psp.formats.surfaces import read_surface
 
 
 def _canal_alfa(texture_png):
@@ -199,18 +200,35 @@ def opaca(png):
     return salida.getvalue()
 
 
-def prop_materials(data, records, opaco=False):
-    surfaces, shaders = {}, {}
+def surface_textures(data, records, opaco=False):
+    """Name textures by their internal bitmap paths, disambiguating variants."""
+    used = {}
     for index, (tag, off, size, _, _) in enumerate(records):
         if tag != b"surf":
             continue
         try:
-            png = decode_surface(data, off, size)
+            png, source = read_surface(data, off, size)
         except (ValueError, struct.error):
-            png = None
-        texture = (f"surface_{index}", opaca(png) if opaco else png) if png else None
+            png, source = None, ""
+        texture = None
+        if png:
+            png = opaca(png) if opaco else png
+            name = source or f"unnamed_surface_{index}"
+            if name in used and used[name] != png:
+                stem, dot, suffix = name.rpartition(".")
+                digest = hashlib.sha256(png).hexdigest()[:12]
+                name = f"{stem}__{digest}.{suffix}" if dot else f"{name}__{digest}"
+            used[name] = png
+            texture = (name, png)
+        yield off, texture, source
+
+
+def prop_materials(data, records, opaco=False):
+    surfaces, sources, shaders = {}, {}, {}
+    for off, texture, source in surface_textures(data, records, opaco):
         for prefix in (0, 32):
             surfaces[off + 128 + prefix] = texture
+            sources[off + 128 + prefix] = source
     for index, (tag, off, size, _, _) in enumerate(records):
         if tag != b"gshd":
             continue
@@ -237,9 +255,7 @@ def prop_materials(data, records, opaco=False):
             "surface_address": surface_address,
             "base_color": (*rgb, opacity),
             "shader_index": index,
-            "source_texture_path": (
-                surface_source(data, surface_address) if surface_address else ""
-            ),
+            "source_texture_path": sources.get(surface_address, ""),
         }
         for prefix in (0, 32):
             shaders[off + 128 + prefix] = material

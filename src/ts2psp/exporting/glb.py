@@ -11,6 +11,7 @@ from ts2psp.core.coordinates import (
     convert_vector3,
     convert_quaternion,
 )
+from ts2psp.core.names import part_label
 
 
 class GLB:
@@ -209,6 +210,7 @@ class GLB:
             part_texture = (
                 texture.get(part["name"]) if isinstance(texture, dict) else texture
             )
+            mesh_name = f"{name} / {part_label(part, part_texture)}"
             palette = part["palette"]
             if max(palette) >= bone_count:
                 raise ValueError("Palette references a missing bone")
@@ -305,7 +307,7 @@ class GLB:
                     "texCoord": 0,
                 }
             material = {
-                "name": f'{name} / {part["name"]}',
+                "name": mesh_name,
                 "pbrMetallicRoughness": pbr,
                 "doubleSided": True,
             }
@@ -340,11 +342,18 @@ class GLB:
                     acc = self.accessor(payload, 5126, "VEC3", count, 34962)
                     primitive["targets"].append({"POSITION": acc})
             mesh_idx = len(self.doc["meshes"])
-            mesh_name = f'{name} / {part["name"]}'
-            mesh = {"name": mesh_name, "primitives": [primitive]}
+            mesh = {
+                "name": mesh_name,
+                "primitives": [primitive],
+                "extras": {"sourcePart": part["name"]},
+            }
+            if part_texture:
+                mesh["extras"]["sourceTexture"] = part_texture[0]
+            if "repeat_texture" in part:
+                mesh["extras"]["repeatTexture"] = part["repeat_texture"]
             if morphs:
                 mesh["weights"] = [0.0] * len(morphs)
-                mesh["extras"] = {"targetNames": part["morph_names"]}
+                mesh["extras"]["targetNames"] = part["morph_names"]
             self.doc["meshes"].append(mesh)
             node_idx = len(self.doc["nodes"])
             self.doc["nodes"].append(

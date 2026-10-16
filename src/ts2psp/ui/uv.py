@@ -6,6 +6,7 @@ from tkinter import filedialog, ttk
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageTk
+from ts2psp.core.names import part_label
 
 
 def character_uv_parts(parts, textures):
@@ -24,7 +25,7 @@ def character_uv_parts(parts, textures):
             )
         result.append(
             {
-                "name": f'{path}/{part["name"]}',
+                "name": f"{path}/{part_label(part)}",
                 "vertices": vertices,
                 "indices": part["indices"],
                 "texture": Image.fromarray(tex) if tex is not None else None,
@@ -72,7 +73,7 @@ class UVWindow(tk.Toplevel):
             controls, textvariable=self.name, state="readonly", width=55
         )
         self.select.pack(side="left", fill="x", expand=True, padx=8)
-        self.select["values"] = [p["name"] for p in self.parts]
+        self.select["values"] = [part_label(p) for p in self.parts]
         self.select.bind("<<ComboboxSelected>>", self.render)
         ttk.Checkbutton(
             controls, text="Mostrar UV", variable=self.lines, command=self.render
@@ -101,7 +102,7 @@ class UVWindow(tk.Toplevel):
         self.label.image = photo
         texture = "texture" if part.get("texture") is not None else "no texture"
         self.status.configure(
-            text=f'{part["name"]} · {texture} · '
+            text=f"{part_label(part)} · {texture} · "
             f'{len(part["indices"]) // 3} UV triangles'
         )
 

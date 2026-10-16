@@ -390,9 +390,7 @@ class CharacterTab(ttk.Frame):
         resalte puede quedar fuera de la vista.
         """
         if mostrar is None:
-            mostrar = (
-                not self.animation_view.get() or self.replace_character.get()
-            )
+            mostrar = not self.animation_view.get() or self.replace_character.get()
         if animacion is None:
             animacion = self.animation_view.get()
         if not mostrar:
@@ -403,9 +401,7 @@ class CharacterTab(ttk.Frame):
         # se queda al final de la columna.
         self.characters_frame.pack(fill="both", expand=animacion)
         self.character_list_frame.pack_forget()
-        self.character_list_frame.pack(
-            fill="both", expand=animacion, pady=(3, 0)
-        )
+        self.character_list_frame.pack(fill="both", expand=animacion, pady=(3, 0))
         self.listbox.al_principio()
 
     def _resaltar_en_la_lista(self, name):
@@ -538,7 +534,12 @@ class CharacterTab(ttk.Frame):
         self.gallery.selected_key = value
 
     def _populate_texture_gallery(self):
-        self.gallery.set_textures(self.textures, self.selected_texture_key)
+        names = {
+            path: part["source_texture_path"]
+            for path, part in self.parts
+            if part.get("source_texture_path")
+        }
+        self.gallery.set_textures(self.textures, self.selected_texture_key, names=names)
 
     def _hide_texture_preview(self, clear_selection=False):
         self.gallery.hide_preview(clear_selection=clear_selection)

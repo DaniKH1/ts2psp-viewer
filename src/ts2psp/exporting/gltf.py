@@ -1,10 +1,10 @@
 """Helpers for exporting glTF JSON files from the app's GLB output."""
 
 import json
-import re
 from pathlib import Path
 
 from ts2psp.formats.animations import open_glb
+from ts2psp.core.names import texture_paths
 
 
 def export_gltf(source, target):
@@ -22,6 +22,11 @@ def export_gltf(source, target):
     buffer_path = target.with_suffix(".bin")
     buffers[0]["uri"] = buffer_path.name
     image_paths = set()
+    names = [
+        image.get("name") or f"texture_{i}"
+        for i, image in enumerate(document.get("images", []))
+    ]
+    paths = texture_paths(names, extension=".png")
     for index, image in enumerate(document.get("images", [])):
         if "bufferView" not in image:
             continue
@@ -41,16 +46,23 @@ def export_gltf(source, target):
         extension = {"image/png": "png", "image/jpeg": "jpg"}.get(mime_type)
         if extension is None:
             raise ValueError(f"Unsupported texture type: {mime_type}")
-        safe_name = re.sub(
-            r"[^A-Za-z0-9._-]+", "_", str(image.get("name") or f"texture_{index}")
-        ).strip("._")
-        if not safe_name:
-            safe_name = f"texture_{index}"
-        filename = f"{target.stem}_{index}_{safe_name}.{extension}"
+        relative = Path(paths[names[index]]).with_suffix("." + extension).as_posix()
+        filename = f"{target.stem}_textures/{relative}"
         if filename in image_paths:
-            raise ValueError(f"Duplicate texture name: {filename}")
+            # GLBs from other tools may repeat image names for different pixels.
+            path = Path(filename)
+            filename = str(
+                path.with_name(f"{path.stem}__{index}{path.suffix}")
+            ).replace("\\", "/")
+            while filename in image_paths:
+                path = Path(filename)
+                filename = str(path.with_name(f"{path.stem}_2{path.suffix}")).replace(
+                    "\\", "/"
+                )
         image_paths.add(filename)
-        (target.parent / filename).write_bytes(binary[start:end])
+        destination = target.parent / filename
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(binary[start:end])
         image["uri"] = filename
         image.pop("bufferView")
         image.pop("mimeType", None)

@@ -21,6 +21,7 @@ from ts2psp.formats.characters import (
     section,
 )
 from ts2psp.core.coordinates import convert_vector3
+from ts2psp.core.names import part_label
 from ts2psp.formats.materials import (
     MODO_PIEZAS,
     assign_material,
@@ -585,6 +586,7 @@ def write_rigid_glb(parts, name, target, bones=(), anclajes=None):
         por_nodo = anclajes if anclajes is not None else order
     for part in parts:
         vertices = part["vertices"]
+        mesh_name = f"{name}/{part_label(part)}"
         anchor = por_nodo.get(part.get("node", -1))
         if anchor is not None and "local_vertices" in part:
             vertices = transform_vertices(
@@ -671,7 +673,7 @@ def write_rigid_glb(parts, name, target, bones=(), anclajes=None):
             with Image.open(io.BytesIO(texture[1])) as image:
                 has_alpha |= image.convert("RGBA").getchannel("A").getextrema()[0] < 255
         material = {
-            "name": f'{name}/{part["name"]}',
+            "name": mesh_name,
             "doubleSided": True,
             "pbrMetallicRoughness": pbr,
         }
@@ -682,7 +684,8 @@ def write_rigid_glb(parts, name, target, bones=(), anclajes=None):
         mesh_idx = len(glb.doc["meshes"])
         glb.doc["meshes"].append(
             {
-                "name": f'{name}/{part["name"]}',
+                "name": mesh_name,
+                "extras": {"sourcePart": part["name"]},
                 "primitives": [
                     {
                         "attributes": attrs,
@@ -694,12 +697,16 @@ def write_rigid_glb(parts, name, target, bones=(), anclajes=None):
             }
         )
         if part.get("uv_source") or part.get("texture_warning"):
-            glb.doc["meshes"][-1]["extras"] = {
-                "uvSource": part.get("uv_source", "source"),
-                "materialNote": part.get("texture_warning", ""),
-            }
+            glb.doc["meshes"][-1]["extras"].update(
+                {
+                    "uvSource": part.get("uv_source", "source"),
+                    "materialNote": part.get("texture_warning", ""),
+                }
+            )
+        if texture:
+            glb.doc["meshes"][-1]["extras"]["sourceTexture"] = texture[0]
         node_idx = len(glb.doc["nodes"])
-        mesh_node = {"name": f'{name}/{part["name"]}', "mesh": mesh_idx}
+        mesh_node = {"name": mesh_name, "mesh": mesh_idx}
         if part.get("resource_path"):
             mesh_node["extras"] = {
                 "sourceResource": part["resource_path"],

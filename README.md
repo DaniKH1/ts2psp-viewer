@@ -7,6 +7,13 @@ Windows app for characters, facial shape keys, props and maps. Game resources ar
 
 Three tabs: **Characters**, **Props** and **Maps**.
 
+Textures use their internal bitmap names. Hover over a thumbnail or open its
+preview to see the name. **Layers**, UV inspection and exported meshes include
+the texture name alongside the original piece ID, so pieces sharing a texture
+stay distinguishable. GLB stores the full internal texture path; glTF and map
+texture ZIPs preserve internal folders with PNG filenames. Differing images
+that share a source name receive a short suffix to prevent overwrites.
+
 ## Run from source
 
 Use Python 3.11 or newer (the EXE is built with Python 3.13):
