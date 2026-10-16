@@ -222,13 +222,15 @@ class CharacterListTests(unittest.TestCase):
         """Tycho no trae mallas en el CSV: van declaradas en su recurso."""
         with zipfile.ZipFile(CHARACTERS) as archive:
             names = list_characters(archive)
-            row = next(r for r in load_character_rows(archive)
-                       if r["personaje"] == "tychocurious")
+            row = next(
+                r
+                for r in load_character_rows(archive)
+                if r["personaje"] == "tychocurious"
+            )
             for campo in ("bodyTorso", "bodyLegs", "bodyHead", "bodyHair"):
                 self.assertFalse(row.get(campo), campo)
             self.assertEqual(species_body_single(archive, row), "body/bubodydiaper")
-            self.assertEqual(character_mesh_paths(archive, row),
-                             ["body/bubodydiaper"])
+            self.assertEqual(character_mesh_paths(archive, row), ["body/bubodydiaper"])
         self.assertIn("tychocurious", names)
         # los objetos con bodySingle (camas, libro, coche) siguen fuera
         for fuera in ("beddoublebasic", "book", "moneytree", "plumbobcar"):
@@ -245,10 +247,13 @@ class CharacterListTests(unittest.TestCase):
         self.assertIn("body/bubodydiaper#cuerpo", textures)
         self.assertTrue(cara.endswith("buface-s5"))
         self.assertTrue(cuerpo.endswith("bubodynaked-nude-s5"))
-        self.assertEqual(character_texture_key(None, paths[0], "pieza_8"),
-                         "body/bubodydiaper#cara")
-        self.assertEqual(character_texture_key(None, paths[0], "principal"),
-                         "body/bubodydiaper#cuerpo")
+        self.assertEqual(
+            character_texture_key(None, paths[0], "pieza_8"), "body/bubodydiaper#cara"
+        )
+        self.assertEqual(
+            character_texture_key(None, paths[0], "principal"),
+            "body/bubodydiaper#cuerpo",
+        )
 
     def test_zenmu_uses_two_part_asian_face_archetype(self):
         paths, parts, bones, textures = load_character(CHARACTERS, "zenmu")
@@ -972,6 +977,14 @@ class CharacterListTests(unittest.TestCase):
                             elif target["path"] == "rotation":
                                 expected = convert_quaternion(
                                     normalize(sample(track, 0))
+                                )
+                                from ts2psp.formats.animations import qmul
+
+                                expected = qmul(
+                                    document["nodes"][node_index]
+                                    .get("extras", {})
+                                    .get("pspJointOrient", (0, 0, 0, 1)),
+                                    expected,
                                 )
                                 np.testing.assert_allclose(
                                     np.abs(np.dot(values, expected)), 1.0, atol=1e-5

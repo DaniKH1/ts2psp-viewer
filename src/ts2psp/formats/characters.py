@@ -577,7 +577,16 @@ def parse_bones(data):
             struct.unpack_from("<16f", data, at + 0x60), dtype=np.float64
         ).reshape(4, 4)
         world = np.linalg.inv(ibm)
-        bones.append({"name": name, "parent": parent, "ibm": ibm, "world": world})
+        bones.append(
+            {
+                "name": name,
+                "parent": parent,
+                "ibm": ibm,
+                "world": world,
+                # BANM rotations exclude the joint's fixed orientation.
+                "joint_orient": struct.unpack_from("<4f", data, at + 0x20),
+            }
+        )
     return bones
 
 
@@ -1277,4 +1286,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

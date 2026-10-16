@@ -104,6 +104,11 @@ Hand bone placement is corrected when the model is read, so wrists stay inside
 the skin; the hand bind offset is measured per branch, excluding the wrist, which
 otherwise drags one hand away from the other. See `formats/characters.py`.
 
+Character animations retain the fixed BODY joint orientations. This prevents
+Cowthulu/Beelzebeef's spine and left arm from folding through the body. The same
+composition is used in preview and exported animations; see
+[character rotation channels](docs/character-animation.md).
+
 ## Props
 
 After updating from an older build, select your ISO again through **File >

@@ -199,6 +199,13 @@ def qinv(q):
     return (-x, -y, -z, w)
 
 
+def bone_rotation(track, t, node):
+    """Compose the fixed BODY joint orientation with its animated rotation."""
+    rotation = convert_quaternion(normalize(sample(track, t)))
+    orient = node.get("extras", {}).get("pspJointOrient", (0, 0, 0, 1))
+    return normalize(qmul(orient, rotation))
+
+
 def matrix_trs(m):
     t = tuple(m[12:15])
     s = tuple(math.sqrt(sum(m[4 * c + r] ** 2 for r in range(3))) for c in range(3))
@@ -382,13 +389,9 @@ def attach_animations(
                     ]
                     channel(node_idx, "translation", values, "VEC3")
                 elif kind == "rotation":
-                    ref = (
-                        convert_quaternion(normalize(sample(rt, 0)))
-                        if reference
-                        else None
-                    )
+                    ref = bone_rotation(rt, 0, nodes[node_idx]) if reference else None
                     target = (
-                        convert_quaternion(normalize(sample(pt, reference_pose_time)))
+                        bone_rotation(pt, reference_pose_time, nodes[node_idx])
                         if pt
                         else bq
                     )
@@ -397,9 +400,7 @@ def attach_animations(
                     prev = None
                     for t in times:
                         q = normalize(
-                            qmul(
-                                convert_quaternion(normalize(sample(tr, t))), correction
-                            )
+                            qmul(bone_rotation(tr, t, nodes[node_idx]), correction)
                         )
                         if prev and sum(a * b for a, b in zip(prev, q)) < 0:
                             q = tuple(-v for v in q)

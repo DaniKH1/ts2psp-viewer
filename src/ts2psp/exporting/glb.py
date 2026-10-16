@@ -6,7 +6,11 @@ import math
 import struct
 import numpy as np
 from PIL import Image
-from ts2psp.core.coordinates import convert_row_matrix, convert_vector3
+from ts2psp.core.coordinates import (
+    convert_row_matrix,
+    convert_vector3,
+    convert_quaternion,
+)
 
 
 class GLB:
@@ -107,6 +111,11 @@ class GLB:
             self.doc["nodes"].append(
                 {"name": bone["name"], "matrix": [float(v) for v in local.reshape(16)]}
             )
+            orient = bone.get("joint_orient", (0, 0, 0, 1))
+            if sum(value * value for value in orient[:3]) > 1e-12:
+                self.doc["nodes"][-1]["extras"] = {
+                    "pspJointOrient": list(convert_quaternion(orient)),
+                }
         for i, bone in enumerate(bones):
             parent = bone["parent"]
             if parent >= 0:

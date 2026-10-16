@@ -36,9 +36,12 @@ class SkinnedPropAnimator:
         local = [m.copy() for m in self.local]
         for index, track, ref, bt, bq, scale in self.bindings:
             if track["kind"] == "rotation":
+                orient = self.rig[index].get("joint_orient", (0, 0, 0, 1))
+                animated = normalize(qmul(orient, normalize(sample(track, t))))
+                reference = normalize(qmul(orient, normalize(sample(ref, 0))))
                 q = qmul(
-                    normalize(sample(track, t)),
-                    qmul(qinv(normalize(sample(ref, 0))), bq),
+                    animated,
+                    qmul(qinv(reference), bq),
                 )
                 local[index][:3, :3] = _quaternion_matrix(normalize(q)) * scale
             elif track["kind"] == "translation":
