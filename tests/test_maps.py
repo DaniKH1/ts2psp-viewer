@@ -8,7 +8,12 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from ts2psp.formats.props import parse_rdms, sections
+from ts2psp.formats.props import (
+    parse_rdms,
+    sections,
+    vertex_layout,
+    _header_sizes,
+)
 from ts2psp.formats.prop_scene import node_hierarchies, rigid_placements
 from ts2psp.ui.maps import CUPULA_LADO, CUPULA_VERTICES, es_cupula
 
@@ -231,6 +236,293 @@ class SkyDomeTests(unittest.TestCase):
                 accessor(doc, binary, primitive["attributes"]["POSITION"]),
                 [convert_vector3(v[0]) for v in part["vertices"]],
                 atol=1e-5,
+            )
+
+    def test_teleporter_doors_are_painted_opaque(self):
+        """La puerta teleporter se pinta opaca en los dos niveles donde hay.
+
+        El material la marca como BLEND y sale semitransparente: se ve el otro
+        lado del marco y la escena se ve a traves del portal. Es la unica puerta
+        con esa textura en el juego, y son las piezas 531, 533 y 535 del
+        laboratorio y las 467, 469 y 471 del subnivel, mas sus copias.
+        """
+        esperadas = {
+            "levels/division_47/lab": ("pieza_531", "pieza_533", "pieza_535"),
+            "levels/division_47/secret_sublevel": (
+                "pieza_467",
+                "pieza_469",
+                "pieza_471",
+            ),
+        }
+        for ruta, nombres in esperadas.items():
+            piezas, _ = parse_rdms(self.datos(ruta), ruta=ruta)
+            con_texto = [
+                p
+                for p in piezas
+                if "teleporterdoor"
+                in ((p.get("texture") or ("", None))[0] or "").casefold()
+            ]
+            self.assertTrue(
+                con_texto,
+                f"{ruta}: deberia traer la puerta teleporter",
+            )
+            for parte in con_texto:
+                self.assertEqual(
+                    parte["alpha_mode"],
+                    "OPAQUE",
+                    f"{ruta}: {parte['name']} deberia ir opaca",
+                )
+            bases = {p["name"] for p in con_texto if "_instance_" not in p["name"]}
+            self.assertEqual(
+                bases,
+                set(nombres),
+                f"{ruta}: las piezas con la textura son las esperadas",
+            )
+            # Y las copias heredan el modo: salen de la misma pieza del rdms.
+            copias = [p for p in con_texto if "_instance_" in p["name"]]
+            for parte in copias:
+                self.assertEqual(parte["alpha_mode"], "OPAQUE")
+
+    def test_outdoor_trashcans_are_painted_opaque(self):
+        """La papelera de fuera se pinta opaca en los cuatro niveles donde hay.
+
+        Es el prop `objects/trashcans/fx_trashcanoutdoor`, con tres piezas: las
+        dos del cubo y la bolsa. El material las marca como BLEND y salen
+        translucidas, con el terreno viendose a traves. Es el unico prop con esas
+        texturas en el juego.
+        """
+        esperadas = {
+            "levels/deadtree/saloon": ("pieza_463", "pieza_466", "pieza_467"),
+            "levels/division_47/secret_sublevel": (
+                "pieza_578",
+                "pieza_581",
+                "pieza_582",
+            ),
+            "levels/gas_station/hub": ("pieza_668", "pieza_671", "pieza_672"),
+            "levels/paradise_place/doss": ("pieza_824", "pieza_827", "pieza_828"),
+        }
+        for ruta, nombres in esperadas.items():
+            piezas, _ = parse_rdms(self.datos(ruta), ruta=ruta)
+            con_texto = [
+                p
+                for p in piezas
+                if any(
+                    etiqueta
+                    in ((p.get("texture") or ("", None))[0] or "").casefold()
+                    for etiqueta in ("trashcanoutdoor", "trashbag")
+                )
+            ]
+            self.assertTrue(
+                con_texto,
+                f"{ruta}: deberia traer la papelera de fuera",
+            )
+            for parte in con_texto:
+                self.assertEqual(
+                    parte["alpha_mode"],
+                    "OPAQUE",
+                    f"{ruta}: {parte['name']} deberia ir opaca",
+                )
+            bases = {p["name"] for p in con_texto if "_instance_" not in p["name"]}
+            self.assertEqual(
+                bases,
+                set(nombres),
+                f"{ruta}: las piezas con esas texturas son las esperadas",
+            )
+
+    def strides_de_las_mallas(self, data):
+        """Cada malla rdms con su stride del archivo y el que calcula el layout.
+
+        Se recorre igual que `parse_rdms`: mismas secciones, mismo `shift` que
+        busca alli. Devuelve una lista de diccionarios con el vtype, el stride
+        declarado y el esperado para ese vtype.
+        """
+        salida = []
+        for tag, off, size, _, _ in sections(data):
+            if tag != b"rdms":
+                continue
+            shift = next(
+                (
+                    extra
+                    for extra in (header - 128 for header in _header_sizes(data))
+                    if off + 0xC4 + extra <= len(data)
+                    and struct.unpack_from("<I", data, off + 0xB8 + extra)[0] >> 24
+                    == 0x12
+                ),
+                None,
+            )
+            if shift is None:
+                continue
+            base = off + shift
+            vtype = struct.unpack_from("<I", data, base + 0xB8)[0]
+            try:
+                _t, code, _n, _p, _pos, esperado = vertex_layout(vtype)
+            except ValueError:
+                continue
+            salida.append(
+                {
+                    "off": off,
+                    "vtype": vtype,
+                    "color_code": code,
+                    "stride": struct.unpack_from("<I", data, base + 0xC0)[0],
+                    "vertices": struct.unpack_from("<I", data, base + 0x90)[0],
+                    "esperado": esperado,
+                }
+            )
+        return salida
+
+    def test_terrain_dirt_has_no_vertex_color_channel_in_the_file(self):
+        """El terreno de tierra del cementerio no trae canal de color de vertice.
+
+        Son las cinco piezas con `textures/terrain/txt_terrain_dirt_01.tif`. Su
+        VTYPE sale con los bits 2-4 a 0, que es "sin canal de color", y el stride
+        que trae el archivo coincide byte a byte con el que calcula el decodificador
+        con ese VTYPE y sin color. No es que el lector se los deje: es que en esos
+        14 bytes por vertice no hay sitio para un color de 2 bytes.
+
+        El resto del lector se comprueba aqui mismo, en el mismo nivel y con el
+        mismo codigo: hay mallas que si declaran canal, y el lector les saca
+        color a todas.
+        """
+        data = self.datos("levels/deadtree/graveyard")
+        piezas, _ = parse_rdms(data, apply_scene=True, vertex_colors=True, ruta="x")
+        tierra = [
+            p
+            for p in piezas
+            if "terrain_dirt_01" in ((p.get("texture") or ("", None))[0] or "")
+        ]
+        self.assertTrue(tierra, "el cementerio tiene piezas de terrain_dirt_01")
+
+        for parte in tierra:
+            self.assertEqual(
+                (parte["vtype"] >> 2) & 7,
+                0,
+                f"{parte['name']}: el VTYPE no declara canal de color",
+            )
+            self.assertEqual(
+                [v[3] for v in parte["vertices"] if v[3] is not None],
+                [],
+                f"{parte['name']}: y por eso no hay ningun color de vertice",
+            )
+
+        # Y el stride del archivo es el que sale del layout sin color, con lo
+        # que no queda ningun huequecillo sin leer.
+        mallas = self.strides_de_las_mallas(data)
+        sin_canal = [m for m in mallas if m["color_code"] == 0]
+        con_canal = [m for m in mallas if m["color_code"] != 0]
+        self.assertTrue(sin_canal, "el nivel tiene mallas sin canal de color")
+        self.assertTrue(con_canal, "y tambien con canal: el lector funciona con ellas")
+        for malla in sin_canal:
+            self.assertEqual(
+                malla["stride"],
+                malla["esperado"],
+                f"la malla en {malla['off']} tiene bytes de mas que no se leen",
+            )
+
+        # El lector saca color de todas las que declaran canal. Se cuentan las
+        # piezas base y no las copias: una malla repetida en el nivel sale como
+        # `pieza_N` mas sus `_instance_M`, y son la misma malla.
+        bases_con_color = {
+            p["name"]
+            for p in piezas
+            if any(v[3] is not None for v in p["vertices"]) and "_instance_" not in p["name"]
+        }
+        self.assertEqual(
+            len(con_canal),
+            len(bases_con_color),
+            "una malla con canal por cada pieza base con color leido",
+        )
+
+    def test_mid_grey_material_is_what_the_unlit_meshes_end_up_tinted(self):
+        """Las mallas sin color de vertice se tiñen con el color de su material.
+
+        Sin canal de color, el renderer multiplica la textura por el color del
+        material y ya esta. El problema es que ese color, en la mitad del juego,
+        es un gris 128: `(128, 128, 128, 255)`, o sea a media luz. Por eso los
+        muros, el suelo y el mobiliario grande se ven apagados y por eso el boton
+        de Vertex Color no les hace nada: no hay color de vertice que encender ni
+        apagar.
+
+        Este test deja escrito cual es ese tinte y cuanto pesa, para que la
+        decision de tratar el 128 como blanco o no se tome sobre datos y no de
+        memoria.
+        """
+        data = self.datos("levels/deadtree/graveyard")
+        piezas, _ = parse_rdms(data, apply_scene=True, vertex_colors=True, ruta="x")
+        tierra = [
+            p
+            for p in piezas
+            if "terrain_dirt_01" in ((p.get("texture") or ("", None))[0] or "")
+        ]
+        self.assertTrue(tierra, "el cementerio tiene piezas de terrain_dirt_01")
+        for parte in tierra:
+            self.assertEqual(
+                parte["color"],
+                (128, 128, 128, 255),
+                f"{parte['name']}: el tinte con el que se pinta",
+            )
+        # Sin canal, el tinte es tal cual: 128/255, a media luz.
+        self.assertAlmostEqual(128 / 255, 0.502, places=2)
+
+        # Y cuanto pesa en el juego entero, que es lo que hace que esto se vea.
+        gris = 0
+        total = 0
+        for row in self.rows:
+            partes, _ = parse_rdms(self.datos(row["ruta_interna"]), ruta=row["ruta_interna"])
+            total += len(partes)
+            gris += sum(1 for p in partes if p.get("color") == (128, 128, 128, 255))
+        self.assertGreater(
+            gris,
+            total // 2,
+            f"el gris 128 deberia ser el tinte mas común ({gris} de {total})",
+        )
+
+    def test_every_exported_mesh_carries_vertex_colors(self):
+        """El GLB lleva `COLOR_0` en todas las mallas, no solo en las que lo traen.
+
+        De las piezas visibles de un nivel, muchas son mallas cuyo VTYPE no declara
+        canal de color de vertice: los muros, el suelo y buena parte del
+        mobiliario. Antes esas salian sin `COLOR_0` y al abrir el archivo en
+        Blender se veian distinto que en el visor. Ahora se les escribe el color
+        del material, que es el tinte que el visor les aplica igual.
+        """
+        import json
+        import struct
+        import tempfile
+        from ts2psp.formats.animations import open_glb
+        from ts2psp.formats.props import write_rigid_glb
+        from ts2psp.rendering.props import without_vertex_colors
+
+        piezas, _ = parse_rdms(self.datos("levels/deadtree/library"), ruta="lib")
+        con_canal = [p for p in piezas if any(v[3] is not None for v in p["vertices"])]
+        sin_canal = [p for p in piezas if all(v[3] is None for v in p["vertices"])]
+        self.assertTrue(con_canal, "el nivel tiene mallas con color de vertice")
+        self.assertTrue(sin_canal, "el nivel tiene mallas sin color de vertice")
+
+        for etiqueta, partes in (
+            ("con color", piezas),
+            ("sin color", without_vertex_colors(piezas)),
+        ):
+            with tempfile.TemporaryDirectory() as carpeta:
+                destino = Path(carpeta) / "biblioteca.glb"
+                write_rigid_glb(partes, "biblioteca", destino)
+                crudo = destino.read_bytes()
+                largo, = struct.unpack_from("<I", crudo, 12)
+                doc = json.loads(crudo[20 : 20 + largo])
+            primitivas = [
+                primitiva
+                for malla in doc["meshes"]
+                for primitiva in malla["primitives"]
+            ]
+            self.assertEqual(len(primitivas), len(piezas))
+            sin_color = [
+                malla["name"]
+                for malla in doc["meshes"]
+                if "COLOR_0" not in malla["primitives"][0]["attributes"]
+            ]
+            self.assertEqual(
+                sin_color,
+                [],
+                f"exportando {etiqueta}, ninguna malla puede quedarse sin COLOR_0",
             )
 
     def test_compression_origin_is_only_a_legacy_diagnostic(self):

@@ -187,6 +187,49 @@ MODO_PIEZAS = {
     # el kine y su version colgante son el mismo mueble con distinto soporte
     "objects/cutsceneobjects/fx_lamp_kine": {"pieza_3": "OPAQUE"},
     "objects/cutsceneobjects/fx_lamp_swinging": {"pieza_3": "OPAQUE"},
+    # La puerta teleporter, `objects/doors/fx_d47mechdoor`, con la textura
+    # `textures/txt_teleporterdoor.tif`. El material la marca como BLEND y sale
+    # semitransparente: se ve el otro lado del marco y la escena se ve a traves
+    # del portal. Se pinta opaca.
+    #
+    # Las claves son la ruta interna del nivel y no el recurso, porque el indice
+    # de pieza es el del rdms de ese nivel y cambia de un mapa a otro: la misma
+    # puerta es la pieza 531 en el laboratorio y la 467 en el subnivel. Las copias
+    # `_instance_N` salen de la misma pieza y heredan el modo sin tocar nada.
+    "levels/division_47/lab": {
+        "pieza_531": "OPAQUE",
+        "pieza_533": "OPAQUE",
+        "pieza_535": "OPAQUE",
+    },
+    "levels/division_47/secret_sublevel": {
+        "pieza_467": "OPAQUE",
+        "pieza_469": "OPAQUE",
+        "pieza_471": "OPAQUE",
+        # Y la papelera de fuera, que tambien va forzada. Ver arriba.
+        "pieza_578": "OPAQUE",
+        "pieza_581": "OPAQUE",
+        "pieza_582": "OPAQUE",
+    },
+    # La papelera de fuera, `objects/trashcans/fx_trashcanoutdoor`, con las
+    # texturas `objects/trashcans/txt_trashcanoutdoor.tif` y
+    # `objects/trashcans/txt_trashbag.tif`. Son tres piezas: las dos del cubo y
+    # la bolsa. El material las marca como BLEND y salen translucidas, con el
+    # terreno viendose a traves. Se pintan opacas.
+    "levels/deadtree/saloon": {
+        "pieza_463": "OPAQUE",
+        "pieza_466": "OPAQUE",
+        "pieza_467": "OPAQUE",
+    },
+    "levels/gas_station/hub": {
+        "pieza_668": "OPAQUE",
+        "pieza_671": "OPAQUE",
+        "pieza_672": "OPAQUE",
+    },
+    "levels/paradise_place/doss": {
+        "pieza_824": "OPAQUE",
+        "pieza_827": "OPAQUE",
+        "pieza_828": "OPAQUE",
+    },
 }
 
 

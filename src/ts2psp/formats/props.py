@@ -655,11 +655,23 @@ def write_rigid_glb(parts, name, target, bones=(), anclajes=None):
             attrs["TEXCOORD_0"] = glb.accessor(
                 struct.pack("<" + "f" * len(vals), *vals), 5126, "VEC2", count, 34962
             )
-        if all(v[3] is not None for v in vertices):
-            vals = [x for _, _, _, color in vertices for x in color]
-            attrs["COLOR_0"] = glb.accessor(
-                struct.pack("<" + "f" * len(vals), *vals), 5126, "VEC4", count, 34962
-            )
+        # `COLOR_0` sale en TODAS las mallas, no solo en las que traian color de
+        # vertice. De las 9444 piezas visibles de los 21 niveles, 331715 vertices
+        # lo tienen y el resto son mallas cuyo VTYPE no declara canal de color
+        # (`vtype >> 2 & 7` sale 0 y el `stride` del archivo coincide con el que
+        # calcula el decodificador sin color): sus muros, su suelo y buena parte
+        # del mobiliario. Para esas se escribe el color del material, que es el
+        # tinte que el visor les aplica igual, de modo que el GLB lleva vertex
+        # color en todas partes y lo que se abre en Blender se ve como el visor.
+        color_material = part.get("color") or (255, 255, 255, 255)
+        vals = [
+            x
+            for _, _, _, color in vertices
+            for x in (tuple(color) if color is not None else color_material)
+        ]
+        attrs["COLOR_0"] = glb.accessor(
+            struct.pack("<" + "f" * len(vals), *vals), 5126, "VEC4", count, 34962
+        )
         for key, field, kind in (
             ("_PSP_UV0", "source_uv0", "VEC2"),
             ("_PSP_UV1", "source_uv1", "VEC2"),
