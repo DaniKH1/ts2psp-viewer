@@ -98,8 +98,6 @@ class TextureGallery(ttk.Frame):
             name_frame, text="", width=1, anchor="w", wraplength=180
         )
         self.name_label.pack(fill="both", expand=True)
-<<<<<<< Updated upstream
-=======
 
     def fijar_alto(self, alto):
         """Impone el alto del lienzo de las miniaturas, en pixeles.
@@ -120,13 +118,18 @@ class TextureGallery(ttk.Frame):
         repartido, al pedir el reparto salia cero y no habia nada que compensar.
         """
         return max(0, self.winfo_reqheight() - self.marco.winfo_reqheight())
->>>>>>> Stashed changes
 
     def rueda_sobre_la_galeria(self, event):
+        """Desplaza la galeria y avisa de si queda algo mas, para las pruebas.
+
+        Devuelve cuanto se ha movido: cero si no habia nada que desplazar, que es
+        el caso de una galeria con todas sus texturas a la vista.
+        """
         antes = self.canvas.yview()[0]
         self._mousewheel(event)
         despues = self.canvas.yview()[0]
         return abs(despues - antes)
+
     # -- contenido ---------------------------------------------------------
 
     def set_textures(self, textures, selected="", names=None):
