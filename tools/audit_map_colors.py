@@ -61,6 +61,15 @@ def audit(data, path):
             for p in visible
             if len(p.get("texture_layers", [])) > 1 and not p.get("texture_blend")
         ],
+        "texture_warnings": [
+            {
+                "part": p["name"],
+                "resource": p.get("resource_path"),
+                "warning": p["texture_warning"],
+            }
+            for p in visible
+            if p.get("texture_warning")
+        ],
         "errors": errors,
     }
     return report, visible
@@ -105,13 +114,12 @@ def main():
                         scene.UV,
                         scene._blend_coords,
                     )
-                    for label, enabled, fill in (
-                        ("textures", False, 0),
-                        ("source", True, 0),
-                        ("fill", True, 0.5),
+                    for label, enabled in (
+                        ("textures", False),
+                        ("source", True),
                     ):
                         tick = time.perf_counter()
-                        scene.fijar_vertex_colors(enabled, fill)
+                        scene.fijar_vertex_colors(enabled)
                         frame = scene.render(700, 460, 0.4, -0.85, 1.25)
                         frame.save(args.output / f"{row['entry']}_{label}.png")
                         switches.append(time.perf_counter() - tick)
@@ -125,7 +133,7 @@ def main():
                     report["gpu_color_difference"] = float(
                         np.abs(
                             np.asarray(frames[0], dtype=float)
-                            - np.asarray(frames[2], dtype=float)
+                            - np.asarray(frames[1], dtype=float)
                         ).mean()
                     )
                     previews.append((row["ruta_interna"], frames))
@@ -144,12 +152,12 @@ def main():
                 )
         if previews:
             for page in range(0, len(previews), 7):
-                sheet = Image.new("RGB", (1050, 7 * 256), "#20232f")
+                sheet = Image.new("RGB", (700, 7 * 256), "#20232f")
                 draw = ImageDraw.Draw(sheet)
                 for row, (name, frames) in enumerate(previews[page : page + 7]):
                     draw.text(
                         (6, row * 256 + 3),
-                        name + " | Textures / Source vertex colors / Preview fill",
+                        name + " | Textures / Vertex Color",
                         fill="white",
                     )
                     for column, frame in enumerate(frames):

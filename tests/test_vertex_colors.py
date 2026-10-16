@@ -14,7 +14,7 @@ from ts2psp.ui.maps import MapTab
 
 
 class VertexColorTests(unittest.TestCase):
-    def test_preview_fill_preserves_source_alpha_geometry_and_exported_colors(self):
+    def test_raw_color_toggle_preserves_source_alpha_geometry_and_exported_colors(self):
         import tempfile
         from pathlib import Path
         from ts2psp.formats.animations import open_glb
@@ -36,17 +36,12 @@ class VertexColorTests(unittest.TestCase):
         scene.tipo = "prop"
         scene._cargar([part], {})
         geometry, source = scene.posiciones, scene._colores_vertex.copy()
-        scene.fijar_vertex_colors(True, 0.5)
-        np.testing.assert_allclose(
-            scene.colores[0], (64 / 255, 64 / 255, 64 / 255, 0.25)
-        )
-        filled = scene.colores
-        scene.fijar_vertex_colors(True, 0.5)
-        self.assertIs(scene.colores, filled)
+        scene.fijar_vertex_colors(False)
+        np.testing.assert_allclose(scene.colores[0], (128 / 255,) * 3 + (1,))
+        scene.fijar_vertex_colors(True)
+        np.testing.assert_array_equal(scene.colores[0], (0, 0, 0, 0.25))
         self.assertIs(scene.posiciones, geometry)
         np.testing.assert_array_equal(scene._colores_vertex, source)
-        scene.fijar_vertex_colors(True, 0)
-        np.testing.assert_array_equal(scene.colores, source)
         with tempfile.TemporaryDirectory() as folder:
             target = Path(folder) / "source.glb"
             write_rigid_glb([part], "source", target)
@@ -55,30 +50,6 @@ class VertexColorTests(unittest.TestCase):
         np.testing.assert_allclose(
             accessor(doc, binary, color_index), [(0, 0, 0, 0.25)] * 3
         )
-
-    def test_fill_does_not_brighten_sky_shadow_or_unlit_effects(self):
-        scene = Escena.__new__(Escena)
-        scene.tipo = "prop"
-        parts = []
-        for source, normal in (
-            ("textures/sky/day.tif", (0, 0, 1)),
-            ("textures/lights_shadows/shadow.tif", (0, 0, 1)),
-            ("effects/smoke.tif", None),
-        ):
-            parts.append(
-                {
-                    "name": source,
-                    "source_texture_path": source,
-                    "vertices": [
-                        (p, normal, None, (0, 0, 0, 1))
-                        for p in ((0, 0, 0), (1, 0, 0), (0, 1, 0))
-                    ],
-                    "indices": [0, 1, 2],
-                }
-            )
-        scene._cargar(parts, {})
-        scene.fijar_vertex_colors(True, 1)
-        np.testing.assert_array_equal(scene.colores[:, :3], np.zeros((9, 3)))
 
     def test_packed_colors_match_psp_byte_expansion_and_rgba_order(self):
         cases = [

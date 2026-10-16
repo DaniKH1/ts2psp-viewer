@@ -103,7 +103,10 @@ def _palette(data, head, end):
 
 def _decode_surface_at(data, off, section_size, head):
     header = struct.unpack_from("<I", data, 12)[0]
-    end = min(len(data), off + (96 if header == 96 else 128) + section_size)
+    # Section sizes exclude the container header, including 160-byte map bundles.
+    end = min(
+        len(data), off + (header if header in (96, 128, 160) else 128) + section_size
+    )
     if head + 0x18 > end:
         return None
     flags = struct.unpack_from("<I", data, head + 8)[0]
@@ -166,7 +169,7 @@ def read_surface(data, off, section_size):
     """Return pixels and the source name from the same validated SURF header."""
     # Leaf resources use 96 bytes; bundles use 128, sometimes with a prefix.
     header = struct.unpack_from("<I", data, 12)[0]
-    deltas = (0x60, 0x80, 0xA0) if header == 0x60 else (0x80, 0xA0)
+    deltas = {96: (96, 128, 160), 160: (160, 128)}.get(header, (128, 160))
     for delta in deltas:
         result = _decode_surface_at(data, off, section_size, off + delta)
         if result is not None:

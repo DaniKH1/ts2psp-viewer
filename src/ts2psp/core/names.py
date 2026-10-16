@@ -5,6 +5,22 @@ import hashlib
 from pathlib import PurePosixPath
 
 
+def layer_label(part):
+    """Compact texture names for the layer browser; mesh IDs stay unchanged."""
+    texture = part.get("texture")
+    sources = [texture[0] if texture else part.get("source_texture_path", "")]
+    if part.get("texture_blend"):
+        sources = [layer["source"] for layer in part["texture_layers"]]
+    names = []
+    for source in sources:
+        name = PurePosixPath(source.replace("\\", "/")).name
+        name = re.sub(r"\.(tiff?|png|bmp|dds|tga)$", "", name, flags=re.I)
+        name = re.sub(r"^txt_", "", name, flags=re.I)
+        if name and name not in names:
+            names.append(name)
+    return " + ".join(names) or "Untextured"
+
+
 def part_label(part, texture=None):
     texture = texture if texture is not None else part.get("texture")
     source = texture[0] if texture else part.get("source_texture_path", "")

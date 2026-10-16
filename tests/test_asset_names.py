@@ -9,8 +9,11 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path, PurePosixPath
+from unittest.mock import Mock
 
-from ts2psp.core.names import part_label, texture_paths
+from PIL import Image
+
+from ts2psp.core.names import layer_label, part_label, texture_paths
 from ts2psp.exporting.gltf import export_gltf
 from ts2psp.formats.animations import open_glb
 from ts2psp.formats.materials import surface_textures
@@ -35,6 +38,24 @@ def surface_bundle(header, colors):
 
 
 class NamingTests(unittest.TestCase):
+    def test_map_surface_pixels_can_end_at_the_declared_section_boundary(self):
+        # Indexed counter bitmaps occupy the full section in 160-byte bundles.
+        header, size = 160, 0x4A0
+        data = bytearray(header + size)
+        struct.pack_into("<I", data, 12, header)
+        source = b"textures/design_mode/counters/counter01.tif\0"
+        data[48 : 48 + len(source)] = source
+        struct.pack_into("<iIHH", data, header + 4, 48 - header - 4, 0x0100011D, 16, 8)
+        struct.pack_into("<II", data, header + 0x10, 8, 0x40C)
+        struct.pack_into("<II", data, header + 0x18, 8, 0x00050100)
+        data[header + 0x20 : header + 0x24] = bytes((12, 34, 56, 255))
+        png, name = read_surface(bytes(data), 0, size)
+        self.assertEqual(name, source[:-1].decode())
+        self.assertEqual(
+            Image.open(io.BytesIO(png)).getpixel((15, 7)), (12, 34, 56, 255)
+        )
+        self.assertEqual(read_surface(bytes(data), 0, size - 1), (None, ""))
+
     def test_names_come_from_the_decoded_header_in_all_resource_layouts(self):
         for header in (96, 128, 160):
             with self.subTest(header=header):
@@ -77,6 +98,30 @@ ARCHIVE = (
     ARCHIVE.is_file(), "Set TS2_PSP_DATA_DIR to imported ISO resources"
 )
 class MapNamingTests(unittest.TestCase):
+    def test_espiritu_counters_resolve_their_authored_texture(self):
+        with zipfile.ZipFile(ARCHIVE) as archive:
+            rows = csv.DictReader(
+                io.StringIO(archive.read("inventario_mapas.csv").decode("utf-8-sig"))
+            )
+            row = next(
+                r for r in rows if r["ruta_interna"] == "levels/paradise_place/espiritu"
+            )
+            parts, rejected = parse_rdms(
+                archive.read(row["archivo_zip"]), ruta=row["ruta_interna"]
+            )
+        self.assertFalse(rejected)
+        counters = [
+            p
+            for p in parts
+            if p.get("resource_path", "").startswith("objects/counters/")
+        ]
+        self.assertEqual(len(counters), 51)
+        for part in counters:
+            self.assertEqual(
+                part["texture"][0], "textures/design_mode/counters/counter01.tif"
+            )
+            self.assertNotIn("texture_warning", part)
+
     def test_layers_glb_gltf_and_png_keep_the_same_texture_identity(self):
         with zipfile.ZipFile(ARCHIVE) as archive:
             rows = csv.DictReader(
@@ -89,6 +134,8 @@ class MapNamingTests(unittest.TestCase):
         self.assertTrue(textured)
         tab = object.__new__(MapTab)
         tab.parts, tab.ocultas = textured, {textured[0]["name"]}
+        tab.layer_filter = Mock()
+        tab.layer_filter.get.return_value = ""
         labels = tab._filas_de_capas()
         self.assertTrue(labels[0].startswith("[ ]"))
         originals = {
@@ -97,7 +144,7 @@ class MapNamingTests(unittest.TestCase):
             if texture
         }
         for part, label in zip(textured, labels):
-            self.assertIn(part_label(part), label)
+            self.assertEqual(label[4:], layer_label(part))
             self.assertEqual(part["texture"][1], originals[part["texture"][0]])
             self.assertNotIn("surface_", part["texture"][0])
         with tempfile.TemporaryDirectory() as directory:

@@ -24,9 +24,9 @@ black when enabled. The switch makes it possible to inspect the underlying atlas
 
 ## Local verification
 
-Maps now also offer an adjustable preview fill through **Lighting…**, while
-retaining exact source mode and unchanged exported colors. See
-[map Vertex Colors](map-vertex-colors.md) for the current behavior and measurements.
+The **Vertex Color** map switch displays stored source colors without added
+preview lighting. See [map Vertex Colors](map-vertex-colors.md) for the current
+material decoding and layer browser behavior.
 The figures below record the earlier decoder/switch validation.
 
 - 110 unit/integration checks passed with the locally imported resources; the

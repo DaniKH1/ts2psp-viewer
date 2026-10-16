@@ -323,7 +323,6 @@ class Escena:
     def _cargar(self, piezas, texturas):
         posiciones, uvs, colores, indices, tramos = [], [], [], [], []
         colores_base, modos_base = [], []
-        fill_vertices = []
         blend_coords = []
         self.texture_layers = []
         self.alpha_modes = []
@@ -370,10 +369,6 @@ class Escena:
             weights = parte.get("blend_weights", [])
             secondary_uvs = parte.get("secondary_uvs", [])
             tiene_uv = all(v[2] is not None for v in parte["vertices"])
-            source = parte.get("source_texture_path", "").replace("\\", "/").casefold()
-            allow_fill = not normaliza_uv and not any(
-                marker in source for marker in ("/sky/", "/lights_shadows/")
-            )
             vertex_alpha = False
             for vertex_index, vertice in enumerate(parte["vertices"]):
                 uv2 = (
@@ -382,9 +377,6 @@ class Escena:
                     else (vertice[2] or (0, 0))
                 )
                 blend_coords.append((*uv2, weights[vertex_index] if weights else 1.0))
-                fill_vertices.append(
-                    allow_fill and vertice[1] is not None and vertice[3] is not None
-                )
                 posiciones.append(tuple(v * escala_pos for v in vertice[0]))
                 # los personajes traen UV crudos en 1/4096: se normalizan con el v
                 # invertido, igual que los usa el rasterizador de CPU. En los props
@@ -477,9 +469,6 @@ class Escena:
         )
         self._modos_vertex = self.alpha_modes
         self._modos_base = modos_base
-        self._fill_vertices = np.asarray(fill_vertices, dtype=bool)
-        self._fill_value = None
-        self._colores_fill = None
         indices = np.ascontiguousarray(indices, dtype=np.uint32)
         self.dibujos = [
             (indices[inicio : inicio + n], textura, alfa, es_peinado)
@@ -696,21 +685,9 @@ class Escena:
         self.posiciones = np.ascontiguousarray(posiciones, dtype=np.float32)
         self.pose = pose
 
-    def fijar_vertex_colors(self, enabled, ambient_fill=0.0):
-        """Cached preview fill; source colors, alpha and exported data stay intact."""
-        fill = min(1.0, max(0.0, round(float(ambient_fill), 3)))
-        if enabled and fill:
-            if fill != self._fill_value:
-                self._colores_fill = self._colores_vertex.copy()
-                mask = self._fill_vertices
-                source = self._colores_vertex[mask, :3]
-                self._colores_fill[mask, :3] = source + fill * (
-                    self._colores_base[mask, :3] - source
-                )
-                self._fill_value = fill
-            self.colores = self._colores_fill
-        else:
-            self.colores = self._colores_vertex if enabled else self._colores_base
+    def fijar_vertex_colors(self, enabled):
+        """Switch cached source shading without changing geometry or textures."""
+        self.colores = self._colores_vertex if enabled else self._colores_base
         self.alpha_modes = self._modos_vertex if enabled else self._modos_base
 
     def pose_actual(self):

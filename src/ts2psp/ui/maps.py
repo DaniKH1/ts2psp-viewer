@@ -19,7 +19,7 @@ from ts2psp.rendering.props import prop_scene, render_prop, without_vertex_color
 from ts2psp.formats.props import parse_rdms, sections, write_rigid_glb
 from ts2psp.formats.prop_scene import level_prop_references
 from ts2psp.formats.materials import surface_textures
-from ts2psp.core.names import part_label, part_filename, texture_paths
+from ts2psp.core.names import layer_label, part_label, part_filename, texture_paths
 from ts2psp.ui.floating_button import FloatingButton
 from ts2psp.ui.textured_list import TexturedListbox, panel_redondeado
 from ts2psp.ui.texture_gallery import TextureGallery
@@ -209,8 +209,6 @@ class MapTab(ttk.Frame):
         self.show_sky = tk.BooleanVar(value=True)
         self.show_unplaced = tk.BooleanVar(value=False)
         self.vertex_colors = tk.BooleanVar(value=False)
-        self.vertex_fill = tk.DoubleVar(value=50.0)
-        self._lighting_dialog = None
         self.show_textures = tk.BooleanVar(value=True)
         self.culling = tk.BooleanVar(value=True)
         left = ttk.Frame(self)
@@ -292,9 +290,8 @@ class MapTab(ttk.Frame):
         self.export_button = self._floating_button("Export as...", self.export_as)
         self.recenter_button = self._floating_button("Reset view", self.camera.reset)
         self.vertex_button = self._floating_button(
-            "Vertex Colors", self.toggle_vertex_colors
+            "Vertex Color", self.toggle_vertex_colors
         )
-        self.lighting_button = self._floating_button("Lighting…", self.show_lighting)
         self.layers_button = self._floating_button("Layers", self.toggle_layers_panel)
         self.grid_button = self._floating_button(
             "Grid", self.toggle_grid, selected=True
@@ -390,10 +387,6 @@ class MapTab(ttk.Frame):
         # Reset view en la derecha, en la fila de debajo y pegado al mismo borde
         # que Grid, que es donde se busca cuando se ha descolocado la camara.
         self.recenter_button.place(width - 10 - self.recenter_button.reqwidth, 50)
-        self.lighting_button.place(
-            width - 22 - self.recenter_button.reqwidth - self.lighting_button.reqwidth,
-            50,
-        )
         self._colocar_panel_capas()
 
     def toggle_grid(self):
@@ -452,6 +445,17 @@ class MapTab(ttk.Frame):
             text="Click a piece to show or hide it",
             wraplength=ANCHO_LISTA_CAPAS - 16,
         ).pack(anchor="w")
+
+        self.layer_filter = tk.StringVar()
+        self.layer_indices = []
+        self.layer_search = ttk.Entry(
+            self.layers_cuerpo,
+            textvariable=self.layer_filter,
+            width=ANCHO_LISTA_CAPAS // 8,
+            style="CharacterSearch.TEntry",
+        )
+        self.layer_search.pack(fill="x", pady=(6, 6))
+        self.layer_filter.trace_add("write", self._filter_layers)
 
         marco = ttk.Frame(self.layers_cuerpo)
         marco.pack(fill="both", expand=True)
@@ -723,71 +727,29 @@ class MapTab(ttk.Frame):
         self.vertex_button.set_selected(self.vertex_colors.get())
         self.schedule()
 
-    def show_lighting(self):
-        if self._lighting_dialog is not None and self._lighting_dialog.winfo_exists():
-            self._lighting_dialog.lift()
-            return
-        dialog = tk.Toplevel(self)
-        self._lighting_dialog = dialog
-        dialog.title("Map preview lighting")
-        dialog.transient(self.winfo_toplevel())
-        dialog.resizable(False, False)
-        content = ttk.Frame(dialog, padding=16)
-        content.pack(fill="both", expand=True)
-
-        def changed(_value=None):
-            level.configure(text=f"Ambient fill: {self.vertex_fill.get():.0f}%")
-            self.vertex_button.set_selected(self.vertex_colors.get())
-            self.schedule()
-
-        ttk.Checkbutton(
-            content, text="Vertex Colors", variable=self.vertex_colors, command=changed
-        ).pack(anchor="w")
-        level = ttk.Label(content)
-        level.pack(anchor="w", pady=(12, 4))
-        ttk.Scale(
-            content,
-            from_=0,
-            to=100,
-            variable=self.vertex_fill,
-            command=changed,
-            length=320,
-        ).pack(fill="x")
-        ttk.Label(
-            content,
-            text="0% shows the stored colors exactly.\nFill light affects the preview only; exports keep source colors.",
-            wraplength=340,
-        ).pack(anchor="w", pady=12)
-        buttons = ttk.Frame(content)
-        buttons.pack(fill="x")
-
-        def preset(value):
-            self.vertex_fill.set(value)
-            changed()
-
-        ttk.Button(buttons, text="Source (0%)", command=lambda: preset(0)).pack(
-            side="left"
-        )
-        ttk.Button(buttons, text="Reset (50%)", command=lambda: preset(50)).pack(
-            side="left", padx=8
-        )
-        ttk.Button(buttons, text="Close", command=dialog.destroy).pack(side="right")
-        changed()
+    def _filter_layers(self, *_args):
+        """Search changes list rows only; visibility and mesh IDs stay intact."""
+        self.part_list.delete(0, "end")
+        self.part_list.refrescar_filas(self._filas_de_capas())
 
     def _filas_de_capas(self):
-        filas = []
-        for part in self.parts:
-            marca = " " if part["name"] in self.ocultas else "x"
-            filas.append(
-                f"[{marca}] {part_label(part)} · {len(part['vertices'])} verts"
-            )
-        return filas
+        term = self.layer_filter.get().strip().casefold()
+        self.layer_indices = [
+            i
+            for i, part in enumerate(self.parts)
+            if term in layer_label(part).casefold()
+        ]
+        return [
+            f"[{' ' if self.parts[i]['name'] in self.ocultas else 'x'}] "
+            f"{layer_label(self.parts[i])}"
+            for i in self.layer_indices
+        ]
 
     def _alternar_capa(self, index):
         """Enciende o apaga la pieza de la fila que se ha pulsado."""
-        if not 0 <= index < len(self.parts):
+        if not 0 <= index < len(self.layer_indices):
             return
-        nombre = self.parts[index]["name"]
+        nombre = self.parts[self.layer_indices[index]]["name"]
         if nombre in self.ocultas:
             self.ocultas.discard(nombre)
         else:
@@ -1005,8 +967,8 @@ class MapTab(ttk.Frame):
         self.camera.reset()
         # Las piezas apagadas son de este mapa: al cambiar de nivel se olvida.
         self.ocultas = set()
-        self.part_list.delete(0, "end")
-        self.part_list.refrescar_filas(self._filas_de_capas())
+        self.layer_filter.set("")
+        self._filter_layers()
         # La galeria de la izquierda enseña lo que lleva el nivel: cada pieza
         # guarda su textura como (nombre, pixeles), y sin pixeles no hay miniatura.
         self.gallery.set_textures(
@@ -1038,7 +1000,11 @@ class MapTab(ttk.Frame):
 
     def selected_part(self):
         choice = self.part_list.curselection()
-        return self.parts[choice[0]] if choice else None
+        return (
+            self.parts[self.layer_indices[choice[0]]]
+            if choice and choice[0] < len(self.layer_indices)
+            else None
+        )
 
     def select_part(self, _event=None):
         part = self.selected_part()
@@ -1178,9 +1144,7 @@ class MapTab(ttk.Frame):
                     sin_framing=self.nombres_del_cielo(),
                 )
                 self.objeto_key = key
-            self.objeto.fijar_vertex_colors(
-                self.vertex_colors.get(), self.vertex_fill.get() / 100
-            )
+            self.objeto.fijar_vertex_colors(self.vertex_colors.get())
             self.objeto.sin_mallas = False
             # Las apagadas se marcan por nombre y la escena las busca una vez.
             self.objeto.ocultas_mallas = frozenset(

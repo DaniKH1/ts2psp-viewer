@@ -4,8 +4,7 @@
 
 Graveyard's grass material has two diffuse SURF layers: grass and dirt. Its
 vertex alpha blends these layers. Loading only grass and treating vertex alpha
-as opacity exposed the viewport background through the terrain. Ambient fill
-could not repair that missing material layer.
+as opacity exposed the viewport background through the terrain. Both texture layers are required to reproduce that material.
 
 The reader now keeps both GSHD layer descriptors and both RDMS UV streams. The
 second stream offset is relative to the first vertex buffer, and has its own
@@ -49,44 +48,33 @@ those values by the texture and material color produces the reported black
 areas. The raw-channel decoder is retained; black values are not replaced in
 the model data.
 
-The viewer does not yet reproduce the game's complete scene lighting,
-light-linking or time-of-day logic. A preview fill control provides a readable
-view of the geometry while keeping the source shading available for inspection.
-This is a viewing aid, not recovered original game lighting.
+## Controls and performance
 
-## Controls
+**Vertex Color** shows the stored vertex RGB without an artificial light fill.
+Turning it off omits vertex shading and keeps material colors and terrain masks.
+It does not decode assets, reupload textures, replace geometry, change layer
+visibility or reset the camera. Exports use the same source color setting.
 
-Turn on **Vertex Colors**, then open **Lighting…**:
+The **Layers** browser shows texture basenames without `txt_`, bitmap suffixes
+or mesh IDs. Its textured search field filters only the list. Hidden layers
+stay hidden, and selecting a filtered row still targets the original mesh.
 
-- **Ambient fill** defaults to 50%.
-- **Source (0%)** displays the stored vertex colors exactly as before.
-- **Reset (50%)** restores the preview default.
+## Espiritu Estate counter textures
 
-Fill blends each eligible vertex's modulated RGB toward its material-only RGB:
-`preview = sourceModulated + fill * (materialOnly - sourceModulated)`.
-It preserves color variation while making dark regions inspectable. Alpha is
-unchanged; sky textures, shadow textures and geometry without normals are left
-out. Props and characters retain their existing preview behavior.
+SURF sizes exclude the resource header. The texture decoder incorrectly used
+128 bytes for map containers with a 160-byte header, rejecting bitmaps that
+ended in the last 32 bytes of the section. The decoder now uses the declared
+header and checks pixel and palette bounds against that section size.
+All 51 counter pieces/instances in Espiritu Estate load their referenced
+`textures/design_mode/counters/counter01.tif` with the original UVs.
 
-Fill does not affect GLB/FBX export. With Vertex Colors on, export retains
-source RGB, including black values. With it off, vertex shading is omitted.
-Terrain blend masks are preserved separately as described above. No reimport
-is required.
+## Checks
 
-## Performance and checks
-
-The renderer retains the original color array and one reusable fill result.
-Changing fill only recomputes RGB when its value changes. Toggling source/fill
-or Vertex Colors does not decode assets, reupload textures, replace geometry,
-change layers or reset the camera.
-
-Unit checks cover black input, alpha preservation, exact source mode, GLB source
-colors, exclusions for sky/shadows/effects and reuse of the filled array. The
-real Deadtree window was checked across 80,691 vertices with 21 color toggles,
-six fill changes and 20 prop color toggles. There were zero texture reuploads;
-the largest measured toggle plus frame was 0.0441 seconds and UI event gap was
-0.148 seconds on the validation PC. GPU renders of Deadtree were inspected in
-both source and filled modes.
+132 unit/resource tests passed. All 21 maps were parsed and rendered with zero
+texture decode warnings or invalid mesh/color/secondary-UV data. The Espiritu
+GUI test exercised filtered layer selection plus 21 color toggles and 20 prop
+color toggles, with no texture reuploads. Its largest switch plus frame was
+0.047 seconds and event gap 0.145 seconds on the validation PC.
 
 Run the full map audit with your own imported resources:
 
@@ -97,6 +85,6 @@ python tests/test_texture_blend_gpu.py
 ```
 
 The audit checks all 21 maps, both UV layouts, color/position ranges and layer
-references. It saves per-map GPU views with colors off, exact source colors,
-preview fill, three contact sheets and `audit.json`. It cannot establish visual
+references. It saves per-map GPU views with colors off and exact source colors,
+three contact sheets and `audit.json`. It cannot establish visual
 parity with all original game lighting states.
