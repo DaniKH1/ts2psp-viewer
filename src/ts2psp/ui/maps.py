@@ -4,6 +4,7 @@ import csv
 import io
 import json
 import math
+import re
 import queue
 import threading
 import zipfile
@@ -110,6 +111,55 @@ def es_cupula(part):
     puntos = [v[0] for v in vertices]
     lado = max(max(p[k] for p in puntos) - min(p[k] for p in puntos) for k in range(3))
     return abs(lado - CUPULA_LADO) <= CUPULA_LADO * CUPULA_TOLERANCIA
+
+
+def variantes_cielo(parts):
+    """Classify day/night sky domes from source names, then texture brightness."""
+    cupulas = [part for part in parts if es_cupula(part)]
+    variants = {}
+    unresolved = []
+    for part in cupulas:
+        texture = part.get("texture") or ("", None)
+        layers = part.get("texture_layers", ())
+        descriptor = " ".join(
+            str(value or "")
+            for value in (
+                part.get("name"),
+                part.get("nombre"),
+                part.get("resource_path"),
+                part.get("source_texture_path"),
+                texture[0] if isinstance(texture, (tuple, list)) else texture,
+                *(
+                    (layer.get("texture") or ("",))[0]
+                    for layer in layers
+                    if isinstance(layer, dict)
+                ),
+            )
+        ).casefold()
+        compact = re.sub(r"[^a-z0-9]", "", descriptor)
+        if any(word in compact for word in ("night", "noche", "moon")):
+            variants[part["name"]] = "night"
+        elif any(word in compact for word in ("day", "dia", "sun")):
+            variants[part["name"]] = "day"
+        else:
+            pixels = texture[1] if isinstance(texture, (tuple, list)) and len(texture) > 1 else None
+            try:
+                image = np.asarray(pixels, dtype=np.float32)
+                if image.ndim >= 3 and image.shape[-1] >= 3:
+                    rgb = image[..., :3]
+                    if rgb.size and np.all(np.isfinite(rgb)):
+                        unresolved.append((part["name"], float(rgb.mean())))
+            except (TypeError, ValueError):
+                pass
+    if len(unresolved) == 2:
+        dark, bright = sorted(unresolved, key=lambda row: row[1])
+        if bright[1] - dark[1] > max(abs(bright[1]), 1.0) * 0.05:
+            variants[dark[0]] = "night"
+            variants[bright[0]] = "day"
+    if len(cupulas) == 2 and len(variants) == 1:
+        other = next(part["name"] for part in cupulas if part["name"] not in variants)
+        variants[other] = "night" if next(iter(variants.values())) == "day" else "day"
+    return variants
 
 
 def nombre_del_mapa(row, language="en"):
@@ -245,7 +295,8 @@ class MapTab(ttk.Frame):
         self.daylight_profile = None
         self.daynight_rig_data = None
         self.daynight_rig_records = None
-        self.daynight_hour = tk.DoubleVar(value=12.0)
+        self.daynight_mode = tk.StringVar(value="day")
+        self.skybox_variants = {}
         self._daynight_update = None
         self.parts = []
         self.timer = None
@@ -1154,6 +1205,28 @@ class MapTab(ttk.Frame):
         )
         self.vertex_color_body = ttk.Frame(self.vertex_color_panel)
         self.vertex_color_body.pack(fill="x", padx=MARGEN_CAPAS, pady=(6, MARGEN_CAPAS))
+        self._vertex_color_label = ttk.Label(
+            self.vertex_color_body, text="Vertex color"
+        )
+        self._vertex_color_label.pack(anchor="w")
+        vertex_color_states = ttk.Frame(self.vertex_color_body)
+        vertex_color_states.pack(fill="x", pady=(2, 0))
+        self.vertex_color_on = ttk.Button(
+            vertex_color_states,
+            text="ON",
+            command=lambda: self._set_vertex_colors(True),
+        )
+        self.vertex_color_on.pack(
+            side="left", fill="x", expand=True, padx=(0, 4)
+        )
+        self.vertex_color_off = ttk.Button(
+            vertex_color_states,
+            text="OFF",
+            command=lambda: self._set_vertex_colors(False),
+        )
+        self.vertex_color_off.pack(
+            side="left", fill="x", expand=True, padx=(4, 0)
+        )
         self._light_illumination_label = ttk.Label(
             self.vertex_color_body, text="Light illumination"
         )
@@ -1176,6 +1249,24 @@ class MapTab(ttk.Frame):
         self.light_illumination_off.pack(
             side="left", fill="x", expand=True, padx=(4, 0)
         )
+        self._daynight_label = ttk.Label(self.vertex_color_body, text="Day/night")
+        self._daynight_label.pack(anchor="w", pady=(6, 0))
+        daynight_states = ttk.Frame(self.vertex_color_body)
+        daynight_states.pack(fill="x", pady=(2, 0))
+        self.day_button = ttk.Button(
+            daynight_states,
+            text="Day",
+            command=lambda: self._set_daynight_mode("day"),
+        )
+        self.day_button.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        self.night_button = ttk.Button(
+            daynight_states,
+            text="Night",
+            command=lambda: self._set_daynight_mode("night"),
+        )
+        self.night_button.pack(side="left", fill="x", expand=True, padx=(4, 0))
+        self._update_vertex_color_buttons()
+        self._update_daynight_buttons()
         self._update_light_illumination_buttons()
         self._pintar_vertex_color_panel()
         self.canvas.itemconfigure(self.vertex_color_background, state="hidden")
@@ -1278,7 +1369,19 @@ class MapTab(ttk.Frame):
 
     def _set_vertex_colors(self, enabled):
         self.vertex_colors.set(bool(enabled))
+        self._update_vertex_color_buttons()
         self.schedule()
+
+    def _update_vertex_color_buttons(self):
+        if not hasattr(self, "vertex_color_on"):
+            return
+        enabled = self.vertex_colors.get()
+        self.vertex_color_on.configure(
+            style="Selected.Toggle.TButton" if enabled else "Toggle.TButton"
+        )
+        self.vertex_color_off.configure(
+            style="Toggle.TButton" if enabled else "Selected.Toggle.TButton"
+        )
 
     def _set_light_illumination(self, enabled):
         self.light_illumination.set(bool(enabled))
@@ -1296,6 +1399,35 @@ class MapTab(ttk.Frame):
         )
         self.light_illumination_off.configure(
             style="Toggle.TButton" if enabled else "Selected.Toggle.TButton"
+        )
+
+    def _set_daynight_mode(self, mode):
+        """Switch the map's authored DNL curves and matching sky dome."""
+        mode = "night" if str(mode).casefold() == "night" else "day"
+        self.daynight_mode.set(mode)
+        self._update_daynight_buttons()
+        if self.daynight_rig_data is not None and self.daynight_rig_records is not None:
+            hour = 0.0 if mode == "night" else 12.0
+            self.daylight_profile = daynight_rig_profiles(
+                self.daynight_rig_data,
+                self.daynight_rig_records,
+                hour,
+            )
+            if self.objeto is not None:
+                self.objeto.fijar_luz_direccional_mapa(self.daylight_profile)
+        # Mode changes can swap the dome meshes, so rebuild the cached scene.
+        self.objeto_key = None
+        self.schedule()
+
+    def _update_daynight_buttons(self):
+        if not hasattr(self, "day_button"):
+            return
+        is_day = self.daynight_mode.get() == "day"
+        self.day_button.configure(
+            style="Selected.Toggle.TButton" if is_day else "Toggle.TButton"
+        )
+        self.night_button.configure(
+            style="Toggle.TButton" if is_day else "Selected.Toggle.TButton"
         )
 
     def _filter_layers(self, *_args):
@@ -1441,7 +1573,9 @@ class MapTab(ttk.Frame):
         )
         path = self.app.paths["maps"]
         archivo = row["archivo_zip"]
-        daynight_hour = self.daynight_hour.get()
+        # Keep the daytime directional rig active; night-only DNL profiles
+        # should not contribute to map illumination in this preview.
+        daynight_hour = 0.0 if self.daynight_mode.get() == "night" else 12.0
 
         def work():
             try:
@@ -1543,6 +1677,7 @@ class MapTab(ttk.Frame):
         self.objeto_key = None
         self.data = data
         self.parts = parts
+        self.skybox_variants = variantes_cielo(parts)
         self.spawn_points = spawn_points
         self.camera_light_points = level_camera_light_points(
             data,
@@ -1556,10 +1691,8 @@ class MapTab(ttk.Frame):
         self.light_points = [
             point for point in self.camera_light_points if point["kind"] == "light"
         ]
-        self.vertex_colors.set(
-            row.get("ruta_interna", "").casefold().rstrip("/")
-            == "levels/gas_station/garage"
-        )
+        self.vertex_colors.set(True)
+        self._update_vertex_color_buttons()
         self.current = row
         # La camara vuelve al origen y al encuadre de partida: el foco es la caja
         # de lo que se dibuja, asi que sin resetarla cada nivel se abriria
@@ -1653,7 +1786,16 @@ class MapTab(ttk.Frame):
         del cielo esta encendido, pero la escena las deja fuera de la caja, que
         si no se abarca el nivel desde tan lejos que queda en un punto.
         """
-        partes = [p for p in self.parts if p["name"] not in self.ocultas]
+        mode = self.daynight_mode.get()
+        partes = [
+            p
+            for p in self.parts
+            if p["name"] not in self.ocultas
+            and (
+                not es_cupula(p)
+                or self.skybox_variants.get(p["name"]) in (None, mode)
+            )
+        ]
         if self.show_sky.get():
             return partes
         return [p for p in partes if not es_cupula(p)]
@@ -1665,9 +1807,16 @@ class MapTab(ttk.Frame):
         escena, solo deja de pintarse: asi la caja del encuadre no cambia y la
         camara no se reajusta cada vez que se enciende o apaga una pieza.
         """
-        if self.show_sky.get():
-            return list(self.parts)
-        return [p for p in self.parts if not es_cupula(p)]
+        mode = self.daynight_mode.get()
+        return [
+            p
+            for p in self.parts
+            if not es_cupula(p)
+            or (
+                self.show_sky.get()
+                and self.skybox_variants.get(p["name"]) in (None, mode)
+            )
+        ]
 
     def nombres_sin_recorte(self):
         """Las piezas del nivel que hay que dibujar sin recortar caras traseras.
@@ -1688,7 +1837,13 @@ class MapTab(ttk.Frame):
         """
         if not self.show_sky.get():
             return ()
-        return tuple(p["name"] for p in self.parts if es_cupula(p))
+        mode = self.daynight_mode.get()
+        return tuple(
+            p["name"]
+            for p in self.parts
+            if es_cupula(p)
+            and self.skybox_variants.get(p["name"]) in (None, mode)
+        )
 
     def render(self):
         self.timer = None
@@ -1731,6 +1886,7 @@ class MapTab(ttk.Frame):
                 self.current["entry"],
                 self.show_textures.get(),
                 self.show_sky.get(),
+                self.daynight_mode.get(),
                 culling,
             )
             if self.objeto_key != key:
@@ -1854,6 +2010,50 @@ class MapTab(ttk.Frame):
                         int(np.clip(channel, 0.0, 1.0) * 255)
                         for channel in light_color[:3]
                     )
+                if str(point.get("light_type", "")).casefold() == "directional":
+                    direction = np.asarray(
+                        point.get("direction", ()), dtype=np.float64
+                    )
+                    direction_length = float(np.linalg.norm(direction))
+                    if direction.shape == (3,) and direction_length > 1e-8:
+                        # The stored directional axis points toward the source;
+                        # show the parallel light-ray direction toward surfaces.
+                        ray_direction = -direction / direction_length
+                        ray_length = max(
+                            2.0,
+                            min(float(self.objeto.radio) * 0.15, 18.0),
+                        )
+                        reference = np.array((0.0, 0.0, 1.0))
+                        if abs(float(np.dot(ray_direction, reference))) > 0.95:
+                            reference = np.array((1.0, 0.0, 0.0))
+                        side = np.cross(ray_direction, reference)
+                        side /= np.linalg.norm(side)
+                        vertical = np.cross(ray_direction, side)
+                        cone_radius = min(ray_length * 0.14, 2.5)
+                        base = position + ray_direction * ray_length
+                        cone_ring = []
+                        for step in range(17):
+                            angle = 2.0 * math.pi * step / 16
+                            ring_point = base + cone_radius * (
+                                math.cos(angle) * side + math.sin(angle) * vertical
+                            )
+                            cone_ring.append(
+                                self.objeto.proyectar(
+                                    ring_point,
+                                    width,
+                                    height,
+                                    self.camera.yaw,
+                                    self.camera.pitch,
+                                    self.camera.zoom,
+                                    self.camera.pan,
+                                    self.camera,
+                                )
+                            )
+                        draw.line(cone_ring, fill=marker_color, width=2)
+                        # A tapered wireframe cone makes the ray direction clearer
+                        # without obscuring the map surface beneath it.
+                        draw.line((x, y, *cone_ring[0]), fill=marker_color, width=2)
+                        draw.line((x, y, *cone_ring[8]), fill=marker_color, width=2)
                 if str(point.get("light_type", "")).casefold() == "point":
                     reach = gl.alcance_luz_local_mapa(point)
                     if reach > 0:

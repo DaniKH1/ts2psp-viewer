@@ -177,9 +177,9 @@ materials, UV repairs and the remaining untextured authoring templates.
 
 Props switch Vertex Colors using cached color arrays. Changing this setting
 does not reread the archive, reupload textures, reset the camera or restart an
-animation. Prop exports retain their source colors. Map preview vertex shading
-is off by default and turns on automatically for Garage; map exports currently
-omit vertex colors.
+animation. Prop exports retain their source colors. Map vertex-color shading is
+enabled by default for all maps and can be switched in the **Lights** panel;
+map exports currently omit vertex colors.
 See [first import and Vertex Colors validation](docs/first-import-and-vertex-colors.md)
 for the decoder changes and measured switch timings.
 
@@ -198,9 +198,9 @@ uses the map's original light colors, intensities and day/night rig, plus local
 ambient, directional and point lights. Directional lights use their source
 orientation; point lights use distance falloff. The viewer approximates the
 game's lighting because its GPU/material combiner and source-unit conversion
-are not available. Point-light gain and reach are preview settings; vertex
-shading remains off by default and turns on automatically for Garage. Map
-exports currently omit vertex colors. See [map Vertex Colors and lighting
+are not available. Point-light gain and reach are preview settings. Vertex-color
+shading is enabled by default for all maps and can be switched in the **Lights**
+panel. Map exports currently omit vertex colors. See [map Vertex Colors and lighting
 findings](docs/map-vertex-colors.md).
 
 **Maps > Export as... > Prop placement references (.json)** saves the resource

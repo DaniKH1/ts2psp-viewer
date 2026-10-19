@@ -27,7 +27,9 @@ ambient, directional, and point-light records. Point-light gain and radius are
 preview settings: source intensity feeds a bounded strength curve, while the
 radius uses a separate scale. The viewer currently uses a point-light gain of
 2 and a radius scale of 0.01; these values are not stored as gain settings in
-the source files. Other local light types use separate preview factors. The
+the source files. Directional light shapes store RGB and intensity but no
+radius or gain; their source intensity is applied directly, with no distance
+falloff. Other local light types use separate preview factors. The
 diffuse/ambient material equation remains approximate because the resources do
 not contain the game's GPU combiner or light-unit conversion. The preview does
 not reproduce reflections, scripted lighting, post-processing, spot-light
@@ -36,15 +38,13 @@ contain the referenced lighting rig, the default 12:00 profile is unavailable.
 
 ## Vertex-color intensity
 
-Vertex-color shading is off by default and enabled automatically for Garage.
-When enabled, the preview uses the default 100% intensity. It first applies the
-source day/night light factors, then raises luminance for eligible dark vertex
-colors with a neutral RGB addition. The lift is stronger below luminance 0.65,
-uses a gamma-shaped curve, and has a 0.10 luminance floor. This keeps
-dark-to-light ordering and reduces color-cast amplification while making
-almost-black authored areas visible. Colors are clamped to the displayable
-range. Terrain texture blends and explicitly named shadow-card meshes are
-excluded from this lift.
+Vertex-color shading is enabled by default for all maps. The preview uses the
+default 100% intensity. It first applies the selected source day/night light
+factors, then raises luminance for dark vertex colors with a neutral RGB
+addition and an 8% brightness gain. The lift starts below luminance 0.80, uses
+a 0.15 gamma exponent, and has a 0.16 luminance floor. Colors are clamped to
+the displayable range. Terrain texture blends are excluded because their RGB
+is not the color channel; their alpha blend mask remains unchanged.
 
 Map exports currently omit vertex colors altogether. They contain neither the
 preview's luminance lift nor its source day/night lighting, so export output is
@@ -100,11 +100,11 @@ the model data.
 
 ## Controls and performance
 
-Map vertex-color shading is currently off by default and enabled automatically
-for Garage. Its preview intensity is 100%. The **Lights** panel independently
-turns map illumination on or off; the **Pointers** panel controls the spawn,
-light and camera overlays. The source day/night rig is sampled at 12:00; there
-is currently no time-of-day control in the interface.
+Map vertex-color shading is enabled by default for all maps. Its preview
+intensity is 100%. The **Lights** panel independently turns map illumination
+on or off and selects **Day** or **Night**, sampling the source rig at 12:00 or
+00:00 and showing the matching sky dome. The **Pointers** panel controls the
+spawn, light and camera overlays.
 
 The **Layers** browser shows texture basenames without `txt_`, bitmap suffixes
 or mesh IDs. Its textured search field filters only the list. Hidden layers

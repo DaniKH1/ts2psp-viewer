@@ -33,11 +33,12 @@ from ts2psp.ui.camera import (
 )
 
 # --- constantes de OpenGL ----------------------------------------------------
-# Lift dark authored vertex colors in luminance, adding the lift neutrally to RGB
-# so the original shadows remain ordered without amplifying their color cast.
-UMBRAL_LUMINANCIA_VERTEX_COLOR_OSCURO = 0.65
-GAMMA_VERTEX_COLOR_OSCURO = 0.25
-PISO_LUMINANCIA_VERTEX_COLOR_OSCURO = 0.10
+# Brighter preview for authored vertex colors. The gamma exponent is below one
+# to lift darker values; a neutral luminance addition preserves the color cast.
+UMBRAL_LUMINANCIA_VERTEX_COLOR_OSCURO = 0.80
+GAMMA_VERTEX_COLOR_OSCURO = 0.15
+PISO_LUMINANCIA_VERTEX_COLOR_OSCURO = 0.16
+GANANCIA_BRILLO_VERTEX_COLOR = 1.08
 
 
 def levantar_vertex_colors_oscuros(colores, mascara_vertex_color):
@@ -63,28 +64,14 @@ def levantar_vertex_colors_oscuros(colores, mascara_vertex_color):
     luminancia_objetivo = luminancia + peso * (luminancia_gamma - luminancia)
     aporte_neutro = np.maximum(luminancia_objetivo - luminancia, 0.0)
     corregidos = np.clip(rgb + aporte_neutro[:, None], 0.0, 1.0)
-    salida[mascara, :3] = corregidos[mascara]
+    corregidos[mascara] *= GANANCIA_BRILLO_VERTEX_COLOR
+    salida[mascara, :3] = np.clip(corregidos[mascara], 0.0, 1.0)
     return salida
 
 
 def malla_admite_lift_vertex_color(part):
-    """Do not lift terrain blends or deliberately painted shadow cards."""
-    if part.get("texture_blend"):
-        return False
-    texture = part.get("texture")
-    texture_path = texture[0] if isinstance(texture, (tuple, list)) and texture else ""
-    descriptor = " ".join(
-        str(value or "")
-        for value in (
-            part.get("source_texture_path"),
-            part.get("resource_path"),
-            part.get("ruta"),
-            texture_path,
-            part.get("name"),
-            part.get("nombre"),
-        )
-    ).casefold()
-    return "lights_shadows" not in descriptor and "shadow_genericsquare" not in descriptor
+    """Only lift meshes whose vertex RGB is color, not a terrain blend mask."""
+    return not part.get("texture_blend")
 
 
 def malla_necesita_brillo_vertex_color(part):
@@ -134,6 +121,7 @@ def factores_luz_direccional_mapa(normales, perfil):
             or not np.isfinite(intensidad)
             or not np.all(np.isfinite(color))
             or max_color <= 1e-8
+            or intensidad <= 1e-8
         ):
             continue
         direccion /= longitud
@@ -225,8 +213,9 @@ def factores_luces_locales_mapa(posiciones, normales, luces):
 
         if light_type == "directional":
             # Directionals use only their world-space axis. Their translation
-            # is deliberately ignored, so illumination has no point-light
-            # distance falloff and reaches surfaces throughout the map.
+            # is deliberately ignored. The source shape stores RGB and
+            # intensity, but no radius or gain: directional illumination has
+            # no distance falloff, and the authored intensity is used directly.
             direction = np.asarray(
                 light.get("direction", matrix[:3, 2]), dtype=np.float32
             )
@@ -238,11 +227,7 @@ def factores_luces_locales_mapa(posiciones, normales, luces):
             direction /= direction_length
             lambert = np.zeros(len(posiciones), dtype=np.float32)
             lambert[valid] = np.maximum(unit_normals[valid] @ direction, 0.0)
-            strength = intensity if intensity <= 1.0 else intensity / (intensity + 5000.0)
-            additions += (
-                np.minimum(strength * lambert[:, None] * 0.28, 0.28)
-                * color[None, :]
-            )
+            additions += max(intensity, 0.0) * lambert[:, None] * color[None, :]
             continue
 
         light_position = matrix[:3, 3]
@@ -667,8 +652,28 @@ class Escena:
                     for path in layer_paths
                 )
             )
+            descriptor_light_ray = " ".join(
+                str(value or "")
+                for value in (
+                    parte.get("name"),
+                    parte.get("nombre"),
+                    parte.get("source_texture_path"),
+                    parte.get("resource_path"),
+                    parte.get("ruta"),
+                    (parte.get("texture") or ("",))[0],
+                    *(layer_paths or ()),
+                )
+            ).casefold()
+            es_light_ray_garage = (
+                self.tipo == "mapa"
+                and self.ruta_escena.replace("\\", "/").strip("/").casefold()
+                == "levels/gas_station/garage"
+                and "lightray"
+                in descriptor_light_ray.replace("_", "").replace("-", "").replace(" ", "")
+            )
             malla_tiene_vertex_color = (
                 (not parte.get("texture_blend") or es_terreno_espiritu)
+                and not es_light_ray_garage
                 and any(vertice[3] is not None for vertice in parte["vertices"])
             )
             second_texture = 0
@@ -700,6 +705,7 @@ class Escena:
                 vertices_vertex_color_original.append(
                     vertice[3] is not None
                     and malla_admite_lift_vertex_color(parte)
+                    and not es_light_ray_garage
                 )
                 # los personajes traen UV crudos en 1/4096: se normalizan con el v
                 # invertido, igual que los usa el rasterizador de CPU. En los props
@@ -728,6 +734,10 @@ class Escena:
                 if not normaliza_uv and vertice[3] is not None:
                     rgba = tuple(vertice[3])
                     rgba = rgba + (1.0,) if len(rgba) == 3 else rgba
+                    if es_light_ray_garage:
+                        # The Garage light ray uses its material/texture color;
+                        # preserve vertex alpha if it carries coverage data.
+                        rgba = (1.0, 1.0, 1.0, rgba[3])
                     if es_terreno_verde_espiritu and intensidad_referencia_terreno:
                         # Keep the source green hue, scaling its strength to the
                         # mean authored RGB level of adjacent terrain meshes
