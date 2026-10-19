@@ -40,21 +40,58 @@ class PropAssets:
             self._textures[path] = (path, png) if png else None
         return self._textures[path]
 
-    def animation_rows(self, model):
+    def animation_rows(self, model, target_data=None):
         directory = model.rsplit("/", 1)[0] + "/anims/"
-        return [
+        rows = [
             r for r in self.manifest["animations"] if r["name"].startswith(directory)
         ]
+        if target_data is None:
+            return rows
+        from ts2psp.formats.prop_anim import retarget_curve_bindings
+
+        folder = model.casefold().rpartition("/")[0] + "/"
+        for row in self.manifest.get("prop_animations", ()):
+            if row.get("kind") != "node" or not row["name"].casefold().startswith(
+                folder
+            ):
+                continue
+            clip = self.clip(row)
+            bindings = retarget_curve_bindings(clip["node_data"], target_data, clip)
+            if bindings:
+                rows.append({**row, "bindings": bindings})
+        return rows
 
     def clip(self, row):
         if row["file"] not in self._clips:
             with zipfile.ZipFile(self.path) as source:
-                self._clips[row["file"]] = parse_banm(source.read(row["file"]))
-                self._clips[row["file"]]["name"] = row["name"]
+                data = source.read(row["file"])
+                if row.get("kind") == "node":
+                    from ts2psp.formats.prop_anim import prop_clip
+
+                    clip = prop_clip(data)
+                    if clip is None:
+                        raise ValueError(f"No animation curves in {row['name']}")
+                    self._clips[row["file"]] = {
+                        **clip,
+                        "name": row["name"],
+                        "kind": "node",
+                        "node_data": data,
+                    }
+                else:
+                    self._clips[row["file"]] = {
+                        **parse_banm(data),
+                        "name": row["name"],
+                        "kind": "banm",
+                    }
         return self._clips[row["file"]]
 
-    def clips(self, model):
-        return [self.clip(row) for row in self.animation_rows(model)]
+    def clips(self, model, target_data=None):
+        return [
+            {**self.clip(row), "bindings": row.get("bindings")}
+            if row.get("kind") == "node"
+            else self.clip(row)
+            for row in self.animation_rows(model, target_data)
+        ]
 
     def repair(self, parts, model):
         """Resolve verified placeholder/water materials without inventing assets."""

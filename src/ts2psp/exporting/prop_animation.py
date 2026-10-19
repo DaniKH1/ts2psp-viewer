@@ -26,8 +26,8 @@ def _trs(matrix, fallback=None):
     return translation, rotation, tuple(scale)
 
 
-def add_prop_animation(glb, data, bones, name, fps=30):
-    animator = PropAnimator(data)
+def add_prop_animation(glb, data, bones, name, fps=30, clip=None, bindings=None):
+    animator = PropAnimator(data, clip, bindings)
     clip = animator.clip
     if not bones:
         return 0

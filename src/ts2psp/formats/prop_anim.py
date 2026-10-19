@@ -16,6 +16,7 @@ from ts2psp.formats.prop_scene import (
     _relative,
     is_transform,
     is_joint,
+    node_name,
     rest_values,
 )
 
@@ -75,7 +76,15 @@ def iter_prop_animations(path, rows):
             data = archive.read(row["archivo_zip"])
             if b"bmsh" in data[:128]:
                 for external in assets.animation_rows(row["ruta_interna"]):
+                    if external.get("kind") == "node":
+                        continue
                     yield {**row, "animation_name": external["name"]}
+            else:
+                for external in assets.animation_rows(row["ruta_interna"], data):
+                    if external.get("kind") != "node":
+                        continue
+                    if external.get("bindings"):
+                        yield {**row, "animation_name": external["name"]}
             clip = prop_clip(data)
             if clip:
                 animated = {link["node"] for link in curve_bindings(data, clip)}
@@ -166,6 +175,29 @@ def curve_bindings(data, clip):
     return tuple(output)
 
 
+def retarget_curve_bindings(source_data, target_data, clip):
+    """Map a separate NODE prop clip onto matching transform names in a prop."""
+    source_nodes, _, _, _ = node_hierarchy(source_data, sections(source_data))
+    target_nodes, _, _, _ = node_hierarchy(
+        target_data, sections(target_data), rest_pose=False
+    )
+    target_by_name = {
+        node_name(target_data, node).casefold(): index
+        for index, node in enumerate(target_nodes)
+        if is_transform(target_data, node)
+    }
+    output = []
+    for binding in curve_bindings(source_data, clip):
+        source_index = binding["node"]
+        if not 0 <= source_index < len(source_nodes):
+            continue
+        source_name = node_name(source_data, source_nodes[source_index]).casefold()
+        target_index = target_by_name.get(source_name)
+        if target_index is not None:
+            output.append({**binding, "node": target_index})
+    return tuple(output)
+
+
 def reparte_canales(data, clip):
     """Compatibility map for callers; axes and factors live in curve_bindings."""
     return {
@@ -176,7 +208,7 @@ def reparte_canales(data, clip):
 class PropAnimator:
     """Compile once per selection, then evaluate local properties per frame."""
 
-    def __init__(self, data, clip=None):
+    def __init__(self, data, clip=None, bindings=None):
         self.data = data
         self.clip = clip if clip is not None else prop_clip(data)
         self.nodes, self.rest_world, _, _ = node_hierarchy(
@@ -188,7 +220,9 @@ class PropAnimator:
             if is_transform(data, node)
             and tuple(rest_values(data, node)) != tuple(transform_values(data, node))
         }
-        self.bindings = curve_bindings(data, self.clip)
+        self.bindings = (
+            tuple(bindings) if bindings is not None else curve_bindings(data, self.clip)
+        )
         self.values = {
             i: transform_values(data, node)
             for i, node in enumerate(self.nodes)

@@ -821,7 +821,31 @@ def convert_prop(
         glb = write_rigid_glb(parts, name, target, bones=bones, anclajes=anclajes)
         from ts2psp.exporting.prop_animation import add_prop_animation
 
-        animations = add_prop_animation(glb, data, bones, name) if include_animation else 0
+        animation_clip = None
+        animation_bindings = None
+        if include_animation and animation and assets:
+            animation_clip = next(
+                (
+                    clip
+                    for clip in assets.clips(name, data)
+                    if clip["name"] == animation and clip.get("kind") == "node"
+                ),
+                None,
+            )
+            if animation_clip:
+                animation_bindings = animation_clip["bindings"]
+        animations = (
+            add_prop_animation(
+                glb,
+                data,
+                bones,
+                animation or name,
+                clip=animation_clip,
+                bindings=animation_bindings,
+            )
+            if include_animation
+            else 0
+        )
         glb.save(target)
         return {
             "name": name,

@@ -126,7 +126,7 @@ composition is used in preview and exported animations; see
 
 After updating from an older build, select your ISO again with the top-right
 **Select ISO...** button. The new cache includes standalone object bitmaps and
-skeletal clips, which older ZIPs do not contain. Older caches still open with a
+both embedded and separate prop animation clips. Older ZIPs still open with a
 reminder.
 
 The **Props** tab is laid out in three columns.
@@ -142,10 +142,15 @@ The **Props** tab is laid out in three columns.
   Reset view. Bones start off.
 
 Props keep the NODE hierarchy, named joints, rotation/scale pivots and linked
-animation channels. Embedded transform animations play here. When a prop has a
-supported clip, its export dialog offers an **Include animation** checkbox;
-uncheck it to export the static prop. See [prop rigs](docs/prop-rigs.md) for
-supported tracks, the satellite regression and the validation command.
+animation channels. Embedded clips and separate `fx_o-` / `fx_o2a-` NODE clips
+play here. Separate clips are associated with a prop when their animated node
+names match transforms in that prop's rig and both resources are in the same
+game folder; this also picks up shared rigs such as chair, computer and stove
+variants. Clips that only animate sim-held accessories have no matching prop
+rig and are left out. When a prop has a supported clip, its export dialog offers
+an **Include animation** checkbox; uncheck it to export the static prop. See
+[prop rigs](docs/prop-rigs.md) for supported tracks, the satellite regression
+and the validation command.
 
 The **FPS** button cycles 20/30/60/15 and genuinely caps how often the clock
 advances, without slowing the animation down. **Auto Play** starts a prop as soon

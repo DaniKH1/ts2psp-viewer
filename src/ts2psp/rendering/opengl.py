@@ -443,6 +443,7 @@ class Escena:
         vertices_con_color = []
         vertices_vertex_color_original = []
         blend_coords = []
+        uv_panning_ranges = []
         self.texture_layers = []
         self.alpha_modes = []
         # El nombre de la pieza de cada dibujo, en el mismo orden. Lo usa el
@@ -575,6 +576,11 @@ class Escena:
             nombre = str(parte.get("name") or parte.get("nombre") or ruta)
             self.nombres.append(nombre)
             self.tramos_vertices.append((inicio_vertices, len(parte["vertices"])))
+            pan_speed = float(parte.get("preview_uv_pan_speed", 0.0) or 0.0)
+            if math.isfinite(pan_speed) and pan_speed:
+                uv_panning_ranges.append(
+                    (inicio_vertices, len(parte["vertices"]), pan_speed)
+                )
             transparent = tramos[-1][3]
             modo = parte.get("alpha_mode")
             if self.tipo != "prop":
@@ -605,6 +611,8 @@ class Escena:
             (normal is not None for normal in normales), dtype=bool, count=len(normales)
         )
         self.UV = np.ascontiguousarray(uvs, dtype=np.float32)
+        self._uv_base = self.UV.copy()
+        self._uv_panning_ranges = tuple(uv_panning_ranges)
         self.colores = np.ascontiguousarray(colores, dtype=np.float32) / 255.0
         self._colores_vertex_sin_luz = self.colores.copy()
         self._colores_vertex = self._colores_vertex_sin_luz
@@ -835,6 +843,16 @@ class Escena:
         """Replaces the positions (shape keys or skinning) without re-uploading indices."""
         self.posiciones = np.ascontiguousarray(posiciones, dtype=np.float32)
         self.pose = pose
+
+    def fijar_panning_tiempo(self, elapsed_seconds):
+        """Animate marked preview UVs vertically; source/export UVs stay intact."""
+        if not self._uv_panning_ranges:
+            return
+        self.UV[:] = self._uv_base
+        for start, count, speed in self._uv_panning_ranges:
+            offset = (float(elapsed_seconds) * speed) % 1.0
+            end = start + count
+            self.UV[start:end, 1] += offset
 
     def fijar_vertex_colors(self, enabled, intensity=100.0):
         """Switch cached shading and its strength without rebuilding geometry."""

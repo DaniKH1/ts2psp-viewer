@@ -214,10 +214,16 @@ def import_iso(iso_path, output_dir, progress=None, cancelled=None):
             props = []
             animations = []
             maps = []
-            prop_support = {"version": 1, "textures": {}, "animations": []}
+            prop_support = {
+                "version": 1,
+                "textures": {},
+                "animations": [],
+                "prop_animations": [],
+            }
             used_meshes = set()
             used_textures = set()
             used_props = set()
+            seen_prop_animations = {}
             with ExitStack() as stack:
                 zips = {
                     kind: stack.enter_context(
@@ -287,6 +293,44 @@ def import_iso(iso_path, output_dir, progress=None, cancelled=None):
                                         "name": object_name,
                                         "file": file,
                                         "duration": clip["duration"],
+                                    }
+                                )
+                        if (
+                            object_name.casefold().split("/")[-1].startswith(
+                                ("fx_o-", "fx_o2a-")
+                            )
+                            and any(s[0] == b"node" for s in records)
+                            and not any(
+                                s[0] in (b"rdms", b"bmsh", b"levl") for s in records
+                            )
+                        ):
+                            # Some rigid prop animations are separate NODE-only
+                            # resources. Preserve their curves with the props so
+                            # the viewer can bind them to the matching base prop.
+                            from ts2psp.formats.prop_anim import (
+                                curve_bindings,
+                                prop_clip,
+                            )
+
+                            try:
+                                clip = prop_clip(data)
+                                bindings = curve_bindings(data, clip) if clip else ()
+                            except (ValueError, struct.error):
+                                clip, bindings = None, ()
+                            if (
+                                clip
+                                and bindings
+                                and seen_prop_animations.get(object_name) != data
+                            ):
+                                seen_prop_animations[object_name] = data
+                                file = f'support/prop_animations/{row["entry"]}.res'
+                                zips["props"].writestr(file, data)
+                                prop_support["prop_animations"].append(
+                                    {
+                                        "name": object_name,
+                                        "file": file,
+                                        "duration": clip["duration"],
+                                        "kind": "node",
                                     }
                                 )
 

@@ -48,6 +48,18 @@ from ts2psp.exporting.gltf import export_gltf
 # llenar la columna: se quedan en un alto fijo, mas corto que el que tenian.
 ALTO_LISTA_PROPS = 360
 ALTO_LISTA_ANIMS = 360
+PANNING_TARGETS = {
+    "objects/brainwave_amplifier/fx_controlpanel": (
+        "pieza_11",
+        "objects/kufo/txt_hologram_buttons_off.tif",
+        0.50,
+    ),
+    "objects/brainwave_amplifier/fx_forcefield": (
+        "pieza_2",
+        "objects/brainwave_amplifier/txt_hologram_rings.tif",
+        -0.10,
+    ),
+}
 
 
 class PropTab(ttk.Frame):
@@ -74,6 +86,7 @@ class PropTab(ttk.Frame):
         self.visible = []
         self.current = None
         self.parts = []
+        self.uv_pan_started_at = None
         self.timer = None
         self.last_frame = 0.0
         self.rendering = False
@@ -566,15 +579,36 @@ class PropTab(ttk.Frame):
                 ruta=row["ruta_interna"],
                 assets=self.assets,
             )
+            self.uv_pan_started_at = None
+            panning_target = PANNING_TARGETS.get(
+                row["ruta_interna"].replace("\\", "/").casefold()
+            )
+            if panning_target:
+                mesh_name, texture_path, pan_speed = panning_target
+                pan_parts = [
+                    part
+                    for part in self.parts
+                    if part.get("name") == mesh_name
+                    and part.get("source_texture_path", "")
+                    .replace("\\", "/")
+                    .casefold()
+                    == texture_path
+                ]
+                if pan_parts:
+                    pan_parts[0]["preview_uv_pan_speed"] = pan_speed
+                    pan_parts[0]["repeat_texture"] = True
+                    self.uv_pan_started_at = time.perf_counter()
             self.bone_src, _ = prop_joints(
                 data, include_helpers=self.show_helpers.get()
             )
             self.bones = bones_over(self.parts, self.bone_src)
             self.clip = prop_clip(data)
             self.animator = PropAnimator(data, self.clip)
-            clips = (
-                self.assets.clips(row["ruta_interna"]) if b"bmsh" in data[:128] else []
-            )
+            clips = self.assets.clips(row["ruta_interna"], data)
+            if b"bmsh" in data[:128]:
+                clips = [clip for clip in clips if clip.get("kind") != "node"]
+            else:
+                clips = [clip for clip in clips if clip.get("kind") == "node"]
             if clips:
                 reference = next(
                     (c for c in clips if c["name"].endswith("idle-breathe")), clips[0]
@@ -583,11 +617,18 @@ class PropTab(ttk.Frame):
                     (c for c in clips if c["name"] == row.get("animation_name")),
                     reference,
                 )
-                self.animator = SkinnedPropAnimator(data, selected, reference)
-                self.clip = self.animator.clip
-                self.bones = self.bone_src
+                self.clip = selected
+                if b"bmsh" in data[:128]:
+                    self.animator = SkinnedPropAnimator(data, selected, reference)
+                    self.clip = self.animator.clip
+                    self.bones = self.bone_src
+                elif selected.get("kind") == "node":
+                    self.animator = PropAnimator(
+                        data, selected, bindings=selected["bindings"]
+                    )
             self.has_export_animation = bool(
-                self.clip and self.animator.bindings
+                self.clip
+                and self.animator.bindings
             )
             self.current = row
             for textured in (False, True):
@@ -820,6 +861,10 @@ class PropTab(ttk.Frame):
             if self.objeto_key != key:
                 self.objeto = prop_scene(self.parts, key[0], key[1])
                 self.objeto_key = key
+            if self.uv_pan_started_at is not None:
+                self.objeto.fijar_panning_tiempo(
+                    time.perf_counter() - self.uv_pan_started_at
+                )
             self.objeto.fijar_vertex_colors(self.show_vertex_colors.get())
             if self.clip:
                 self.objeto.fijar_poses(posed_positions(partes))
@@ -846,7 +891,11 @@ class PropTab(ttk.Frame):
             )
         finally:
             self.rendering = False
-            if self.playing or self.redraw_requested:
+            if (
+                self.playing
+                or self.redraw_requested
+                or (self.uv_pan_started_at is not None and self.show_textures.get())
+            ):
                 self.schedule()
 
     def export(self, fmt=None):
@@ -898,7 +947,11 @@ class PropTab(ttk.Frame):
                 glb,
                 include_helpers=self.show_helpers.get(),
                 assets=self.assets,
-                animation=self.current.get("animation_name"),
+                animation=(
+                    self.clip.get("name")
+                    if self.clip and self.clip.get("kind") == "node"
+                    else self.current.get("animation_name")
+                ),
                 include_animation=incluir_animacion,
             )
             if fbx:
