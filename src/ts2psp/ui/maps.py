@@ -17,13 +17,19 @@ from ts2psp.ui.camera import CAMERA_HINT, OrbitController, Viewport
 import ts2psp.rendering.opengl as gl
 from ts2psp.rendering.props import prop_scene, render_prop, without_vertex_colors
 from ts2psp.formats.props import parse_rdms, sections, write_rigid_glb
-from ts2psp.formats.prop_scene import level_prop_references
+from ts2psp.formats.prop_scene import (
+    daynight_rig_profiles,
+    level_prop_references,
+)
 from ts2psp.formats.materials import surface_textures
 from ts2psp.core.names import layer_label, part_label, part_filename, texture_paths
-from ts2psp.ui.floating_button import FloatingButton
+from ts2psp.exporting.gltf import export_gltf
+from ts2psp.ui.common import choose_export_format, export_model_name
+from ts2psp.ui.i18n import translate
+from ts2psp.ui.floating_button import FloatingButton, place_right_buttons
 from ts2psp.ui.textured_list import TexturedListbox, panel_redondeado
 from ts2psp.ui.texture_gallery import TextureGallery
-from ts2psp.ui.theme import LIST_PANEL_PATH
+from ts2psp.ui.theme import ANCHO_TROUGH_PROPS, LIST_PANEL_PATH
 from ts2psp.ui.uv import UVWindow
 
 # La cupula del cielo de los niveles.
@@ -102,7 +108,7 @@ def es_cupula(part):
     return abs(lado - CUPULA_LADO) <= CUPULA_LADO * CUPULA_TOLERANCIA
 
 
-def nombre_del_mapa(row):
+def nombre_del_mapa(row, language="en"):
     """El nombre que se enseña del nivel, sin su ruta interna.
 
     Las rutas son de desarrollo (`levels/gas_station/garage`) y no dicen nada del
@@ -111,6 +117,8 @@ def nombre_del_mapa(row):
     repite: hay cuatro niveles que se llaman `hub`.
     """
     ruta = row["ruta_interna"]
+    if language == "es" and ruta in NOMBRES_DE_MAPAS_ES:
+        return NOMBRES_DE_MAPAS_ES[ruta]
     conocido = NOMBRES_DE_MAPAS.get(ruta)
     if conocido:
         return conocido
@@ -140,6 +148,30 @@ NOMBRES_DE_MAPAS = {
     "levels/paradise_place/rossum": "Rossum House",
     "levels/cas": "Create a Sim",
     "levels/the_monument": "The Monument",
+}
+
+NOMBRES_DE_MAPAS_ES = {
+    "levels/deadtree/graveyard": "Cementerio",
+    "levels/deadtree/hub": "Arbolseco",
+    "levels/deadtree/kine": "Sociedad de la Vaca",
+    "levels/deadtree/library": "Biblioteca",
+    "levels/deadtree/saloon": "El Aullido Nocturno",
+    "levels/division_47/barracks": "Cuartel",
+    "levels/division_47/hub": "División 47",
+    "levels/division_47/lab": "Laboratorio",
+    "levels/division_47/secret_sublevel": "Subnivel secreto",
+    "levels/gas_station/curio_shop": "Tienda de curiosidades",
+    "levels/gas_station/garage": "Garaje",
+    "levels/gas_station/hub": "Estación de servicio",
+    "levels/interface/mainmenu": "Finca Espíritu (sin usar)",
+    "levels/paradise_place/beaker": "Casa Panero",
+    "levels/paradise_place/doss": "Casa Sobe",
+    "levels/paradise_place/espiritu": "Finca Espíritu",
+    "levels/paradise_place/hub": "Paraíso",
+    "levels/paradise_place/newlow": "Casa Niubajo",
+    "levels/paradise_place/rossum": "Casa Instein",
+    "levels/cas": "Crear un Sim",
+    "levels/the_monument": "El Monumento",
 }
 
 
@@ -202,6 +234,11 @@ class MapTab(ttk.Frame):
         self.visible = []
         self.current = None
         self.data = b""
+        self.daylight_profile = None
+        self.daynight_rig_data = None
+        self.daynight_rig_records = None
+        self.daynight_hour = tk.DoubleVar(value=12.0)
+        self._daynight_update = None
         self.parts = []
         self.timer = None
         self.last_frame = 0.0
@@ -216,16 +253,20 @@ class MapTab(ttk.Frame):
         self.show_sky = tk.BooleanVar(value=True)
         self.show_unplaced = tk.BooleanVar(value=False)
         self.vertex_colors = tk.BooleanVar(value=False)
+        self.vertex_color_intensity = tk.DoubleVar(value=100.0)
+        self.vertex_color_window = None
+        self.vertex_color_pos = [10, 92]
         self.show_textures = tk.BooleanVar(value=True)
         self.culling = tk.BooleanVar(value=True)
         left = ttk.Frame(self)
         left.pack(side="left", fill="y", padx=(0, 8))
-        ttk.Label(
+        self.maps_heading = ttk.Label(
             left,
-            text=f"Maps ({len(self.rows)})",
+            text="Maps",
             anchor="center",
             font=(self.app._sims_font_family, 12, "bold"),
-        ).pack(fill="x")
+        )
+        self.maps_heading.pack(fill="x")
         self.filter = tk.StringVar()
         entry = ttk.Entry(
             left,
@@ -314,14 +355,12 @@ class MapTab(ttk.Frame):
         self.camera.ignores = self._over_floating_button
         self.export_button = self._floating_button("Export as...", self.export_as)
         self.recenter_button = self._floating_button("Reset view", self.camera.reset)
-        self.vertex_button = self._floating_button(
-            "Vertex Color", self.toggle_vertex_colors
-        )
         self.layers_button = self._floating_button("Layers", self.toggle_layers_panel)
         self.grid_button = self._floating_button(
             "Grid", self.toggle_grid, selected=True
         )
         self._build_layers_panel()
+        self._build_vertex_color_panel()
         self.canvas.bind("<Configure>", self._position_viewport_controls, add="+")
         self.after_idle(self._position_viewport_controls)
 
@@ -376,11 +415,45 @@ class MapTab(ttk.Frame):
             self.select_map()
 
     def refresh(self, _event=None):
+        selected_entry = (
+            self.current["entry"] if self.current else None
+        )
         term = self.filter.get().casefold()
         self.visible = [r for r in self.rows if term in r["ruta_interna"].casefold()]
         self.map_list.delete(0, "end")
         for row in self.visible:
-            self.map_list.insert("end", nombre_del_mapa(row))
+            self.map_list.insert("end", nombre_del_mapa(row, self.app.language))
+        if selected_entry:
+            index = next(
+                (i for i, row in enumerate(self.visible) if row["entry"] == selected_entry),
+                None,
+            )
+            if index is not None:
+                self.map_list.marcar(index)
+
+    def set_language(self, _language):
+        self.maps_heading.configure(text="Mapas" if _language == "es" else "Maps")
+        top = self.winfo_toplevel()
+        for button in getattr(self, "floating_buttons", ()):
+            label = translate(button.text, _language)
+            button.set_text(
+                label, top._sims_floating_text_width(label) + 2 * 14
+            )
+        if hasattr(self, "_vertex_color_title"):
+            self.vertex_color_bar.itemconfigure(
+                self._vertex_color_title,
+                text=translate("Vertex Color", _language),
+            )
+        if hasattr(self, "_rotulo"):
+            self.capa_barra.itemconfigure(
+                self._rotulo, text=translate("Layers", _language)
+            )
+        if hasattr(self, "daynight_label"):
+            self._set_daynight_hour(self.daynight_hour.get())
+        if hasattr(self, "vertex_intensity_label"):
+            self._update_vertex_intensity_label()
+        self.after_idle(self._position_viewport_controls)
+        self.refresh()
 
     # -- botones flotantes y panel de capas ----------------------------------
 
@@ -414,7 +487,17 @@ class MapTab(ttk.Frame):
 
     def _over_floating_button(self, event):
         """La camara no debe arrastrarse si el puntero esta sobre un boton."""
-        return any(button.hit(event.x, event.y) for button in self.floating_buttons)
+        if any(button.hit(event.x, event.y) for button in self.floating_buttons):
+            return True
+        return self._over_vertex_color_panel(event.x, event.y)
+
+    def _over_vertex_color_panel(self, x, y):
+        if not getattr(self, "vertex_color_window", None):
+            return False
+        if self.canvas.itemcget(self.vertex_color_window, "state") != "normal":
+            return False
+        bounds = self.canvas.bbox(self.vertex_color_background)
+        return bool(bounds and bounds[0] <= x <= bounds[2] and bounds[1] <= y <= bounds[3])
 
     def _floating_enter(self, button, event):
         button.hover(True)
@@ -436,15 +519,12 @@ class MapTab(ttk.Frame):
         else:
             width = event.width
         self.export_button.place(10, 10)
-        # A la derecha, de fuera hacia dentro: Grid, Layers y Vertex Colors.
-        x = width - 10
-        for boton in (self.grid_button, self.layers_button, self.vertex_button):
-            x -= boton.reqwidth
-            boton.place(x, 10)
-            x -= 12
-        # Reset view en la derecha, en la fila de debajo y pegado al mismo borde
-        # que Grid, que es donde se busca cuando se ha descolocado la camara.
-        self.recenter_button.place(width - 10 - self.recenter_button.reqwidth, 50)
+        y = place_right_buttons(width, (self.grid_button, self.layers_button))
+        self.recenter_button.place(width - 10 - self.recenter_button.reqwidth, y)
+        if getattr(self, "vertex_color_window", None) and self.canvas.itemcget(
+            self.vertex_color_window, "state"
+        ) == "normal":
+            self._colocar_vertex_color_panel()
         self._colocar_panel_capas()
 
     def toggle_grid(self):
@@ -779,11 +859,219 @@ class MapTab(ttk.Frame):
             ]
             self._colocar_panel_capas()
 
-    def toggle_vertex_colors(self):
-        """Change cached shading; keep geometry, textures, layers and camera."""
-        self.vertex_colors.set(not self.vertex_colors.get())
-        self.vertex_button.set_selected(self.vertex_colors.get())
+    def _build_vertex_color_panel(self):
+        """Build the draggable, rounded canvas panel used by Layers."""
+        self.vertex_color_background = self.canvas.create_image(0, 0, anchor="nw")
+        self.vertex_color_panel = ttk.Frame(self.canvas)
+        self.vertex_color_window = self.canvas.create_window(
+            0, 0, anchor="nw", window=self.vertex_color_panel
+        )
+        self.vertex_color_bar = tk.Canvas(
+            self.vertex_color_panel,
+            width=ANCHO_TROUGH_PROPS,
+            height=self.ALTO_BARRA,
+            highlightthickness=0,
+            borderwidth=0,
+            background=self.app._sims_theme_colors["background"],
+        )
+        self.vertex_color_bar.pack(fill="x", padx=MARGEN_CAPAS, pady=(MARGEN_CAPAS, 0))
+        self.vertex_color_bar.bind("<Configure>", self._pintar_vertex_color_bar)
+        self.vertex_color_bar.bind("<ButtonPress-1>", self._vertex_color_panel_press)
+        self.vertex_color_bar.bind("<B1-Motion>", self._vertex_color_panel_drag)
+        self._vertex_color_title = self.vertex_color_bar.create_text(
+            0,
+            self.ALTO_BARRA / 2,
+            text="Vertex Color",
+            anchor="center",
+            font=(self.app._sims_font_family, 9, "bold"),
+            fill=self.app._sims_theme_colors["foreground"],
+        )
+        self._vertex_color_close = self.vertex_color_bar.create_line(
+            0, 0, 0, 0, width=2, fill=self.app._sims_theme_colors["foreground"]
+        )
+        self._vertex_color_close2 = self.vertex_color_bar.create_line(
+            0, 0, 0, 0, width=2, fill=self.app._sims_theme_colors["foreground"]
+        )
+        self.vertex_color_body = ttk.Frame(self.vertex_color_panel)
+        self.vertex_color_body.pack(fill="x", padx=MARGEN_CAPAS, pady=(6, MARGEN_CAPAS))
+        states = ttk.Frame(self.vertex_color_body)
+        states.pack(fill="x")
+        ttk.Button(
+            states, text="ON", command=lambda: self._set_vertex_colors(True)
+        ).pack(side="left", fill="x", expand=True, padx=(0, 4))
+        ttk.Button(
+            states, text="OFF", command=lambda: self._set_vertex_colors(False)
+        ).pack(side="left", fill="x", expand=True, padx=(4, 0))
+
+        self.vertex_intensity_label = ttk.Label(self.vertex_color_body)
+        self.vertex_intensity_label.pack(anchor="w", pady=(9, 0))
+        self.vertex_intensity_slider = ttk.Scale(
+            self.vertex_color_body,
+            from_=0,
+            to=200,
+            length=ANCHO_TROUGH_PROPS,
+            variable=self.vertex_color_intensity,
+            command=self._set_vertex_color_intensity,
+            style="Props.Horizontal.TScale",
+        )
+        self.vertex_intensity_slider.pack(fill="x", pady=(2, 0))
+        ttk.Separator(self.vertex_color_body).pack(fill="x", pady=(9, 5))
+        self.daynight_label = ttk.Label(
+            self.vertex_color_body, text="Time of day: 12:00"
+        )
+        self.daynight_label.pack(anchor="w")
+        self.daynight_slider = ttk.Scale(
+            self.vertex_color_body,
+            from_=0,
+            to=24,
+            length=ANCHO_TROUGH_PROPS,
+            variable=self.daynight_hour,
+            command=self._set_daynight_hour,
+            style="Props.Horizontal.TScale",
+        )
+        self.daynight_slider.pack(fill="x", pady=(2, 0))
+        self._update_vertex_intensity_label()
+        self._pintar_vertex_color_panel()
+        self.canvas.itemconfigure(self.vertex_color_background, state="hidden")
+        self.canvas.itemconfigure(self.vertex_color_window, state="hidden")
+
+    def _pintar_vertex_color_bar(self, _event=None):
+        ancho = max(ANCHO_TROUGH_PROPS, self.vertex_color_bar.winfo_width())
+        self.vertex_color_bar.coords(self._vertex_color_title, ancho / 2, self.ALTO_BARRA / 2)
+        x = ancho - self.HOLGURA_BARRA - self.LADO_BOTON / 2
+        brazo = 4
+        self.vertex_color_bar.coords(
+            self._vertex_color_close,
+            x - brazo,
+            self.ALTO_BARRA / 2 - brazo,
+            x + brazo,
+            self.ALTO_BARRA / 2 + brazo,
+        )
+        self.vertex_color_bar.coords(
+            self._vertex_color_close2,
+            x - brazo,
+            self.ALTO_BARRA / 2 + brazo,
+            x + brazo,
+            self.ALTO_BARRA / 2 - brazo,
+        )
+
+    def _pintar_vertex_color_panel(self):
+        self.vertex_color_panel.update_idletasks()
+        ancho = self.vertex_color_panel.winfo_reqwidth() + 2 * MARGEN_CAPAS
+        alto = self.vertex_color_panel.winfo_reqheight() + 2 * MARGEN_CAPAS
+        self._vertex_color_photo = ImageTk.PhotoImage(
+            panel_redondeado(self._capas_fuente, ancho, alto), master=self.canvas
+        )
+        self.canvas.itemconfigure(
+            self.vertex_color_background,
+            image=self._vertex_color_photo,
+            state="normal",
+        )
+
+    def _colocar_vertex_color_panel(self):
+        if not getattr(self, "vertex_color_window", None):
+            return
+        x, y = self.vertex_color_pos
+        bounds = self.canvas.bbox(self.vertex_color_background)
+        ancho = bounds[2] - bounds[0] if bounds else ANCHO_TROUGH_PROPS
+        alto = bounds[3] - bounds[1] if bounds else 120
+        x = max(10, min(x, max(10, self.canvas.winfo_width() - ancho - 10)))
+        y = max(10, min(y, max(10, self.canvas.winfo_height() - alto - 10)))
+        self.vertex_color_pos = [x, y]
+        self.canvas.coords(self.vertex_color_background, x, y)
+        self.canvas.coords(
+            self.vertex_color_window, x + MARGEN_CAPAS, y + MARGEN_CAPAS
+        )
+
+    def _vertex_color_panel_press(self, event):
+        ancho = self.vertex_color_bar.winfo_width()
+        zona_cerrar = ancho - self.HOLGURA_BARRA - self.LADO_BOTON
+        if event.x >= zona_cerrar:
+            self.toggle_vertex_colors(force_close=True)
+            return
+        self._vertex_color_drag_origin = (event.x_root, event.y_root)
+
+    def _vertex_color_panel_drag(self, event):
+        origen = getattr(self, "_vertex_color_drag_origin", None)
+        if origen is None:
+            return
+        self.vertex_color_pos[0] += event.x_root - origen[0]
+        self.vertex_color_pos[1] += event.y_root - origen[1]
+        self._vertex_color_drag_origin = (event.x_root, event.y_root)
+        self._colocar_vertex_color_panel()
+
+    def toggle_vertex_colors(self, force_close=False):
+        """Show or hide the live controls panel, without toggling the effect."""
+        abierto = self.canvas.itemcget(self.vertex_color_window, "state") == "normal"
+        mostrar = not abierto and not force_close
+        estado = "normal" if mostrar else "hidden"
+        self.canvas.itemconfigure(self.vertex_color_background, state=estado)
+        self.canvas.itemconfigure(self.vertex_color_window, state=estado)
+        if getattr(self, "vertex_button", None):
+            self.vertex_button.set_selected(mostrar)
+        if mostrar:
+            ancho = self.canvas.bbox(self.vertex_color_background)
+            total = ancho[2] - ancho[0] if ancho else ANCHO_TROUGH_PROPS
+            # Leave the Layers panel at the right when both controls are open.
+            self.vertex_color_pos[0] = max(
+                10, min(self.vertex_color_pos[0], self.canvas.winfo_width() - total - 10)
+            )
+            self._colocar_vertex_color_panel()
+            self.canvas.tag_raise(self.vertex_color_background)
+            self.canvas.tag_raise(self.vertex_color_window)
+
+    def _close_vertex_color_window(self):
+        if getattr(self, "vertex_color_window", None):
+            self.toggle_vertex_colors(force_close=True)
+
+    def _set_vertex_colors(self, enabled):
+        self.vertex_colors.set(bool(enabled))
         self.schedule()
+
+    def _set_vertex_color_intensity(self, _value=None):
+        self._update_vertex_intensity_label()
+        self.schedule()
+
+    def _set_daynight_hour(self, value=None):
+        """Debounce rig sampling while dragging the source-time slider."""
+        hour = float(value if value is not None else self.daynight_hour.get()) % 24.0
+        self.daynight_label.configure(
+            text=translate(
+                f"Time of day: {int(hour):02d}:{int((hour % 1) * 60):02d}",
+                self.app.language,
+            )
+        )
+        if self._daynight_update:
+            self.after_cancel(self._daynight_update)
+        if self.daynight_rig_data is not None:
+            self._daynight_update = self.after(120, self._apply_daynight_hour)
+
+    def _apply_daynight_hour(self):
+        self._daynight_update = None
+        if self.daynight_rig_data is None or self.daynight_rig_records is None:
+            return
+        self.daylight_profile = daynight_rig_profiles(
+            self.daynight_rig_data,
+            self.daynight_rig_records,
+            self.daynight_hour.get(),
+        )
+        if self.objeto is not None:
+            self.objeto.fijar_luz_direccional_mapa(self.daylight_profile)
+        self.schedule()
+
+    def _update_vertex_intensity_label(self):
+        label = getattr(self, "vertex_intensity_label", None)
+        try:
+            existe = label is not None and label.winfo_exists()
+        except tk.TclError:
+            existe = False
+        if existe:
+            label.configure(
+                text=translate(
+                    f"Intensity: {self.vertex_color_intensity.get():.0f}%",
+                    self.app.language,
+                )
+            )
 
     def _filter_layers(self, *_args):
         """Search changes list rows only; visibility and mesh IDs stay intact."""
@@ -824,63 +1112,22 @@ class MapTab(ttk.Frame):
         if not resumen:
             return
         self.status.configure(
-            text=f"{resumen} · {len(self.parts) - len(self.ocultas)} "
-            f"of {len(self.parts)} pieces shown"
+            text=translate(
+                f"{resumen} · {len(self.parts) - len(self.ocultas)} "
+                f"of {len(self.parts)} pieces shown",
+                self.app.language,
+            )
         )
 
     def export_as(self):
-        """El boton flotante 'Export as...' ofrece los cuatro formatos del mapa."""
+        """Export the full map with the format picker shared with Characters."""
         if not self.current:
             return
-        dialog = tk.Toplevel(self)
-        dialog.title("Export as...")
-        dialog.transient(self.winfo_toplevel())
-        dialog.resizable(False, False)
-        elegido = tk.StringVar(value="glb")
-        contenido = ttk.Frame(dialog, padding=16)
-        contenido.pack(fill="both", expand=True)
-        ttk.Label(contenido, text=f"Export {self.current['ruta_interna']} as:").pack(
-            anchor="w", pady=(0, 8)
+        fmt = choose_export_format(
+            self, nombre_del_mapa(self.current, self.app.language)
         )
-        for etiqueta, valor in (
-            ("Every 3D piece as GLB (.glb)", "glb"),
-            ("The selected piece as GLB (.glb)", "parte_glb"),
-            ("The selected piece as FBX (.fbx) — needs Blender", "parte_fbx"),
-            ("The original map file (.res)", "res"),
-            ("All the textures as a ZIP", "texturas"),
-            ("Prop placement references (.json)", "placements"),
-        ):
-            ttk.Radiobutton(
-                contenido, text=etiqueta, value=valor, variable=elegido
-            ).pack(anchor="w", pady=2)
-        botones = ttk.Frame(contenido)
-        botones.pack(fill="x", pady=(12, 0))
-        decision = {"valor": None}
-
-        def aceptar():
-            decision["valor"] = elegido.get()
-            dialog.destroy()
-
-        ttk.Button(botones, text="Cancel", command=dialog.destroy).pack(side="right")
-        ttk.Button(
-            botones, text="Export", style="Primary.TButton", command=aceptar
-        ).pack(side="right", padx=(0, 8))
-        dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
-        dialog.grab_set()
-        dialog.wait_window()
-        destino = decision["valor"]
-        if destino == "glb":
-            self.export_all_parts()
-        elif destino == "parte_glb":
-            self.export_part()
-        elif destino == "parte_fbx":
-            self.export_part("fbx")
-        elif destino == "res":
-            self.export_res()
-        elif destino == "texturas":
-            self.export_textures()
-        elif destino == "placements":
-            self.export_placements()
+        if fmt:
+            self.export_all_parts(fmt)
 
     def export_placements(self):
         if not self.current or self.data is None:
@@ -903,7 +1150,9 @@ class MapTab(ttk.Frame):
                 json.dumps(report, indent=2) + "\n", encoding="utf-8"
             )
         except Exception as exc:
-            messagebox.showerror("Export prop placements", str(exc))
+            messagebox.showerror(
+                translate("Export prop placements", self.app.language), str(exc)
+            )
 
     def select_map(self, _event=None):
         """Elige un mapa. Parsearlo va en un hilo salvo que ya este cacheado.
@@ -926,7 +1175,10 @@ class MapTab(ttk.Frame):
         if self._carga_entrada == row["entry"]:
             return  # este mapa ya esta cargandose
         if self._cache is not None and self._cache[0] == row["entry"]:
-            _, data, parts, rejected = self._cache
+            _, data, parts, rejected, light_profile, rig_data, rig_records = self._cache
+            self.daylight_profile = light_profile
+            self.daynight_rig_data = rig_data
+            self.daynight_rig_records = rig_records
             self._aplicar_mapa(row, data, parts, rejected)
             return
         self._empezar_carga(row)
@@ -955,14 +1207,42 @@ class MapTab(ttk.Frame):
         self._carga_entrada = row["entry"]
         self.map_list.configure(cursor="watch")
         self.part_list.delete(0, "end")
-        self.status.configure(text=f'{row["ruta_interna"]}: loading...')
+        self.status.configure(
+            text=translate(f'{row["ruta_interna"]}: loading...', self.app.language)
+        )
         path = self.app.paths["maps"]
         archivo = row["archivo_zip"]
+        daynight_hour = self.daynight_hour.get()
 
         def work():
             try:
                 with zipfile.ZipFile(path) as archive:
                     data = archive.read(archivo)
+                    light_profile = None
+                    rig_data = None
+                    rig_records = None
+                    references = level_prop_references(data, sections(data))
+                    rig = next(
+                        (
+                            item["resource"]
+                            for item in references
+                            if item["resource"].startswith("objects/light_rigs/fx_dnl_")
+                        ),
+                        None,
+                    )
+                    if rig:
+                        try:
+                            rig_data = archive.read(f"lighting/{rig}.res")
+                        except KeyError:
+                            # Older extracted map archives predate bundled
+                            # lighting rigs; importing the game data again adds
+                            # the referenced source assets.
+                            pass
+                        else:
+                            rig_records = sections(rig_data)
+                            light_profile = daynight_rig_profiles(
+                                rig_data, rig_records, daynight_hour
+                            )
                 parts, rejected = parse_rdms(
                     data,
                     apply_scene=True,
@@ -971,11 +1251,16 @@ class MapTab(ttk.Frame):
                     # como las piezas a las que hay que dar la vuelta a las caras.
                     ruta=row["ruta_interna"],
                 )
-                cola.put((generacion, row, data, parts, rejected, None))
+                cola.put(
+                    (
+                        generacion, row, data, parts, rejected,
+                        light_profile, rig_data, rig_records, None,
+                    )
+                )
             except Exception as exc:
                 # Aqui no se toca la interfaz ni se avisa de nada: solo se deja
                 # el resultado y que lo recoja el hilo de la interfaz.
-                cola.put((generacion, row, None, None, None, exc))
+                cola.put((generacion, row, None, None, None, None, None, None, exc))
 
         threading.Thread(target=work, daemon=True).start()
         self._carga_poll = self.after(50, self._poll_carga)
@@ -986,7 +1271,10 @@ class MapTab(ttk.Frame):
         if self.disposed or self._carga_cola is None:
             return
         try:
-            generacion, row, data, parts, rejected, error = (
+            (
+                generacion, row, data, parts, rejected, light_profile,
+                rig_data, rig_records, error,
+            ) = (
                 self._carga_cola.get_nowait()
             )
         except queue.Empty:
@@ -996,11 +1284,17 @@ class MapTab(ttk.Frame):
         self.map_list.configure(cursor="")
         if error is not None:
             self._carga_entrada = None
-            messagebox.showerror("Map", str(error))
+            messagebox.showerror(translate("Map", self.app.language), str(error))
             return
         if generacion != self._carga_generacion:
             return  # mientras cargaba se eligio otro mapa: este ya no vale
-        self._cache = (row["entry"], data, parts, rejected)
+        self._cache = (
+            row["entry"], data, parts, rejected, light_profile,
+            rig_data, rig_records,
+        )
+        self.daylight_profile = light_profile
+        self.daynight_rig_data = rig_data
+        self.daynight_rig_records = rig_records
         self._aplicar_mapa(row, data, parts, rejected)
 
     def _aplicar_mapa(self, row, data, parts, rejected):
@@ -1163,23 +1457,22 @@ class MapTab(ttk.Frame):
                     self.canvas.clear()
                     return
                 self.objeto.sin_mallas = True
-                self.canvas.set_image(
-                    render_prop(
-                        [],
-                        width,
-                        height,
-                        self.camera.yaw,
-                        self.camera.zoom,
-                        self.show_textures.get(),
-                        self.camera.pitch,
-                        self.camera.pan,
-                        key=("mapa", "solo-rejilla"),
-                        camara=self.camera,
-                        objeto=self.objeto,
-                        show_grid=self.show_grid.get(),
-                        culling=True,
-                    )
+                image = render_prop(
+                    [],
+                    width,
+                    height,
+                    self.camera.yaw,
+                    self.camera.zoom,
+                    self.show_textures.get(),
+                    self.camera.pitch,
+                    self.camera.pan,
+                    key=("mapa", "solo-rejilla"),
+                    camara=self.camera,
+                    objeto=self.objeto,
+                    show_grid=self.show_grid.get(),
+                    culling=True,
                 )
+                self.canvas.set_image(image)
                 return
             culling = self.culling.get()
             # La escena se monta una vez por nivel y no se toca al apagar nada:
@@ -1200,9 +1493,13 @@ class MapTab(ttk.Frame):
                     ("mapa",) + key,
                     culling=culling,
                     sin_framing=self.nombres_del_cielo(),
+                    light_profile=self.daylight_profile,
+                    ruta_escena=self.current["ruta_interna"],
                 )
                 self.objeto_key = key
-            self.objeto.fijar_vertex_colors(self.vertex_colors.get())
+            self.objeto.fijar_vertex_colors(
+                self.vertex_colors.get(), self.vertex_color_intensity.get()
+            )
             self.objeto.sin_mallas = False
             # Las apagadas se marcan por nombre y la escena las busca una vez.
             self.objeto.ocultas_mallas = frozenset(
@@ -1235,7 +1532,9 @@ class MapTab(ttk.Frame):
             )
             self.canvas.set_image(image)
         except Exception as exc:
-            self.status.configure(text=f"Preview: {exc}")
+            self.status.configure(
+                text=translate(f"Preview: {exc}", self.app.language)
+            )
 
     def frame_part(self):
         """Centra la camara en la pieza elegida, sin dejar de dibujar el mapa.
@@ -1280,12 +1579,14 @@ class MapTab(ttk.Frame):
             if fmt == "fbx" and not blender:
                 return
             glb = self.app.cache / "map_piece.glb" if blender else target
-            write_rigid_glb(self._export_parts([part]), name, glb)
+            write_rigid_glb(without_vertex_colors([part]), name, glb)
             if blender:
                 self.fbx_export(glb, target, blender)
-            self.status.configure(text=f"Part saved: {target}")
+            self.status.configure(
+                text=translate(f"Part saved: {target}", self.app.language)
+            )
         except Exception as exc:
-            messagebox.showerror("Export part", str(exc))
+            messagebox.showerror(translate("Export part", self.app.language), str(exc))
 
     def export_res(self):
         if not self.current:
@@ -1298,7 +1599,9 @@ class MapTab(ttk.Frame):
         )
         if target:
             Path(target).write_bytes(self.data)
-            self.status.configure(text=f"Original map saved: {target}")
+            self.status.configure(
+                text=translate(f"Original map saved: {target}", self.app.language)
+            )
 
     def export_textures(self):
         if not self.current:
@@ -1326,37 +1629,111 @@ class MapTab(ttk.Frame):
                 for key, path in texture_paths(textures).items():
                     output.writestr(path, textures[key])
                     count += 1
-            self.status.configure(text=f"{count} PNG textures saved: {target}")
+            self.status.configure(
+                text=translate(f"{count} PNG textures saved: {target}", self.app.language)
+            )
         except Exception as exc:
-            messagebox.showerror("Extract textures", str(exc))
+            messagebox.showerror(
+                translate("Extract textures", self.app.language), str(exc)
+            )
 
-    def export_all_parts(self):
+    def export_all_parts(self, fmt="glb"):
         if not self.current or not self.parts:
             return
-        name = self.current["ruta_interna"].replace("/", "_") + "_parts.glb"
-        target = filedialog.asksaveasfilename(
-            defaultextension=".glb",
-            initialfile=name,
-            filetypes=[("GLB model", "*.glb")],
-        )
-        if not target:
-            return
         try:
+            fbx = fmt == "fbx"
+            blender = self.app.resolve_blender() if fbx else None
+            if fbx and not blender:
+                return
+            name = export_model_name(self.current["ruta_interna"].replace("/", "_"))
+            export_dir = self.app.export_root / f"{name}_export"
+            export_dir.mkdir(parents=True, exist_ok=True)
+            target = export_dir / f"{name}.{fmt}"
+            glb = target if fmt == "glb" else self.app.cache / "map_export.glb"
             write_rigid_glb(
-                self._export_parts(self.parts), self.current["ruta_interna"], target
+                without_vertex_colors(self.parts), self.current["ruta_interna"], glb
             )
+            if fbx:
+                self.fbx_export(glb, target, blender)
+            elif fmt == "gltf":
+                export_gltf(glb, target)
             self.status.configure(
-                text=f"{len(self.parts)} GLB parts saved without "
-                f"global placement: {target}"
+                text=translate(
+                    f"{len(self.parts)} map parts saved: {target}", self.app.language
+                )
             )
         except Exception as exc:
-            messagebox.showerror("Export map parts", str(exc))
+            messagebox.showerror(
+                translate("Export map parts", self.app.language), str(exc)
+            )
 
     def _export_parts(self, parts):
-        return parts if self.vertex_colors.get() else without_vertex_colors(parts)
+        if not self.vertex_colors.get():
+            return without_vertex_colors(parts)
+        intensidad = max(0.0, min(200.0, self.vertex_color_intensity.get())) / 100.0
+        has_blended_parts = any(part.get("texture_blend") for part in parts)
+
+        def malla_con_vertex_color_oscuro(part):
+            return gl.malla_necesita_brillo_vertex_color(part)
+
+        def malla_tiene_vertex_color(part):
+            return not part.get("texture_blend") and any(
+                vertex[3] is not None for vertex in part["vertices"]
+            )
+
+        if (
+            abs(intensidad - 1.0) < 1e-6
+            and not has_blended_parts
+            and not any(malla_con_vertex_color_oscuro(part) for part in parts)
+        ):
+            return parts
+        resultado = []
+        for part in parts:
+            afecta_malla_entera = malla_tiene_vertex_color(part)
+            admite_lift = gl.malla_admite_lift_vertex_color(part)
+            color_material = tuple(
+                float(channel) / 255.0
+                for channel in (part.get("color") or (255, 255, 255, 255))
+            )
+            if len(color_material) == 3:
+                color_material += (1.0,)
+            normales = np.asarray(
+                [
+                    vertex[1] if vertex[1] is not None else (0.0, 0.0, 0.0)
+                    for vertex in part["vertices"]
+                ],
+                dtype=np.float32,
+            )
+            factores_luz = gl.factores_luz_direccional_mapa(
+                normales, self.daylight_profile
+            )
+            vertices = []
+            for index, (position, normal, uv, color) in enumerate(part["vertices"]):
+                if color is None and not afecta_malla_entera:
+                    vertices.append((position, normal, uv, color))
+                    continue
+                tiene_color_original = color is not None
+                color = color_material if color is None else tuple(color)
+                if len(color) == 3:
+                    color += (1.0,)
+                if part.get("texture_blend"):
+                    vertices.append((position, normal, uv, (1.0, 1.0, 1.0, 1.0)))
+                    continue
+                rgb = np.asarray(color[:3], dtype=np.float32) * factores_luz[index]
+                rgb = gl.levantar_vertex_colors_oscuros(
+                    rgb[None, :],
+                    np.array([tiene_color_original and admite_lift], dtype=bool),
+                )[0]
+                rgb = np.clip(rgb * intensidad, 0.0, 1.0)
+                vertices.append(
+                    (position, normal, uv, tuple(float(c) for c in rgb) + (color[3],))
+                )
+            resultado.append({**part, "vertices": vertices})
+        return resultado
 
     def dispose(self):
         self.disposed = True
+        self._close_vertex_color_window()
         if self.timer:
             self.after_cancel(self.timer)
             self.timer = None
@@ -1365,6 +1742,9 @@ class MapTab(ttk.Frame):
         if self._carga_poll:
             self.after_cancel(self._carga_poll)
             self._carga_poll = None
+        if self._daynight_update:
+            self.after_cancel(self._daynight_update)
+            self._daynight_update = None
         self._carga_cola = None
         self._cache = None
         self.objeto = None

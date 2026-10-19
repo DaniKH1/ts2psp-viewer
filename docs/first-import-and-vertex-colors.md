@@ -14,19 +14,22 @@
 - **Switch pause:** Maps previously reparsed the complete resource and rebuilt
   the scene. Props created a separate scene for each color setting. Both now
   switch cached color arrays and retain geometry, textures and camera state.
-- **Exports:** Prop exports preserve source colors. Map exports follow the
-  current map color setting, using copies when colors are off.
+- **Exports:** Prop exports preserve source colors. Map exports currently omit
+  vertex colors regardless of the preview toggle or intensity setting.
 
 The color packing/alignment was checked against the primary implementation in
 [PPSSPP's vertex decoder](https://github.com/hrydgard/ppsspp/blob/master/GPU/Common/VertexDecoderCommon.cpp).
-No general brightness correction is applied: black baked vertex colors remain
-black when enabled. The switch makes it possible to inspect the underlying atlas.
+This verifies packed-channel decoding, not game lighting. The viewer keeps the
+source color data intact and applies a selective dark-color luminance lift only
+in the map preview; see [map Vertex Colors and Lighting Findings](map-vertex-colors.md).
 
 ## Local verification
 
-The **Vertex Color** map switch displays stored source colors without added
-preview lighting. See [map Vertex Colors](map-vertex-colors.md) for the current
-material decoding and layer browser behavior.
+The **Vertex Color** map panel applies source day/night rig lighting and a
+selective luminance lift to dark authored vertex colors in the preview. It does
+not modify map exports, which currently omit vertex colors. See [map Vertex
+Colors and Lighting Findings](map-vertex-colors.md) for the source data, hour
+schedule, correction behavior and limits of matching the game renderer.
 The figures below record the earlier decoder/switch validation.
 
 - 110 unit/integration checks passed with the locally imported resources; the

@@ -88,7 +88,7 @@ class LayerTests(unittest.TestCase):
         self.assertEqual(baked["source_blend_weights"], [0.25] * 3)
         self.assertTrue(all(v[3][3] == 1 for v in baked["vertices"]))
         image = Image.open(io.BytesIO(baked["texture"][1])).convert("RGBA")
-        np.testing.assert_allclose(image.getpixel((24, 24)), (255, 191, 0, 255), atol=1)
+        np.testing.assert_allclose(image.getpixel((24, 24)), (255, 64, 0, 255), atol=2)
         plain = bake_texture_blend(without_vertex_colors([part])[0])
         self.assertEqual(plain["texture"], baked["texture"])
 

@@ -5,7 +5,8 @@ Windows app for characters, facial shape keys, props and maps. Game resources ar
 <img width="1919" height="985" alt="image" src="https://github.com/user-attachments/assets/b650eefa-ab89-480c-9bf7-4fdba72d03ad" />
 
 
-Three tabs: **Characters**, **Props** and **Maps**.
+Three tabs: **Characters**, **Props** and **Maps**. The top bar has **Language**
+(English or Spanish) and **Select ISO...**.
 
 Textures use their internal bitmap names. Hover over a thumbnail or open its
 preview to see the name. **Layers**, UV inspection and exported meshes include
@@ -123,9 +124,10 @@ composition is used in preview and exported animations; see
 
 ## Props
 
-After updating from an older build, select your ISO again through **File >
-Select ISO**. The new cache includes standalone object bitmaps and skeletal
-clips, which older ZIPs do not contain. Older caches still open with a reminder.
+After updating from an older build, select your ISO again with the top-right
+**Select ISO...** button. The new cache includes standalone object bitmaps and
+skeletal clips, which older ZIPs do not contain. Older caches still open with a
+reminder.
 
 The **Props** tab is laid out in three columns.
 
@@ -140,17 +142,18 @@ The **Props** tab is laid out in three columns.
   Reset view. Bones start off.
 
 Props keep the NODE hierarchy, named joints, rotation/scale pivots and linked
-animation channels. Embedded transform animations play here and are included in
-GLB/FBX exports. See [prop rigs](docs/prop-rigs.md) for supported tracks, the
-satellite regression and the validation command.
+animation channels. Embedded transform animations play here. When a prop has a
+supported clip, its export dialog offers an **Include animation** checkbox;
+uncheck it to export the static prop. See [prop rigs](docs/prop-rigs.md) for
+supported tracks, the satellite regression and the validation command.
 
 The **FPS** button cycles 20/30/60/15 and genuinely caps how often the clock
 advances, without slowing the animation down. **Auto Play** starts a prop as soon
 as it loads if it has a clip.
 
-Selecting more than one animation in the list (Ctrl or Shift) and exporting writes
-one model per animation into the folder you choose. With a single selection it
-exports as a single file, as before.
+Selecting more than one animation in the list (Ctrl or Shift) and exporting with
+**Include animation** enabled writes one animated model per clip. Exports use
+`exports/<model>_export/` in the project directory, like Character exports.
 
 The Objects tab hides authoring and picking geometry by default; the mesh helpers
 stay out of the preview until asked for. Material status distinguishes textured
@@ -169,8 +172,8 @@ materials, UV repairs and the remaining untextured authoring templates.
 
 Props and maps switch Vertex Colors using cached color arrays. Changing this
 setting does not reread the archive, reupload textures, reset the camera or
-restart an animation. Map exports follow the map's color setting; prop exports
-retain their source colors.
+restart an animation. Prop exports retain their source colors. Map exports
+currently omit vertex colors regardless of the preview setting.
 See [first import and Vertex Colors validation](docs/first-import-and-vertex-colors.md)
 for the decoder changes and measured switch timings.
 
@@ -180,10 +183,13 @@ Map props use their authored position, rotation and scale, including repeated
 instances and nested object references. The same placements are preserved in
 GLB exports. Click a piece to see its source prop and instance name.
 
-With **Vertex Colors** enabled, **Lighting…** adjusts a preview fill light
-(50% by default). **Source (0%)** shows the original stored shading. This helps
-inspect areas whose source vertices are black without changing exported colors,
-opacity, shadows or the sky. See [map Vertex Colors](docs/map-vertex-colors.md).
+The floating **Vertex Color** panel controls the preview's authored vertex
+shading and source day/night time. Its intensity defaults to 100%; dark authored
+colors receive a luminance lift while their relative shadow variation is kept.
+The time slider samples the map's original day/night rig when available. The
+preview still approximates the game's lighting, as its GPU combiner is unknown.
+Map exports currently omit vertex colors. See [map Vertex Colors and lighting
+findings](docs/map-vertex-colors.md).
 
 **Maps > Export as... > Prop placement references (.json)** saves the resource
 paths and full transforms in PSP coordinates (X/Y ground, Z up). This reads the
@@ -194,12 +200,11 @@ the catalogue audit and limits involving scripted object states.
 
 ## Export
 
-Character and clip exports write to `exports/<model>_export/` inside the project
-without asking for a path. GLB, glTF (model, binary and textures) and FBX are
-offered; FBX export requires a separate Blender installation.
-
-Props ask where to save instead: a single export opens a file dialog, and a
-multiple export asks for a folder and writes one file per animation into it.
+Character, prop and map exports write to `exports/<model>_export/` inside the
+project without asking for a path. GLB, glTF (model, binary and textures) and
+FBX are offered; FBX export requires a separate Blender installation. Map
+exports omit vertex colors for now. Prop exports include supported animation by
+default, with an option to export a static model.
 
 ## Where the code lives
 

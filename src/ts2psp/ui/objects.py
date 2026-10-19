@@ -27,14 +27,21 @@ from ts2psp.formats.prop_anim import (
     prop_clip,
 )
 from ts2psp.ui.camera import OrbitController, Viewport
-from ts2psp.ui.floating_button import FloatingButton
+from ts2psp.ui.floating_button import FloatingButton, place_right_buttons
 from ts2psp.ui.textured_list import TexturedListbox
 from ts2psp.ui.texture_gallery import TextureGallery
 from ts2psp.ui.theme import LIST_PANEL_PATH
 import ts2psp.rendering.opengl as gl
 from ts2psp.ui.uv import UVWindow
-from ts2psp.ui.common import FPS_VALORES, set_photo
+from ts2psp.ui.common import (
+    FPS_VALORES,
+    choose_export_format,
+    export_model_name,
+    set_photo,
+)
+from ts2psp.ui.i18n import translate
 from ts2psp.exporting.blender import export_path
+from ts2psp.exporting.gltf import export_gltf
 
 # Alto de las dos listas, en pixeles y el mismo para las dos. La lista es un
 # `tk.Canvas`, asi que su `height` va en pixeles y no en filas. No se estiran a
@@ -74,6 +81,7 @@ class PropTab(ttk.Frame):
         self.disposed = False
         self.clip = None
         self.animator = None
+        self.has_export_animation = False
         self.data = None
         self.bone_src = ()
         self.playing = False
@@ -253,7 +261,11 @@ class PropTab(ttk.Frame):
         self.canvas.bind("<Configure>", self._position_viewport_controls, add="+")
         self.after_idle(self._position_viewport_controls)
 
-        self.group_box.configure(values=self._grupos(self.rows))
+        self.group_box.configure(
+            values=tuple(
+                translate(value, self.app.language) for value in self._grupos(self.rows)
+            )
+        )
         self.refresh()
         if self.visible:
             initial = next(
@@ -326,6 +338,24 @@ class PropTab(ttk.Frame):
         """La camara no debe arrastrarse si el puntero esta sobre un boton."""
         return any(button.hit(event.x, event.y) for button in self.floating_buttons)
 
+    def set_language(self, language):
+        top = self.winfo_toplevel()
+        for button in self.floating_buttons:
+            label = translate(button.text, language)
+            button.set_text(label, top._sims_floating_text_width(label) + 2 * 14)
+        self.group_box.configure(
+            values=tuple(translate(value, language) for value in self._grupos(self.rows))
+        )
+        if self._anim_todas:
+            self.anim_group_box.configure(
+                values=tuple(
+                    translate(value, language)
+                    for value in self._grupos(self._anim_todas)
+                )
+            )
+        self.after_idle(self._position_viewport_controls)
+        self.refresh()
+
     def _floating_enter(self, button, event):
         button.hover(True)
 
@@ -346,11 +376,8 @@ class PropTab(ttk.Frame):
         else:
             width, height = event.width, event.height
         self.export_button.place(10, 10)
-        self.grid_button.place(width - 10 - self.grid_button.reqwidth, 10)
-        self.bones_button.place(
-            width - 10 - self.grid_button.reqwidth - self.bones_button.reqwidth - 12, 10
-        )
-        self.recenter_button.place(width - 10 - self.recenter_button.reqwidth, 56)
+        y = place_right_buttons(width, (self.grid_button, self.bones_button))
+        self.recenter_button.place(width - 10 - self.recenter_button.reqwidth, y)
         self.canvas.coords(self.status_toolbar_window, 10, height - 10)
 
     def toggle_bones(self):
@@ -411,7 +438,11 @@ class PropTab(ttk.Frame):
     def _fill_anim_list(self, rows):
         """Pone los clips en la lista. Solo desde el hilo de la interfaz."""
         self._anim_todas = rows
-        self.anim_group_box.configure(values=self._grupos(rows))
+        self.anim_group_box.configure(
+            values=tuple(
+                translate(value, self.app.language) for value in self._grupos(rows)
+            )
+        )
         self._pintar_anims()
         return rows
 
@@ -427,7 +458,7 @@ class PropTab(ttk.Frame):
         que repintar es lo ya escaneado.
         """
         term = self.anim_filter.get().casefold()
-        grupo = self.anim_group.get()
+        grupo = translate(self.anim_group.get(), "en")
         self.anim_list.delete(0, "end")
         self.anim_visible = [
             r
@@ -491,7 +522,7 @@ class PropTab(ttk.Frame):
 
     def refresh(self, _event=None):
         term = self.filter.get().casefold()
-        grupo = self.group.get()
+        grupo = translate(self.group.get(), "en")
         self.visible = [
             r
             for r in self.rows
@@ -555,6 +586,9 @@ class PropTab(ttk.Frame):
                 self.animator = SkinnedPropAnimator(data, selected, reference)
                 self.clip = self.animator.clip
                 self.bones = self.bone_src
+            self.has_export_animation = bool(
+                self.clip and self.animator.bindings
+            )
             self.current = row
             for textured in (False, True):
                 gl.forget(("prop", row["entry"], textured))
@@ -584,7 +618,9 @@ class PropTab(ttk.Frame):
                 text=self.time_text(0, self.clip["duration"] if self.clip else 0)
             )
             vertices = sum(len(p["vertices"]) for p in self.parts)
-            self.status.configure(text=self.status_text(row, vertices))
+            self.status.configure(
+                text=translate(self.status_text(row, vertices), self.app.language)
+            )
             # Un recurso que solo trae plantillas de efecto no tiene nada que
             # dibujar: hay que borrar lo que hubiera, que si no se queda el
             # modelo anterior pegado en pantalla.
@@ -596,7 +632,7 @@ class PropTab(ttk.Frame):
                 self.start_play()
             self.schedule()
         except Exception as exc:
-            messagebox.showerror("Object", str(exc))
+            messagebox.showerror(translate("Object", self.app.language), str(exc))
 
     def status_text(self, row, vertices):
         """Lo que se lee en la esquina del visor, como en la pestaña de personajes.
@@ -636,7 +672,7 @@ class PropTab(ttk.Frame):
 
     def stop(self):
         self.playing = False
-        self.play_button.configure(text="▶ Play")
+        self.play_button.configure(text=translate("▶ Play", self.app.language))
 
     def start_play(self):
         """Arranca la reproduccion; no hace nada si ya esta sonando."""
@@ -648,7 +684,7 @@ class PropTab(ttk.Frame):
         if self.playhead >= self.clip["duration"]:
             self.playhead = 0.0
         self.clock_ms = gl.ahora_ms()
-        self.play_button.configure(text="❚❚ Pause")
+        self.play_button.configure(text=translate("❚❚ Pause", self.app.language))
         self.schedule()
 
     def toggle_play(self):
@@ -805,13 +841,15 @@ class PropTab(ttk.Frame):
             set_photo(self.canvas, image)
         except Exception as exc:
             self.stop()
-            self.status.configure(text=f"Preview: {exc}")
+            self.status.configure(
+                text=translate(f"Preview: {exc}", self.app.language)
+            )
         finally:
             self.rendering = False
             if self.playing or self.redraw_requested:
                 self.schedule()
 
-    def export(self, fmt="glb"):
+    def export(self, fmt=None):
         """Exporta un modelo por cada animacion elegida, o el prop que hay cargado.
 
         Con una sola animacion elegida se.exporta como siempre, con su dialogo de
@@ -819,27 +857,41 @@ class PropTab(ttk.Frame):
         animacion, cada uno con el nombre de su prop.
         """
         elegidas = self._animaciones_elegidas()
-        if len(elegidas) > 1:
-            self._exportar_varios(elegidas, fmt)
-            return
         if not self.current:
             return
-        name = Path(self.current["ruta_interna"]).name + "." + fmt
-        target = filedialog.asksaveasfilename(
-            defaultextension="." + fmt,
-            initialfile=name,
-            filetypes=[(fmt.upper() + " model", "*." + fmt)],
-        )
-        if not target:
+        incluir_animacion = self.has_export_animation
+        if fmt is None:
+            nombre = (
+                f"{len(elegidas)} prop animations"
+                if len(elegidas) > 1
+                else self._nombre(self.current)
+            )
+            choice = choose_export_format(
+                self,
+                nombre,
+                animation_available=self.has_export_animation,
+            )
+            if self.has_export_animation:
+                fmt, incluir_animacion = choice
+            else:
+                fmt = choice
+            if not fmt:
+                return
+        if len(elegidas) > 1 and incluir_animacion:
+            self._exportar_varios(elegidas, fmt, incluir_animacion)
             return
         try:
             fbx = fmt == "fbx"
             blender = self.app.resolve_blender() if fbx else None
             if fbx and not blender:
                 return
+            model_name = export_model_name(self._nombre(self.current))
+            export_dir = self.app.export_root / f"{model_name}_export"
+            export_dir.mkdir(parents=True, exist_ok=True)
+            target = export_dir / f"{model_name}.{fmt}"
             with zipfile.ZipFile(self.app.paths["props"]) as z:
                 data = z.read(self.current["archivo_zip"])
-            glb = self.app.cache / "prop_export.glb" if fbx else target
+            glb = target if fmt == "glb" else self.app.cache / "prop_export.glb"
             info = convert_prop(
                 data,
                 self.current["ruta_interna"],
@@ -847,26 +899,30 @@ class PropTab(ttk.Frame):
                 include_helpers=self.show_helpers.get(),
                 assets=self.assets,
                 animation=self.current.get("animation_name"),
+                include_animation=incluir_animacion,
             )
             if fbx:
                 export_path(glb, target, blender)
+            elif fmt == "gltf":
+                export_gltf(glb, target)
             self.status.configure(
-                text=f'Saved: {target}\n{info["parts"]} parts · '
-                f'{info["color_parts"]} with vertex colors'
+                text=translate(
+                    f'Saved: {target}\n{info["parts"]} parts · '
+                    f'{info["color_parts"]} with vertex colors',
+                    self.app.language,
+                )
             )
         except Exception as exc:
-            messagebox.showerror("Export object", str(exc))
+            messagebox.showerror(
+                translate("Export object", self.app.language), str(exc)
+            )
 
     def _animaciones_elegidas(self):
         """Las filas de la lista de animaciones que estan marcadas."""
         return [self.anim_visible[i] for i in self.anim_list.curselection()]
 
-    def _exportar_varios(self, rows, fmt):
-        """Un modelo por animacion, en la carpeta que se elija."""
-        carpeta = filedialog.askdirectory(title="Folder for the exported models")
-        if not carpeta:
-            return
-        destino = Path(carpeta)
+    def _exportar_varios(self, rows, fmt, include_animation=True):
+        """Export each selected prop animation to its own Character-style folder."""
         try:
             fbx = fmt == "fbx"
             blender = self.app.resolve_blender() if fbx else None
@@ -876,9 +932,11 @@ class PropTab(ttk.Frame):
             with zipfile.ZipFile(self.app.paths["props"]) as z:
                 for row in rows:
                     data = z.read(row["archivo_zip"])
-                    nombre = self._nombre(row)
+                    nombre = export_model_name(self._nombre(row))
+                    destino = self.app.export_root / f"{nombre}_export"
+                    destino.mkdir(parents=True, exist_ok=True)
                     target = destino / f"{nombre}.{fmt}"
-                    glb = self.app.cache / "prop_export.glb" if fbx else target
+                    glb = target if fmt == "glb" else self.app.cache / "prop_export.glb"
                     info = convert_prop(
                         data,
                         row["ruta_interna"],
@@ -886,18 +944,26 @@ class PropTab(ttk.Frame):
                         include_helpers=self.show_helpers.get(),
                         assets=self.assets,
                         animation=row.get("animation_name"),
+                        include_animation=include_animation,
                     )
                     if fbx:
                         export_path(glb, target, blender)
+                    elif fmt == "gltf":
+                        export_gltf(glb, target)
                     lineas.append(
                         f"{nombre}: {info['parts']} parts · "
                         f"{info['color_parts']} with vertex colors"
                     )
         except Exception as exc:
-            messagebox.showerror("Export objects", str(exc))
+            messagebox.showerror(
+                translate("Export objects", self.app.language), str(exc)
+            )
             return
         self.status.configure(
-            text=f"{len(rows)} models in {destino}\n" + "\n".join(lineas)
+            text=translate(
+                f"{len(rows)} models exported\n" + "\n".join(lineas),
+                self.app.language,
+            )
         )
 
     def show_uv(self):

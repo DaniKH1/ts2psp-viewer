@@ -26,7 +26,8 @@ varying float weight;
 void main() {
     vec4 first = texture2D(firstLayer, uv);
     vec4 second = texture2D(secondLayer, uv2);
-    float coverage = clamp(weight * first.a, 0.0, 1.0);
+    // PSP vertex alpha marks coverage of the second diffuse layer.
+    float coverage = clamp((1.0 - weight) * first.a, 0.0, 1.0);
     float alpha = coverage + second.a * (1.0 - coverage);
     vec3 rgb = first.rgb * coverage + second.rgb * second.a * (1.0 - coverage);
     gl_FragColor = vec4(rgb / max(alpha, 0.000001) * tint.rgb, alpha * tint.a);

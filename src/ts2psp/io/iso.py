@@ -243,6 +243,17 @@ def import_iso(iso_path, output_dir, progress=None, cancelled=None):
                     records = res_sections(data)
                     object_name = object_resource_name(data, records)
                     if object_name and b".." not in object_name.encode().split(b"/"):
+                        if (
+                            object_name.startswith("objects/light_rigs/fx_dnl_")
+                            and any(s[0] == b"node" for s in records)
+                        ):
+                            # Map NODE graphs reference the game's day/night FX
+                            # rigs by resource path. Keep those source records
+                            # beside the map so its viewer can recover the
+                            # authored light transform after import.
+                            zips["maps"].writestr(
+                                f"lighting/{object_name}.res", data
+                            )
                         if any(s[0] == b"surf" for s in records) and not any(
                             s[0] in (b"bmsh", b"rdms", b"node", b"levl")
                             for s in records

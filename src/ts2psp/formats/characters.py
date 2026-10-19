@@ -846,15 +846,92 @@ PERSONAJES_OCULTOS = ("fplayer", "mplayer")
 
 _SLUG_PUBLICOS = {publico: slug for slug, publico in NOMBRES_PUBLICOS.items()}
 
+# Names translated in the Spanish game edition. Most PSP cast names remain
+# proper names; keep the original spelling when no localized form is recorded.
+NOMBRES_PUBLICOS_ES = {
+    # Localized names cross-checked against the Spanish PSP cast list. The
+    # resources at F:\\TS2PSP Files contain the English game data only.
+    "mamboloa": "Casimira Novená",
+    "bellagoth": "Elvira Lápida",
+    "lokibeaker": "Loki Panero",
+    "circebeaker": "Circe Panero",
+    "opheliaspecter": "Ofelia Fantoche",
+    "lincolnbroadsheet": "Adolfo Todaplana",
+    "lazlocurious": "Lucas Curioso",
+    "pascalcurious": "Pascualín Curioso",
+    "vidcundcurious": "Gumersindo Curioso",
+    "tychocurious": "Tico Curioso",
+    "jenniesmith": "Trini Pérez",
+    "johnnysmith": "Pepe Pérez",
+    "jillsmith": "Inés Pérez",
+    "buzzgrunt": "General Ring Reclutas",
+    "tankgrunt": "Coronel Tanque Reclutas",
+    "rippgrunt": "Cabo Tito Reclutas",
+    "nervoussubject": "Nervioso del Todo",
+    "bodyreaper": "La Parca",
+    "pt9": "Señor Pérez",
+    "ta7": "Admin. de Tránsito N.7",
+    "oscardelfuego": "Óscar del Fuego",
+    "deputyduncan": "Comisario Cosme",
+    "doctordominion": "Doctor Dominio",
+    "dominicnewlow": "Domingo Niubajo",
+    "emilyemory": "Emilia Emoria",
+    "hazeldoss": "Pepa Sobe",
+    "rolandcalonzo": "Rolando Calonzo",
+    "rolandcalonzo-kine": "Rolando Calonzo (Vaca)",
+    "gimibranko": "Kimi Branko",
+    "robertarossum": "Roberta Instein",
+    "isaacrossum": "Isaac Instein",
+    "penelopekline": "Penélope Castro",
+    "yevacomonova": "Yeva Comonova",
+    "rickwong": "Ricar Wong",
+    "sinjinbalani": "Sinjin Balani",
+    "sinjinbalani-kine": "Sinjin Balani (Vaca)",
+    "sarastarr": "Sara Astro",
+    "pitaflorica": "Pita Florica",
+    "virginyafeng": "Virginia Moña",
+    "virginyafeng_vamp": "Virginia Moña (Vampiro)",
+    "nightbeast": "Bestia de la Noche",
+    "hoothowell": "Quique Mañas",
+    "anniehowell": "Ani Mañas",
+    "mib1": "Tipos de Negro 1",
+    "mib2": "Tipos de Negro 2",
+    "mib3": "Tipos de Negro 3",
+    "mib4": "Tipos de Negro 4",
+    "cowthulu": "Belcevaca",
+    "cristianallard": "Cristian Pallá",
+    "betsyshelton": "Chabel Cheli",
+    "redsands": "Roji Arenas",
+    "tureenallard": "Turín Pallá",
+    "janekoch": "Juana Col",
+    "texfolsom": "Tex Bolsón",
+    "bulldratch": "Torito Calado",
+    "chetcrawley": "Chimo Carli",
+    "jesseleevarmint": "José Luis Bichín",
+    "kristinalove": "Cristina Amor",
+    "erinphilips": "Irina Fernández",
+    "dixiestills": "Dixi Parada",
+    "dantehudd": "Dante Cuen",
+    "scootsturnberry": "Vespasi Torrefacto",
+    "clintheckler": "César Agusto",
+    "dennisphilips": "Dani Fernández",
+}
+_SLUG_PUBLICOS_ES = {publico: slug for slug, publico in NOMBRES_PUBLICOS_ES.items()}
 
-def nombre_publico(slug):
+
+def nombre_publico(slug, language="en"):
     """Nombre visible de un personaje; si no esta renombrado, el propio slug."""
+    if language == "es" and slug in NOMBRES_PUBLICOS_ES:
+        return NOMBRES_PUBLICOS_ES[slug]
     return NOMBRES_PUBLICOS.get(slug, slug)
 
 
 def slug_publico(nombre):
     """Slug de un personaje a partir del nombre visible de la lista."""
-    return _SLUG_PUBLICOS.get(nombre, nombre)
+    return _SLUG_PUBLICOS.get(
+        nombre,
+        _SLUG_PUBLICOS_ES.get(nombre, nombre),
+    )
 
 
 def load_character_rows(z):

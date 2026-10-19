@@ -33,6 +33,121 @@ from ts2psp.ui.camera import (
 )
 
 # --- constantes de OpenGL ----------------------------------------------------
+# Lift dark authored vertex colors in luminance, adding the lift neutrally to RGB
+# so the original shadows remain ordered without amplifying their color cast.
+UMBRAL_LUMINANCIA_VERTEX_COLOR_OSCURO = 0.65
+GAMMA_VERTEX_COLOR_OSCURO = 0.25
+PISO_LUMINANCIA_VERTEX_COLOR_OSCURO = 0.10
+
+
+def levantar_vertex_colors_oscuros(colores, mascara_vertex_color):
+    """Lift low vertex-color luminance neutrally, without changing exposure."""
+    colores = np.asarray(colores, dtype=np.float32)
+    salida = colores.copy()
+    mascara = np.asarray(mascara_vertex_color, dtype=bool)
+    if colores.ndim != 2 or colores.shape[1] < 3 or mascara.shape != (len(colores),):
+        return salida
+    rgb = np.clip(colores[:, :3], 0.0, 1.0)
+    luminancia = rgb @ np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
+    peso = np.clip(
+        (UMBRAL_LUMINANCIA_VERTEX_COLOR_OSCURO - luminancia)
+        / UMBRAL_LUMINANCIA_VERTEX_COLOR_OSCURO,
+        0.0,
+        1.0,
+    )
+    exponentes = 1.0 - (1.0 - GAMMA_VERTEX_COLOR_OSCURO) * peso
+    luminancia_gamma = np.power(luminancia, exponentes)
+    luminancia_gamma = np.maximum(
+        luminancia_gamma, PISO_LUMINANCIA_VERTEX_COLOR_OSCURO
+    )
+    luminancia_objetivo = luminancia + peso * (luminancia_gamma - luminancia)
+    aporte_neutro = np.maximum(luminancia_objetivo - luminancia, 0.0)
+    corregidos = np.clip(rgb + aporte_neutro[:, None], 0.0, 1.0)
+    salida[mascara, :3] = corregidos[mascara]
+    return salida
+
+
+def malla_admite_lift_vertex_color(part):
+    """Do not lift terrain blends or deliberately painted shadow cards."""
+    if part.get("texture_blend"):
+        return False
+    texture = part.get("texture")
+    texture_path = texture[0] if isinstance(texture, (tuple, list)) and texture else ""
+    descriptor = " ".join(
+        str(value or "")
+        for value in (
+            part.get("source_texture_path"),
+            part.get("resource_path"),
+            part.get("ruta"),
+            texture_path,
+            part.get("name"),
+            part.get("nombre"),
+        )
+    ).casefold()
+    return "lights_shadows" not in descriptor and "shadow_genericsquare" not in descriptor
+
+
+def malla_necesita_brillo_vertex_color(part):
+    """Return whether a mesh has dark authored colors eligible for the lift."""
+    if not malla_admite_lift_vertex_color(part):
+        return False
+    colors = [vertex[3][:3] for vertex in part.get("vertices", ()) if vertex[3] is not None]
+    if not colors:
+        return False
+    values = np.asarray(colors, dtype=np.float32)
+    luminance = values @ np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
+    return bool(np.any(luminance < UMBRAL_LUMINANCIA_VERTEX_COLOR_OSCURO))
+
+
+def factores_luz_direccional_mapa(normales, perfil):
+    """Evaluate the viewer's diffuse model against the source DNL lights.
+
+    The resources provide the light transforms and animated RGBA curves, but
+    not the game's GPU combiner equation. The viewer retains its existing
+    diffuse/ambient model and averages the authored light terms.
+    """
+    normales = np.asarray(normales, dtype=np.float32)
+    factores = np.ones((len(normales), 3), dtype=np.float32)
+    if not isinstance(perfil, dict):
+        return factores
+    lights = (
+        [value for value in perfil.values() if isinstance(value, dict) and "direction" in value]
+        if "direction" not in perfil
+        else [perfil]
+    )
+    if not lights:
+        return factores
+    longitudes = np.linalg.norm(normales, axis=1)
+    validas = longitudes > 1e-8
+    normales_unitarias = np.zeros_like(normales)
+    normales_unitarias[validas] = normales[validas] / longitudes[validas, None]
+    contribuciones = []
+    for light in lights:
+        direccion = np.asarray(light.get("direction", ()), dtype=np.float32)
+        color = np.asarray(light.get("color", (1.0, 1.0, 1.0)), dtype=np.float32)
+        intensidad = float(light.get("intensity", 0.0))
+        longitud = float(np.linalg.norm(direccion))
+        max_color = float(np.max(color)) if color.size == 3 else 0.0
+        if (
+            not np.isfinite(longitud)
+            or longitud <= 1e-8
+            or not np.isfinite(intensidad)
+            or not np.all(np.isfinite(color))
+            or max_color <= 1e-8
+        ):
+            continue
+        direccion /= longitud
+        intensidad = float(np.clip(intensidad, 0.0, 1.0))
+        tinte = np.clip(color / max_color, 0.0, 1.0)
+        lambert = np.zeros(len(normales), dtype=np.float32)
+        lambert[validas] = np.maximum(normales_unitarias[validas] @ direccion, 0.0)
+        contribuciones.append(
+            (1.0 - intensidad)
+            + intensidad * lambert[:, None] * tinte[None, :]
+        )
+    if contribuciones:
+        factores[:] = np.mean(contribuciones, axis=0)
+    return factores
 GL_TEXTURE_2D = 0x0DE1
 GL_RGBA = 0x1908
 GL_UNSIGNED_BYTE = 0x1401
@@ -280,6 +395,7 @@ class Escena:
         tipo="personaje",
         fondo=(27, 31, 42),
         sin_framing=(),
+        ruta_escena="",
     ):
         self.contexto = Contexto.compartido()
         self.fondo = fondo
@@ -293,6 +409,7 @@ class Escena:
         self.alpha_modes = []
         self.transparentes = 0
         self.tipo = tipo
+        self.ruta_escena = str(ruta_escena or "")
         self.mostrar_grid = True
         # Nombres de las piezas que se dibujan pero no cuentan para el encuadre.
         # Sirve para el cielo de los mapas: es una esfera de 528 de lado que
@@ -321,8 +438,10 @@ class Escena:
 
     # -- subida ---------------------------------------------------------------
     def _cargar(self, piezas, texturas):
-        posiciones, uvs, colores, indices, tramos = [], [], [], [], []
+        posiciones, uvs, colores, normales, indices, tramos = [], [], [], [], [], []
         colores_base, modos_base = [], []
+        vertices_con_color = []
+        vertices_vertex_color_original = []
         blend_coords = []
         self.texture_layers = []
         self.alpha_modes = []
@@ -358,6 +477,10 @@ class Escena:
                 )
                 alpha_textura[texture_state] = self._tiene_alpha(textura)
             color = parte.get("color")
+            malla_tiene_vertex_color = (
+                not parte.get("texture_blend")
+                and any(vertice[3] is not None for vertice in parte["vertices"])
+            )
             second_texture = 0
             if parte.get("texture_blend") and textura is not None:
                 second = parte["texture_layers"][1]["texture"]
@@ -378,6 +501,14 @@ class Escena:
                 )
                 blend_coords.append((*uv2, weights[vertex_index] if weights else 1.0))
                 posiciones.append(tuple(v * escala_pos for v in vertice[0]))
+                normales.append(vertice[1])
+                # Intensity applies to the whole mesh if it has Vertex Color;
+                # vertices without an authored color use the material fallback
+                # but must not be left behind in a partially colored mesh.
+                vertices_con_color.append(malla_tiene_vertex_color)
+                vertices_vertex_color_original.append(
+                    vertice[3] is not None and malla_admite_lift_vertex_color(parte)
+                )
                 # los personajes traen UV crudos en 1/4096: se normalizan con el v
                 # invertido, igual que los usa el rasterizador de CPU. En los props
                 # el v ya viene normalizado y sin invertir
@@ -406,7 +537,13 @@ class Escena:
                     rgba = tuple(vertice[3])
                     rgba = rgba + (1.0,) if len(rgba) == 3 else rgba
                     if parte.get("texture_blend"):
-                        rgba = (*rgba[:3], 1.0)
+                        # Terrain RGB is unused by the game: its alpha selects
+                        # coverage between the two diffuse layers. Tinting the
+                        # shader with that often-black RGB turns the whole road
+                        # black, so blended terrain contributes neutral white.
+                        rgba = (1.0, 1.0, 1.0, 1.0)
+                        # Keep the authored GSHD diffuse factor (often 0.5);
+                        # neutralize only the vertex RGB mask.
                     base = color if color is not None else (255, 255, 255, 255)
                     colores.append(tuple(rgba[j] * base[j] for j in range(4)))
                     vertex_alpha |= rgba[3] < 0.999
@@ -460,9 +597,23 @@ class Escena:
         if not posiciones or not indices:
             raise SinOpenGL("the scene has no geometry")
         self.posiciones = np.ascontiguousarray(posiciones, dtype=np.float32)
+        self.normales = np.zeros((len(normales), 3), dtype=np.float32)
+        for index, normal in enumerate(normales):
+            if normal is not None:
+                self.normales[index] = normal
+        self.tiene_normales = np.fromiter(
+            (normal is not None for normal in normales), dtype=bool, count=len(normales)
+        )
         self.UV = np.ascontiguousarray(uvs, dtype=np.float32)
         self.colores = np.ascontiguousarray(colores, dtype=np.float32) / 255.0
-        self._colores_vertex = self.colores
+        self._colores_vertex_sin_luz = self.colores.copy()
+        self._colores_vertex = self._colores_vertex_sin_luz
+        self._vertices_con_color = np.asarray(vertices_con_color, dtype=bool)
+        self._vertices_vertex_color_original = np.asarray(
+            vertices_vertex_color_original, dtype=bool
+        )
+        self._vertex_colors_enabled = True
+        self._perfil_luz_mapa = None
         self._blend_coords = np.ascontiguousarray(blend_coords, dtype=np.float32)
         self._colores_base = (
             np.ascontiguousarray(colores_base, dtype=np.float32) / 255.0
@@ -685,10 +836,42 @@ class Escena:
         self.posiciones = np.ascontiguousarray(posiciones, dtype=np.float32)
         self.pose = pose
 
-    def fijar_vertex_colors(self, enabled):
-        """Switch cached source shading without changing geometry or textures."""
-        self.colores = self._colores_vertex if enabled else self._colores_base
+    def fijar_vertex_colors(self, enabled, intensity=100.0):
+        """Switch cached shading and its strength without rebuilding geometry."""
+        self._vertex_colors_enabled = bool(enabled)
+        self._vertex_color_intensity = float(np.clip(intensity, 0.0, 200.0)) / 100.0
+        self._aplicar_vertex_colors()
         self.alpha_modes = self._modos_vertex if enabled else self._modos_base
+
+    def _aplicar_vertex_colors(self):
+        if not self._vertex_colors_enabled:
+            self.colores = self._colores_base
+            return
+        intensidad = getattr(self, "_vertex_color_intensity", 1.0)
+        self.colores = levantar_vertex_colors_oscuros(
+            self._colores_vertex, self._vertices_vertex_color_original
+        )
+        self.colores[self._vertices_con_color, :3] *= intensidad
+        np.clip(self.colores[:, :3], 0.0, 1.0, out=self.colores[:, :3])
+
+    def fijar_luz_direccional_mapa(self, perfil):
+        """Apply the active source day/night profile to map vertex colors.
+
+        The three directional lights come from the map's referenced FX rig.
+        This operates on mesh colors before rasterization and never changes
+        framebuffer exposure.
+        """
+        factores = factores_luz_direccional_mapa(self.normales, perfil)
+        self._colores_vertex = self._colores_vertex_sin_luz.copy()
+        self._colores_vertex[:, :3] *= factores
+        np.clip(
+            self._colores_vertex[:, :3],
+            0.0,
+            1.0,
+            out=self._colores_vertex[:, :3],
+        )
+        self._perfil_luz_mapa = perfil
+        self._aplicar_vertex_colors()
 
     def pose_actual(self):
         return self.pose
@@ -1054,6 +1237,7 @@ def escena(
     fondo=(27, 31, 42),
     culling=False,
     sin_framing=(),
+    ruta_escena="",
 ):
     """Escena cacheada para `clave`. Avisa con SinOpenGL si la GPU no está disponible.
 
@@ -1073,7 +1257,9 @@ def escena(
     if _fallo is not None:
         raise SinOpenGL(str(_fallo))
     if clave not in _escenas:
-        _escenas[clave] = Escena(piezas, texturas, tipo, fondo, sin_framing)
+        _escenas[clave] = Escena(
+            piezas, texturas, tipo, fondo, sin_framing, ruta_escena
+        )
     escena_actual = _escenas[clave]
     nombre = clave[1] if isinstance(clave, (tuple, list)) and len(clave) > 1 else clave
     escena_actual.sin_culling = (tipo == "prop" and not culling) or str(

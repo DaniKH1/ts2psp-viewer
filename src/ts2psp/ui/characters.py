@@ -14,10 +14,11 @@ from ts2psp.ui.camera import OrbitController, Viewport
 import ts2psp.rendering.opengl as gl
 from ts2psp.ui.textured_list import TexturedListbox
 from ts2psp.ui.animation_panel import AnimationPanel, AnimationStage
-from ts2psp.ui.floating_button import FloatingButton
+from ts2psp.ui.floating_button import FloatingButton, place_right_buttons
 from ts2psp.ui.texture_gallery import TextureGallery
 from ts2psp.ui.theme import ANCHO_TROUGH_CLIPS, ANCHO_TROUGH_SHAPES, LIST_PANEL_PATH
-from ts2psp.ui.common import export_model_name, set_photo
+from ts2psp.ui.common import choose_export_format, export_model_name, set_photo
+from ts2psp.ui.i18n import translate
 from ts2psp.exporting.blender import export_path
 
 # La columna de la derecha no mide lo mismo en las dos vistas: el recorrido del
@@ -88,12 +89,13 @@ class CharacterTab(ttk.Frame):
             command=self.toggle_replace_character,
         )
         self.characters_frame = ttk.Frame(left)
-        ttk.Label(
+        self.characters_heading = ttk.Label(
             self.characters_frame,
             text="Characters",
             anchor="center",
             font=(self.app._sims_font_family, 12, "bold"),
-        ).pack(fill="x")
+        )
+        self.characters_heading.pack(fill="x")
         self.filter = tk.StringVar()
         self.search_entry = ttk.Entry(
             self.characters_frame,
@@ -291,7 +293,10 @@ class CharacterTab(ttk.Frame):
         self.animation_view.set(not self.animation_view.get())
         animacion = self.animation_view.get()
         self.view_button.configure(
-            text="Character View" if animacion else "Animation View"
+            text=translate(
+                "Character View" if animacion else "Animation View",
+                self.app.language,
+            )
         )
         self.shapes_column.configure(width=ANCHO_CLIPS if animacion else ANCHO_SHAPES)
         if animacion:
@@ -503,11 +508,8 @@ class CharacterTab(ttk.Frame):
         else:
             width, height = event.width, event.height
         self.export_button.place(10, 10)
-        self.grid_button.place(width - 10 - self.grid_button.reqwidth, 10)
-        self.bones_button.place(
-            width - 10 - self.grid_button.reqwidth - self.bones_button.reqwidth - 12, 10
-        )
-        self.recenter_button.place(width - 10 - self.recenter_button.reqwidth, 56)
+        y = place_right_buttons(width, (self.grid_button, self.bones_button))
+        self.recenter_button.place(width - 10 - self.recenter_button.reqwidth, y)
         self.canvas.coords(self.status_toolbar_window, 10, height - 10)
 
     def toggle_bones(self):
@@ -554,11 +556,40 @@ class CharacterTab(ttk.Frame):
         self.visible = [
             n
             for n in self.names
-            if term in n.casefold() or term in nombre_publico(n).casefold()
+            if term in n.casefold()
+            or term in nombre_publico(n, self.app.language).casefold()
         ]
         self.listbox.delete(0, "end")
         for n in self.visible:
-            self.listbox.insert("end", nombre_publico(n))
+            self.listbox.insert("end", nombre_publico(n, self.app.language))
+        if self.current in self.visible:
+            self.listbox.marcar(self.visible.index(self.current))
+
+    def set_language(self, _language):
+        self.characters_heading.configure(
+            text="Personajes" if _language == "es" else "Characters"
+        )
+        self.view_button.configure(
+            text=(
+                ("Vista de personaje" if self.animation_view.get() else "Vista de animación")
+                if _language == "es"
+                else ("Character View" if self.animation_view.get() else "Animation View")
+            )
+        )
+        if hasattr(self, "export_button"):
+            anim = self.animation_view.get()
+            label = (
+                ("Exportar clip..." if anim else "Exportar...")
+                if _language == "es"
+                else ("Export clip as..." if anim else "Export as...")
+            )
+            self.export_button.set_text(label, ancho_del_boton(self.winfo_toplevel(), label))
+        top = self.winfo_toplevel()
+        for button in getattr(self, "floating_buttons", ()):
+            label = translate(button.text, _language)
+            button.set_text(label, ancho_del_boton(top, label))
+        self.after_idle(self._position_viewport_controls)
+        self.refresh()
 
     def select_name(self, name):
         if name in self.visible:
@@ -622,12 +653,15 @@ class CharacterTab(ttk.Frame):
             )
             detail = f"\nFace: {face}" if face else ""
             self.status.configure(
-                text=f"{name}\n{len(self.bones)} bones · "
-                f"{vertices} vertices{detail}"
+                text=translate(
+                    f"{name}\n{len(self.bones)} bones · "
+                    f"{vertices} vertices{detail}",
+                    self.app.language,
+                )
             )
             self.schedule()
         except Exception as exc:
-            messagebox.showerror("Character", str(exc))
+            messagebox.showerror(translate("Character", self.app.language), str(exc))
 
     def restaurar_estado_del_personaje(self):
         """Vuelve a poner los datos del personaje en la esquina del visor.
@@ -639,7 +673,10 @@ class CharacterTab(ttk.Frame):
         if self.current and self.parts:
             vertices = sum(len(part["vertices"]) for _, part in self.parts)
             self.status.configure(
-                text=f"{self.current}\n{len(self.bones)} bones · {vertices} vertices"
+                text=translate(
+                    f"{self.current}\n{len(self.bones)} bones · {vertices} vertices",
+                    self.app.language,
+                )
             )
 
     def select_shape(self, _event=None):
@@ -748,7 +785,9 @@ class CharacterTab(ttk.Frame):
             )
             set_photo(self.canvas, image)
         except Exception as exc:
-            self.status.configure(text=f"Preview: {exc}")
+            self.status.configure(
+                text=translate(f"Preview: {exc}", self.app.language)
+            )
 
     # -- exportacion -------------------------------------------------------
 
@@ -760,40 +799,7 @@ class CharacterTab(ttk.Frame):
             self.export()
 
     def choose_export_format(self):
-        dialog = tk.Toplevel(self)
-        dialog.title("Export as...")
-        dialog.transient(self.winfo_toplevel())
-        dialog.resizable(False, False)
-        selected = tk.StringVar(value="glb")
-        content = ttk.Frame(dialog, padding=16)
-        content.pack(fill="both", expand=True)
-        ttk.Label(content, text=f"Format for {self.current}:").pack(
-            anchor="w", pady=(0, 8)
-        )
-        for label, value in (
-            ("GLB (.glb) — single file", "glb"),
-            ("glTF (.gltf) — model, binary and textures", "gltf"),
-            ("FBX (.fbx) — requires Blender", "fbx"),
-        ):
-            ttk.Radiobutton(content, text=label, value=value, variable=selected).pack(
-                anchor="w", pady=2
-            )
-        buttons = ttk.Frame(content)
-        buttons.pack(fill="x", pady=(12, 0))
-        choice = {"format": None}
-
-        def accept():
-            choice["format"] = selected.get()
-            dialog.destroy()
-
-        ttk.Button(buttons, text="Cancel", command=dialog.destroy).pack(side="right")
-        ttk.Button(
-            buttons, text="Export", style="Primary.TButton", command=accept
-        ).pack(side="right", padx=(0, 8))
-        dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
-        dialog.grab_set()
-        dialog.wait_window()
-        return choice["format"]
+        return choose_export_format(self, self.current)
 
     def export(self):
         if not self.current:
@@ -816,9 +822,13 @@ class CharacterTab(ttk.Frame):
                 export_path(glb, target, blender)
             elif fmt == "gltf":
                 export_gltf(glb, target)
-            self.status.configure(text=f'Saved: {target}\n{info["bones"]} bones')
+            self.status.configure(
+                text=translate(f'Saved: {target}\n{info["bones"]} bones', self.app.language)
+            )
         except Exception as exc:
-            messagebox.showerror("Export character", str(exc))
+            messagebox.showerror(
+                translate("Export character", self.app.language), str(exc)
+            )
 
     def dispose(self):
         if self.timer:

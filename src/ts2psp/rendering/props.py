@@ -8,7 +8,14 @@ import ts2psp.rendering.opengl as gl
 
 
 def prop_scene(
-    parts, key, show_textures=True, culling=False, sin_framing=(), vertex_colors=True
+    parts,
+    key,
+    show_textures=True,
+    culling=False,
+    sin_framing=(),
+    vertex_colors=True,
+    light_profile=None,
+    ruta_escena="",
 ):
     """Escena GL del prop, cacheada por clave.
 
@@ -46,8 +53,10 @@ def prop_scene(
         fondo=(28, 31, 41),
         culling=culling,
         sin_framing=sin_framing,
+        ruta_escena=ruta_escena,
     )
     scene.fijar_vertex_colors(vertex_colors)
+    scene.fijar_luz_direccional_mapa(light_profile)
     return scene
 
 

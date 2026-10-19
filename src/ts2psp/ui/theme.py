@@ -176,6 +176,9 @@ def _install_sims_theme(root):
         foreground=colors["foreground"],
     )
     style.configure("TFrame", background=colors["background"])
+    # La cabecera de idioma/ISO se superpone a la fila del Notebook; comparte
+    # el color del lienzo y no dibuja una banda propia tras los botones.
+    style.configure("Toolbar.TFrame", background=colors["background"], borderwidth=0)
     style.configure(
         "TLabel", background=colors["background"], foreground=colors["foreground"]
     )

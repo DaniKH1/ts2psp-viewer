@@ -7,6 +7,7 @@ from tkinter import filedialog, ttk
 import numpy as np
 from PIL import Image, ImageDraw, ImageTk
 from ts2psp.core.names import part_label
+from ts2psp.ui.i18n import translate
 
 
 def character_uv_parts(parts, textures):
@@ -84,13 +85,13 @@ class UVWindow(tk.Toplevel):
                 expanded.append(part)
         parts = expanded
         self.parts = [p for p in parts if any(v[2] is not None for v in p["vertices"])]
-        self.title(f"Texture maps and UVs · {title}")
+        self.title(translate(f"Texture maps and UVs · {title}", parent.app.language))
         self.geometry("850x910")
         self.name = tk.StringVar()
         self.lines = tk.BooleanVar(value=True)
         controls = ttk.Frame(self, padding=8)
         controls.pack(fill="x")
-        ttk.Label(controls, text="Part").pack(side="left")
+        ttk.Label(controls, text=translate("Part", parent.app.language)).pack(side="left")
         self.select = ttk.Combobox(
             controls, textvariable=self.name, state="readonly", width=55
         )
@@ -98,9 +99,16 @@ class UVWindow(tk.Toplevel):
         self.select["values"] = [part_label(p) for p in self.parts]
         self.select.bind("<<ComboboxSelected>>", self.render)
         ttk.Checkbutton(
-            controls, text="Mostrar UV", variable=self.lines, command=self.render
+            controls,
+            text=translate("Mostrar UV", parent.app.language),
+            variable=self.lines,
+            command=self.render,
         ).pack(side="left")
-        ttk.Button(controls, text="Save PNG", command=self.save).pack(
+        ttk.Button(
+            controls,
+            text=translate("Save PNG", parent.app.language),
+            command=self.save,
+        ).pack(
             side="left", padx=8
         )
         self.label = ttk.Label(self, anchor="center")
@@ -112,7 +120,11 @@ class UVWindow(tk.Toplevel):
             self.select.current(0)
             self.render()
         else:
-            self.status.configure(text="The model has no readable UV coordinates.")
+            self.status.configure(
+                text=translate(
+                    "The model has no readable UV coordinates", parent.app.language
+                )
+            )
 
     def render(self, _event=None):
         if not self.parts:

@@ -13,6 +13,39 @@ for the states ``normal``, ``active`` (hover) and ``pressed``.
 import tkinter as tk
 
 
+def place_right_buttons(width, buttons, *, top=10, gap=12, row_gap=12, margin=10):
+    """Place viewport buttons against the right edge, wrapping when needed.
+
+    ``buttons`` are ordered from the rightmost button inward. Spanish labels
+    can be wider than English ones, so keep them inside the canvas by moving
+    overflow buttons to another row instead of letting their x coordinate go
+    negative.
+    """
+    available = max(1, width - 2 * margin)
+    rows = [[]]
+    row_widths = [0]
+    for button in buttons:
+        extra = button.reqwidth + (gap if rows[-1] else 0)
+        if rows[-1] and row_widths[-1] + extra > available:
+            rows.append([])
+            row_widths.append(0)
+            extra = button.reqwidth
+        rows[-1].append(button)
+        row_widths[-1] += extra
+
+    y = top
+    for row in rows:
+        x = width - margin
+        row_height = 0
+        for button in row:
+            x -= button.reqwidth
+            button.place(x, y)
+            x -= gap
+            row_height = max(row_height, button.reqheight)
+        y += row_height + row_gap
+    return y
+
+
 class FloatingButton:
     """Rounded button painted directly onto a canvas."""
 

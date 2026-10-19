@@ -1,4 +1,4 @@
-﻿"""Read Sims 2 PSP rigid (RDMS) prop meshes and export UV / Vertex Color GLB."""
+"""Read Sims 2 PSP rigid (RDMS) prop meshes and export UV / Vertex Color GLB."""
 
 import argparse
 import csv
@@ -542,6 +542,7 @@ def parse_rdms(data, apply_scene=True, opaco=False, ruta=None, vertex_colors=Tru
                     if instance == 0
                     else f'{part["name"]}_instance_{instance}'
                 )
+                trans_verts = transform_vertices(vertices, matrix)
                 output.append(
                     {
                         **part,
@@ -559,7 +560,7 @@ def parse_rdms(data, apply_scene=True, opaco=False, ruta=None, vertex_colors=Tru
                         "resource_path": placement.resource,
                         "placement_node": placement.instance,
                         "local_vertices": vertices,
-                        "vertices": transform_vertices(vertices, matrix),
+                        "vertices": trans_verts,
                         # RDMS compression origin, before NODE placement.
                         "origin": tuple(float(v) for v in origin),
                     }
@@ -663,12 +664,16 @@ def write_rigid_glb(parts, name, target, bones=(), anclajes=None):
         # del mobiliario. Para esas se escribe el color del material, que es el
         # tinte que el visor les aplica igual, de modo que el GLB lleva vertex
         # color en todas partes y lo que se abre en Blender se ve como el visor.
-        color_material = part.get("color") or (255, 255, 255, 255)
-        vals = [
-            x
-            for _, _, _, color in vertices
-            for x in (tuple(color) if color is not None else color_material)
-        ]
+        color_material = tuple(
+            c / 255.0 for c in (part.get("color") or (255, 255, 255, 255))
+        )
+        vals = []
+        for pos, normal, uv, color in vertices:
+            if color is not None:
+                c = tuple(color)
+            else:
+                c = color_material
+            vals.extend(c)
         attrs["COLOR_0"] = glb.accessor(
             struct.pack("<" + "f" * len(vals), *vals), 5126, "VEC4", count, 34962
         )
@@ -796,7 +801,13 @@ def write_rigid_glb(parts, name, target, bones=(), anclajes=None):
 
 
 def convert_prop(
-    data, name, target, include_helpers=False, assets=None, animation=None
+    data,
+    name,
+    target,
+    include_helpers=False,
+    assets=None,
+    animation=None,
+    include_animation=True,
 ):
     if b"rdms" in data[:128]:
         parts, rejected = parse_rdms(data, opaco=name in ALFA_ILEGIBLE, ruta=name)
@@ -810,7 +821,7 @@ def convert_prop(
         glb = write_rigid_glb(parts, name, target, bones=bones, anclajes=anclajes)
         from ts2psp.exporting.prop_animation import add_prop_animation
 
-        animations = add_prop_animation(glb, data, bones, name)
+        animations = add_prop_animation(glb, data, bones, name) if include_animation else 0
         glb.save(target)
         return {
             "name": name,
@@ -840,7 +851,7 @@ def convert_prop(
         textures = {part["name"]: part["texture"] for part in parts}
         glb.add_mesh(name, parts, skin, len(bones), textures)
         glb.save(target)
-        clips = assets.clips(name) if assets else []
+        clips = assets.clips(name) if assets and include_animation else []
         if clips:
             from ts2psp.formats.animations import attach_animations
 

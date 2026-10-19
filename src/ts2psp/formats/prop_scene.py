@@ -277,6 +277,171 @@ def node_hierarchies(data, records):
     return [s for s in _node_sections(data, records) if s is not None]
 
 
+def daynight_light_profile(data, records, light_name="DayNightLight"):
+    """Return a directional light's authored transform and RGBA settings.
+
+    Maya light transforms point along local -Z. Diffuse shading uses the
+    opposite vector, from a surface toward the source. The light shape stores
+    RGB and intensity in its attribute block immediately after the leading
+    Maya plug header.
+    """
+    for nodes, world_matrix, _, _ in node_hierarchies(data, records):
+        for index, node in enumerate(nodes):
+            if node[1] != 10 or not is_transform(data, node):
+                continue
+            name = node_name(data, node).rsplit(":", 1)[-1]
+            if name.casefold() != light_name.casefold():
+                continue
+            direction = world_matrix(index)[:3, :3] @ np.array((0.0, 0.0, 1.0))
+            length = float(np.linalg.norm(direction))
+            if not math.isfinite(length) or length <= 1e-8:
+                continue
+            shape = next(
+                (
+                    child
+                    for child in nodes
+                    if child[1] == 10
+                    and child[2] == index
+                    and node_name(data, child).rsplit(":", 1)[-1].casefold()
+                    == f"{light_name}shape".casefold()
+                ),
+                None,
+            )
+            if shape is None:
+                continue
+            attributes = _relative(data, shape[0] + 8)
+            if attributes < 0 or attributes + 32 > len(data):
+                continue
+            color_intensity = struct.unpack_from("<4f", data, attributes + 16)
+            if not all(math.isfinite(value) for value in color_intensity):
+                continue
+            return {
+                "direction": tuple(float(value / length) for value in direction),
+                "color": tuple(float(value) for value in color_intensity[:3]),
+                "intensity": float(color_intensity[3]),
+            }
+    return None
+
+
+def daynight_light_direction(data, records):
+    """Backward-compatible access to the authored daytime light vector."""
+    profile = daynight_light_profile(data, records)
+    return profile["direction"] if profile else None
+
+
+_DAYNIGHT_LIGHT_GROUPS = {
+    0x30002: "DayNightLight",
+    0x70002: "DayNightLight1",
+    0x90002: "DayNightLight2",
+}
+_DAYNIGHT_TRACK_CHANNELS = {0x403: 0, 0x503: 1, 0x603: 2, 0x703: 3}
+
+
+def _sample_daynight_curve(keys, frame):
+    """Sample one authored 3-key cubic curve using its stored tangents."""
+    if not keys:
+        return None
+    if frame <= keys[0][0]:
+        return keys[0][1]
+    if frame >= keys[-1][0]:
+        return keys[-1][1]
+    for left, right in zip(keys, keys[1:]):
+        x0, y0, _, out_tangent = left
+        x1, y1, in_tangent, _ = right
+        if x0 <= frame <= x1:
+            span = x1 - x0
+            if span <= 0:
+                return y1
+            t = (frame - x0) / span
+            h00 = 2 * t**3 - 3 * t**2 + 1
+            h10 = t**3 - 2 * t**2 + t
+            h01 = -2 * t**3 + 3 * t**2
+            h11 = t**3 - t**2
+            return (
+                h00 * y0
+                + h10 * span * out_tangent
+                + h01 * y1
+                + h11 * span * in_tangent
+            )
+    return keys[-1][1]
+
+
+def _daynight_frame(hour):
+    """Map the original day/night state schedule to the rig's 0/30/60 keys."""
+    hour = float(hour) % 24.0
+    if 7.0 <= hour < 8.0:  # Dawn: night key to day key.
+        return 30.0 + 30.0 * (hour - 7.0)
+    if 21.0 <= hour < 22.0:  # Dusk: day key to night key.
+        return 30.0 * (hour - 21.0)
+    if 8.0 <= hour < 21.0:
+        return 0.0
+    return 30.0
+
+
+def daynight_rig_profiles(data, records, hour=12.0):
+    """Read the three original DNL lights and sample their day/night curves.
+
+    The level rig stores light transforms and a sequencer with 12 cubic curves:
+    RGB plus intensity for each of three directional lights. Values and tangent
+    data are read from the source resource; only `hour` selects a point on those
+    curves.
+    """
+    profiles = {}
+    for name in _DAYNIGHT_LIGHT_GROUPS.values():
+        profile = daynight_light_profile(data, records, name)
+        if profile:
+            profiles[name] = {**profile, "color": list(profile["color"])}
+
+    sequencer = None
+    for nodes, _, _, _ in node_hierarchies(data, records):
+        sequencer = next(
+            (
+                node
+                for node in nodes
+                if node[1] == 10
+                and node_name(data, node).rsplit(":", 1)[-1].casefold()
+                == "day_night_sequencer"
+            ),
+            None,
+        )
+        if sequencer:
+            break
+    if sequencer is None or sequencer[0] + 20 > len(data):
+        return profiles
+
+    table = _relative(data, sequencer[0] + 16)
+    if table < 0 or table + 12 * 24 > len(data):
+        return profiles
+    curves = {}
+    for index in range(12):
+        row = table + index * 24
+        descriptor = row + 4 + struct.unpack_from("<i", data, row + 4)[0]
+        if descriptor < 0 or descriptor + 12 > len(data):
+            continue
+        _, interpolation, key_offset = struct.unpack_from("<fIi", data, descriptor)
+        key_data = descriptor + 8 + key_offset
+        if interpolation != 3 or key_data < 0 or key_data + 3 * 16 > len(data):
+            continue
+        keys = [struct.unpack_from("<4f", data, key_data + key * 16) for key in range(3)]
+        track_id, group = struct.unpack_from("<II", data, row + 12)
+        light_name = _DAYNIGHT_LIGHT_GROUPS.get(group)
+        channel = _DAYNIGHT_TRACK_CHANNELS.get(track_id)
+        if light_name is not None and channel is not None:
+            curves.setdefault(light_name, {})[channel] = keys
+
+    frame = _daynight_frame(hour)
+    for name, profile in profiles.items():
+        for channel, keys in curves.get(name, {}).items():
+            value = _sample_daynight_curve(keys, frame)
+            if value is None:
+                continue
+            if channel < 3:
+                profile["color"][channel] = float(value)
+            else:
+                profile["intensity"] = float(value)
+    return profiles
+
+
 @dataclass
 class RigidPlacement:
     node: int

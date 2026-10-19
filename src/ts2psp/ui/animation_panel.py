@@ -37,6 +37,7 @@ from ts2psp.ui.common import (
     export_model_name,
     set_photo,
 )
+from ts2psp.ui.i18n import localize_widget_tree, translate
 from ts2psp.exporting.blender import export_path
 
 PERSONAJES_POR_NOMBRE = (
@@ -114,7 +115,7 @@ class AnimationStage:
             dibujo.ellipse((x - 3, y - 3, x + 3, y + 3), fill=(225, 255, 250))
 
     def set_view_status(self, text):
-        self.status_label.configure(text=text)
+        self.status_label.configure(text=translate(text, self.status_label.winfo_toplevel().language))
 
 
 class AnimationPanel(ttk.Frame):
@@ -199,7 +200,7 @@ class AnimationPanel(ttk.Frame):
             char_scroll.pack(side="right", fill="y")
             self.char_list.pack(side="left", fill="both", expand=True)
             for name in self.all_characters:
-                self.char_list.insert("end", nombre_publico(name))
+                self.char_list.insert("end", nombre_publico(name, self.app.language))
             self.char_list.bind("<<ListboxSelect>>", self._character_selected)
             inicial = self.character.get()
             if inicial in self.all_characters:
@@ -458,8 +459,9 @@ class AnimationPanel(ttk.Frame):
         term = self.character_filter.get().casefold()
         self.char_list.delete(0, "end")
         for name in self.all_characters:
-            if term in name.casefold() or term in nombre_publico(name).casefold():
-                self.char_list.insert("end", nombre_publico(name))
+            display_name = nombre_publico(name, self.app.language)
+            if term in name.casefold() or term in display_name.casefold():
+                self.char_list.insert("end", display_name)
         # La lista conservaria el desplazamiento anterior, que con menos
         # filas dejaria la vista a medio camino.
         self.char_list.yview("moveto", 0)
@@ -491,7 +493,7 @@ class AnimationPanel(ttk.Frame):
         rows = self.selected_rows()
         resolved = self._export_character(rows)
         dialog = tk.Toplevel(self)
-        dialog.title("Export as...")
+        dialog.title(translate("Export as...", self.app.language))
         dialog.transient(self.winfo_toplevel())
         dialog.resizable(False, False)
         selected = tk.StringVar(value="glb")
@@ -553,6 +555,7 @@ class AnimationPanel(ttk.Frame):
         ttk.Button(
             buttons, text="Export", style="Primary.TButton", command=accept
         ).pack(side="right", padx=(0, 8))
+        localize_widget_tree(dialog, self.app.language)
         dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
         dialog.grab_set()
         dialog.wait_window()
@@ -567,7 +570,8 @@ class AnimationPanel(ttk.Frame):
             return
         if not self.selected_rows():
             messagebox.showinfo(
-                "Export animations", "Select one or more clips in the list first."
+                translate("Export animations", self.app.language),
+                translate("Select one or more clips in the list first.", self.app.language),
             )
             return
         choice = self.choose_export_format()
@@ -582,14 +586,14 @@ class AnimationPanel(ttk.Frame):
             "Individual": "solo_anims",
             "Social": "social_anims",
             "Scenes": "cutscene_anims",
-        }.get(self.group.get())
+        }.get(translate(self.group.get(), "en"))
         term = self.filter.get().casefold()
         self.visible = []
         for row in self.rows:
             category = row["category"]
             if key and category != key:
                 continue
-            if self.group.get() == "Creatures" and category not in (
+            if translate(self.group.get(), "en") == "Creatures" and category not in (
                 "cowthulu_anims",
                 "nightbeast_anims",
             ):
@@ -756,7 +760,9 @@ class AnimationPanel(ttk.Frame):
                 self.start_play()
         except Exception as exc:
             self._discard_preview()
-            self.status.configure(text=f"Could not load: {exc}")
+            self.status.configure(
+                text=translate(f"Could not load: {exc}", self.app.language)
+            )
 
     def _olvidar_preview(self):
         """Se suelta el clip cargado, con los datos que iba a poner en el visor."""
@@ -831,7 +837,9 @@ class AnimationPanel(ttk.Frame):
             self.time_label.configure(text=self._time_text(t, duration))
         except Exception as exc:
             self._discard_preview()
-            self.status.configure(text=f"Preview unavailable: {exc}")
+            self.status.configure(
+                text=translate(f"Preview unavailable: {exc}", self.app.language)
+            )
             self.stop()
 
     def _time_text(self, t, duration):
@@ -896,7 +904,7 @@ class AnimationPanel(ttk.Frame):
             return
         self.playing = True
         self.last_tick = time.perf_counter()
-        self.play_button.configure(text="❚❚ Pause")
+        self.play_button.configure(text=translate("❚❚ Pause", self.app.language))
         self.tick()
 
     def toggle_play(self):
@@ -912,7 +920,7 @@ class AnimationPanel(ttk.Frame):
         if self.timer:
             self.after_cancel(self.timer)
             self.timer = None
-        self.play_button.configure(text="▶ Play")
+        self.play_button.configure(text=translate("▶ Play", self.app.language))
 
     def tick(self):
         if not self.playing or not self.preview:
@@ -948,8 +956,11 @@ class AnimationPanel(ttk.Frame):
         resolved = self._export_character(rows)
         if resolved is None:
             messagebox.showwarning(
-                "Incompatible skeletons",
-                "Export human, Cowthulu and Night Beast clips separately.",
+                translate("Incompatible skeletons", self.app.language),
+                translate(
+                    "Export human, Cowthulu and Night Beast clips separately.",
+                    self.app.language,
+                ),
             )
             return
         skeleton, character = resolved
@@ -977,10 +988,13 @@ class AnimationPanel(ttk.Frame):
             return
         self.exporting = True
         self.status.configure(
-            text=(
+            text=translate(
+                (
                 f"Exporting {model_name}…"
                 if not incluir
                 else f"Exporting {len(rows)} clips…"
+                ),
+                self.app.language,
             )
         )
 
@@ -1062,14 +1076,20 @@ class AnimationPanel(ttk.Frame):
                     if generation == self.prepare_generation:
                         self._discard_preview()
                         self.status.configure(
-                            text=f"Invalid animation; it was not loaded: {text}"
+                            text=translate(
+                                f"Invalid animation; it was not loaded: {text}",
+                                self.app.language,
+                            )
                         )
                 else:
                     _, text = message
                     self.exporting = False
                     if kind == "error":
-                        messagebox.showerror("Export animations", text)
-                    self.status.configure(text=text)
+                        messagebox.showerror(
+                            translate("Export animations", self.app.language),
+                            translate(text, self.app.language),
+                        )
+                    self.status.configure(text=translate(text, self.app.language))
         except queue.Empty:
             pass
         self.poll_timer = self.after(100, self.poll_messages)
@@ -1102,4 +1122,6 @@ class AnimationPanel(ttk.Frame):
                 text=f"{len(rows)} original BANM files saved to {folder}"
             )
         except Exception as exc:
-            messagebox.showerror("Extract BANM", str(exc))
+            messagebox.showerror(
+                translate("Extract BANM", self.app.language), str(exc)
+            )

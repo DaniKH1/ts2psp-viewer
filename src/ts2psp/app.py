@@ -42,6 +42,7 @@ from ts2psp.ui.theme import (
     _unregister_sims_font,
 )
 from ts2psp.ui.common import read_character_rows
+from ts2psp.ui.i18n import localize_widget_tree, translate
 
 
 class Sims2PSPApp(tk.Tk):
@@ -63,6 +64,7 @@ class Sims2PSPApp(tk.Tk):
         self.data_dir = self.base / "data"
         self.paths = {}
         self.tabs = None
+        self.tab_shell = None
         self.welcome = None
         self.importing = False
         self.import_messages = queue.Queue()
@@ -73,31 +75,43 @@ class Sims2PSPApp(tk.Tk):
         self.import_max_gap = 0.0
         self.import_last_poll = time.monotonic()
         self.info = tk.StringVar(value="")
+        self.language = "en"
         self.temp = tempfile.TemporaryDirectory(prefix="sims2_psp_app_")
         self.cache = Path(self.temp.name)
         self.blender = None
-        menu = tk.Menu(
-            self,
-            background=self.sims_colors["panel"],
-            foreground=self.sims_colors["foreground"],
-            activebackground=self.sims_colors["selection"],
-            activeforeground=self.sims_colors["foreground"],
-            borderwidth=0,
+        self.top_controls = ttk.Frame(self, padding=0, style="Toolbar.TFrame")
+        self.top_controls.pack(side="top", fill="x")
+        self.iso_button = ttk.Button(
+            self.top_controls, text="Select ISO...", command=self.select_iso
         )
-        file_menu = tk.Menu(
-            menu,
+        self.iso_button.pack(side="right", padx=(0, 8))
+        self.language_menu = tk.Menu(
+            self,
             tearoff=False,
             background=self.sims_colors["panel"],
             foreground=self.sims_colors["foreground"],
             activebackground=self.sims_colors["selection"],
             activeforeground=self.sims_colors["foreground"],
-            borderwidth=0,
         )
-        file_menu.add_command(label="Select ISO…", command=self.select_iso)
-        file_menu.add_separator()
-        file_menu.add_command(label="Exit", command=self.close)
-        menu.add_cascade(label="File", menu=file_menu)
-        self.configure(menu=menu)
+        self.language_var = tk.StringVar(value="en")
+        self.language_menu.add_radiobutton(
+            label="English",
+            value="en",
+            variable=self.language_var,
+            command=lambda: self.set_language("en"),
+        )
+        self.language_menu.add_radiobutton(
+            label="Español",
+            value="es",
+            variable=self.language_var,
+            command=lambda: self.set_language("es"),
+        )
+        self.language_button = ttk.Button(
+            self.top_controls,
+            text="Language",
+            command=self.open_language_menu,
+        )
+        self.language_button.pack(side="right", padx=(0, 8))
         self.status_bar = ttk.Label(self, textvariable=self.info, padding=(10, 5))
         self.status_bar.pack(side="bottom", fill="x")
         self.import_panel = ttk.Frame(self, padding=(12, 8))
@@ -141,10 +155,76 @@ class Sims2PSPApp(tk.Tk):
         if mostrar is not None:
             mostrar()
 
+    def set_language(self, language):
+        """Change the UI language and refresh localized lists and controls."""
+        self.language = "es" if language == "es" else "en"
+        self.language_var.set(self.language)
+        self.language_button.configure(
+            text="Lenguaje" if self.language == "es" else "Language"
+        )
+        self.iso_button.configure(
+            text=translate("Select ISO...", self.language)
+        )
+        if self.tabs is not None:
+            self.character_tab.set_language(self.language)
+            self.prop_tab.set_language(self.language)
+            self.map_tab.set_language(self.language)
+            labels = (
+                ("Personajes", "Objetos", "Mapas")
+                if self.language == "es"
+                else ("Characters", "Props", "Maps")
+            )
+            for index, label in enumerate(labels):
+                self.tabs.tab(index, text=label)
+        if self.welcome is not None:
+            self._update_welcome_language()
+        localize_widget_tree(self, self.language)
+        # Let the packed controls recalculate their requested size after the
+        # translated label changes; the frame is anchored to the notebook's
+        # upper-right corner.
+        self.top_controls.update_idletasks()
+
+    def open_language_menu(self):
+        """Open the language choices directly below the Language button."""
+        try:
+            self.language_menu.tk_popup(
+                self.language_button.winfo_rootx(),
+                self.language_button.winfo_rooty() + self.language_button.winfo_height(),
+            )
+        finally:
+            self.language_menu.grab_release()
+
+    def _update_welcome_language(self):
+        if self.language == "es":
+            self.welcome_copy.configure(
+                text="Selecciona la ISO de Los Sims 2 para PSP. Se extraerán "
+                "los personajes, texturas, objetos, mapas y animaciones."
+            )
+            self.welcome_note.configure(
+                text="La ISO y los recursos del juego no se incluyen. Tras la "
+                "primera importación, se cargarán automáticamente."
+            )
+            self.import_button.configure(text="Seleccionar ISO…")
+        else:
+            self.welcome_copy.configure(
+                text="Select your The Sims 2 PSP ISO. The app will extract "
+                "characters, textures, objects, maps and animations to a local folder."
+            )
+            self.welcome_note.configure(
+                text="The ISO and game resources are not included with this application. "
+                "Import once; the extracted files will load automatically next time."
+            )
+            self.import_button.configure(text="Select ISO…")
+
     def show_welcome(self):
         if self.tabs:
             self.tabs.destroy()
             self.tabs = None
+        if self.tab_shell:
+            self.tab_shell.destroy()
+            self.tab_shell = None
+        self.top_controls.place_forget()
+        self.top_controls.pack(side="top", fill="x")
         if self.welcome:
             self.welcome.destroy()
         self.welcome = ttk.Frame(self, padding=35)
@@ -154,13 +234,14 @@ class Sims2PSPApp(tk.Tk):
             text="TS2PSP Viewer",
             font=(self._sims_font_family, 21, "bold"),
         ).pack(anchor="w", pady=(30, 20))
-        ttk.Label(
+        self.welcome_copy = ttk.Label(
             self.welcome,
             text="Select your The Sims 2 PSP ISO. The app will extract "
             "characters, textures, objects, maps and animations to a local folder.",
             wraplength=720,
             font=(self._sims_font_family, 11),
-        ).pack(anchor="w", pady=(0, 18))
+        )
+        self.welcome_copy.pack(anchor="w", pady=(0, 18))
         self.import_button = ttk.Button(
             self.welcome,
             text="Select ISO…",
@@ -168,13 +249,15 @@ class Sims2PSPApp(tk.Tk):
             style="Primary.TButton",
         )
         self.import_button.pack(anchor="w", pady=8)
-        ttk.Label(
+        self.welcome_note = ttk.Label(
             self.welcome,
             text="The ISO and game resources are not included with this application. "
             "Import once; the extracted files will load automatically next time.",
             wraplength=720,
-        ).pack(anchor="w", pady=12)
-        self.info.set("Waiting for an ISO")
+        )
+        self.welcome_note.pack(anchor="w", pady=12)
+        self._update_welcome_language()
+        self.info.set(translate("Waiting for an ISO", self.language))
 
     def load_archives(self, folder):
         if self.tabs:
@@ -182,6 +265,10 @@ class Sims2PSPApp(tk.Tk):
             self.prop_tab.dispose()
             self.map_tab.dispose()
             self.tabs.destroy()
+        if self.tab_shell:
+            self.top_controls.place_forget()
+            self.tab_shell.destroy()
+            self.tab_shell = None
         if self.welcome:
             self.welcome.destroy()
             self.welcome = None
@@ -190,8 +277,17 @@ class Sims2PSPApp(tk.Tk):
         self.character_rows = read_character_rows(self.paths["characters"])
         with zipfile.ZipFile(self.paths["characters"]) as z:
             self.characters = list_characters(z)
-        self.tabs = ttk.Notebook(self)
+        self.top_controls.place_forget()
+        self.top_controls.pack_forget()
+        self.tab_shell = ttk.Frame(self)
+        self.tab_shell.pack(fill="both", expand=True)
+        self.tabs = ttk.Notebook(self.tab_shell)
         self.tabs.pack(fill="both", expand=True)
+        # Comparte la fila visual de las pestañas: el espacio derecho de la
+        # cabecera del Notebook aloja idioma e ISO sin añadir otra franja.
+        self.top_controls.place(
+            in_=self.tab_shell, relx=1.0, x=-8, y=1, anchor="ne"
+        )
         self.character_tab = CharacterTab(self.tabs, self)
         self.prop_tab = PropTab(self.tabs, self)
         self.map_tab = MapTab(self.tabs, self, export_path)
@@ -213,6 +309,10 @@ class Sims2PSPApp(tk.Tk):
             image=self._sims_tab_images["Maps"],
             compound="center",
         )
+        # El Notebook ocupa toda la fila y se crea después de los controles;
+        # subirlos explícitamente evita que tape los botones colocados sobre
+        # el espacio libre de la cabecera.
+        self.top_controls.lift()
         # Las pestañas que tienen trabajo perezoso lo hacen la primera vez que
         # se muestran, para no pagarlo en el arranque.
         self.tabs.bind("<<NotebookTabChanged>>", self._pestana_mostrada)
@@ -228,7 +328,7 @@ class Sims2PSPApp(tk.Tk):
                 # una lista fija, quitar o añadir una pestaña descuadra el
                 # y al pasar el ratón se le cambia la textura por la de
                 # resaltado, que se busca por su nombre.
-                etiqueta = self.tabs.tab(indice, "text")
+                etiqueta = ("Characters", "Props", "Maps")[indice]
                 imagen = imagenes.get(etiqueta)
                 if imagen is not None:
                     self.tabs.tab(indice, image=imagen)
@@ -247,7 +347,8 @@ class Sims2PSPApp(tk.Tk):
 
         self.tabs.bind("<Motion>", update_tab_highlight)
         self.tabs.bind("<Leave>", lambda _event: set_tab_highlight(None))
-        self.info.set(f"Resources loaded from {folder}")
+        self.set_language(self.language)
+        self.info.set(translate(f"Resources loaded from {folder}", self.language))
 
     def reportar_render(self):
         """Dice en la barra de estado con qué render se está trabajando.
@@ -259,20 +360,36 @@ class Sims2PSPApp(tk.Tk):
             gpu = gl.Contexto.compartido().renderer
         except Exception as exc:
             self.info.set(
-                f"Hardware acceleration unavailable ({exc}). CPU rendering is slower."
+                translate(
+                    f"Hardware acceleration unavailable ({exc}). CPU rendering is slower.",
+                    self.language,
+                )
             )
         else:
-            self.info.set(f"GPU renderer: {gpu}")
+            self.info.set(translate(f"GPU renderer: {gpu}", self.language))
 
     def select_iso(self):
         if self.importing:
             return
         if self.tabs is not None and self.character_tab.animations.exporting:
-            messagebox.showinfo("Import", "Wait for the current export to finish.")
+            messagebox.showinfo(
+                translate("Import", self.language),
+                translate("Wait for the current export to finish.", self.language),
+            )
             return
         path = filedialog.askopenfilename(
-            title="Select The Sims 2 PSP ISO",
-            filetypes=[("ISO image", "*.iso"), ("All files", "*.*")],
+            title=(
+                "Selecciona la ISO de Los Sims 2 para PSP"
+                if self.language == "es"
+                else "Select The Sims 2 PSP ISO"
+            ),
+            filetypes=[
+                (
+                    "Imagen ISO" if self.language == "es" else "ISO image",
+                    "*.iso",
+                ),
+                ("Todos los archivos" if self.language == "es" else "All files", "*.*"),
+            ],
         )
         if not path:
             return
@@ -296,8 +413,8 @@ class Sims2PSPApp(tk.Tk):
         self.importing = True
         if self.welcome:
             self.import_button.configure(state="disabled")
-        self.import_status.set("Starting ISO extraction…")
-        self.info.set(f"Extracting to {self.data_dir}")
+        self.import_status.set(translate("Starting ISO extraction…", self.language))
+        self.info.set(translate(f"Extracting to {self.data_dir}", self.language))
         self.import_panel.pack(side="bottom", fill="x")
         self.import_cancel_button.configure(state="normal")
         self.import_bar.start(30)
@@ -332,7 +449,7 @@ class Sims2PSPApp(tk.Tk):
         if self.importing and self.import_cancel is not None:
             self.import_cancel.set()
             self.import_cancel_button.configure(state="disabled")
-            self.import_status.set("Cancelling import…")
+            self.import_status.set(translate("Cancelling import…", self.language))
             self._log_import("cancel_requested")
 
     def _finish_import(self):
@@ -347,7 +464,9 @@ class Sims2PSPApp(tk.Tk):
     def _import_failed(self, detail):
         self._log_import("error", detail=detail)
         self._finish_import()
-        self.info.set("Could not import the ISO. You can select it again.")
+        self.info.set(
+            translate("Could not import the ISO. You can select it again.", self.language)
+        )
         messagebox.showerror(
             "Import ISO", f"{detail}\n\nDetails saved to:\n{self.import_log}"
         )
@@ -362,17 +481,24 @@ class Sims2PSPApp(tk.Tk):
                 kind, payload = self.import_messages.get_nowait()
                 if kind == "progress":
                     self._log_import("progress", message=payload)
-                    self.import_status.set(payload)
-                    self.info.set(payload)
+                    self.import_status.set(translate(payload, self.language))
+                    self.info.set(translate(payload, self.language))
                 elif kind == "error":
                     self._import_failed(payload)
                 elif kind == "cancelled":
                     self._log_import("cancelled")
                     self._finish_import()
-                    self.info.set("Import cancelled. Existing resources were kept.")
+                    self.info.set(
+                        translate(
+                            "Import cancelled. Existing resources were kept.",
+                            self.language,
+                        )
+                    )
                 elif kind == "done":
                     self._log_import("extracted", counts=payload)
-                    self.import_status.set("Opening imported resources…")
+                    self.import_status.set(
+                        translate("Opening imported resources…", self.language)
+                    )
                     self.temp.cleanup()
                     self.temp = tempfile.TemporaryDirectory(prefix="sims2_psp_app_")
                     self.cache = Path(self.temp.name)

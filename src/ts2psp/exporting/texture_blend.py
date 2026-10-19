@@ -27,7 +27,8 @@ def sample_texture(image, uv, repeat):
 
 
 def mix_layers(first, second, weight):
-    coverage = np.clip(weight[..., None] * first[..., 3:4], 0, 1)
+    # PSP vertex alpha marks coverage of the second diffuse layer.
+    coverage = np.clip((1 - weight[..., None]) * first[..., 3:4], 0, 1)
     alpha = coverage + second[..., 3:4] * (1 - coverage)
     rgb = first[..., :3] * coverage + second[..., :3] * second[..., 3:4] * (
         1 - coverage
@@ -78,9 +79,13 @@ def bake_texture_blend(part):
                 (ox + gutter + 0.5 + (span if corner == 1 else 0)) / width,
                 (oy + gutter + 0.5 + (span if corner == 2 else 0)) / height,
             )
-            baked.append(
-                (pos, normal, uv, (*color[:3], 1.0) if color is not None else None)
-            )
+            if color is not None:
+                # The source RGB is not a tint for layered terrain; alpha is
+                # consumed into the atlas above. Keep the baked texture neutral.
+                baked_color = (1.0, 1.0, 1.0, 1.0)
+            else:
+                baked_color = None
+            baked.append((pos, normal, uv, baked_color))
             if "local_vertices" in part:
                 local.append(part["local_vertices"][index])
             source_uv0.append(uv0[index])
