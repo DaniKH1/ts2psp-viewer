@@ -14,34 +14,37 @@ transforms and the `day_night_sequencer` curves for RGB and intensity. Those
 values come from the game resource, not a guessed sun direction. The curves
 have authored keys at frames 0, 30 and 60, with cubic tangents.
 
-The **Time of day** slider starts at 12:00 and wraps over a 24-hour day. It
-follows the source schedule when sampling the rig: 22:00–07:00 uses the night
-key, 08:00–21:00 uses the day key, 07:00–08:00 interpolates from night to day,
-and 21:00–22:00 interpolates from day to night. The two transition hours use
-the original cubic curve tangents. This changes the preview's three directional
-light profiles; it does not animate map geometry or edit the source resource.
+The preview currently samples the source rig at 12:00. The original curves
+support a day/night schedule: 22:00–07:00 uses the night key, 08:00–21:00 uses
+the day key, 07:00–08:00 interpolates from night to day, and 21:00–22:00
+interpolates from day to night. The two transition hours use the original cubic
+curve tangents. The interface currently has no time-of-day control.
 
-The original resources provide light transforms, RGB and intensity curves, but
-not the game's GPU texture/vertex-color combiner equation. The viewer applies
-its existing diffuse/ambient model to the source lights: it computes a Lambert
-term from each mesh normal and light direction, uses the source light color as
-a tint, and averages valid light contributions. This is a source-data-based
-preview, not an exact reproduction of every in-game lighting effect. It does
-not reconstruct local lamps, reflections, scripted lighting, post-processing,
-or every material-specific GPU behavior. If the archive does not contain the
-referenced lighting rig, the time slider has no source rig to sample.
+The original resources provide light transforms, RGB and intensity curves. The
+viewer keeps the authored RGB magnitude and intensity values; it does not
+normalize each light's brightest color channel. It also reads the level's
+ambient, directional, and point-light records. Point-light gain and radius are
+preview settings: source intensity feeds a bounded strength curve, while the
+radius uses a separate scale. The viewer currently uses a point-light gain of
+2 and a radius scale of 0.01; these values are not stored as gain settings in
+the source files. Other local light types use separate preview factors. The
+diffuse/ambient material equation remains approximate because the resources do
+not contain the game's GPU combiner or light-unit conversion. The preview does
+not reproduce reflections, scripted lighting, post-processing, spot-light
+cones, or every material-specific GPU behavior. If the archive does not
+contain the referenced lighting rig, the default 12:00 profile is unavailable.
 
 ## Vertex-color intensity
 
-The intensity slider ranges from 0% to 200% and starts at 100%. The preview
-first applies the source day/night light factors, then raises luminance for
-eligible dark vertex colors with a neutral RGB addition, and finally applies
-the intensity multiplier. The lift is stronger below luminance 0.65, uses a
-gamma-shaped curve, and has a 0.10 luminance floor. This keeps dark-to-light
-ordering and reduces color-cast amplification while making almost-black
-authored areas visible. Colors are clamped to the displayable range. Terrain
-texture blends and explicitly named shadow-card meshes are excluded from this
-lift.
+Vertex-color shading is off by default and enabled automatically for Garage.
+When enabled, the preview uses the default 100% intensity. It first applies the
+source day/night light factors, then raises luminance for eligible dark vertex
+colors with a neutral RGB addition. The lift is stronger below luminance 0.65,
+uses a gamma-shaped curve, and has a 0.10 luminance floor. This keeps
+dark-to-light ordering and reduces color-cast amplification while making
+almost-black authored areas visible. Colors are clamped to the displayable
+range. Terrain texture blends and explicitly named shadow-card meshes are
+excluded from this lift.
 
 Map exports currently omit vertex colors altogether. They contain neither the
 preview's luminance lift nor its source day/night lighting, so export output is
@@ -57,8 +60,8 @@ The reader now keeps both GSHD layer descriptors and both RDMS UV streams. The
 second stream offset is relative to the first vertex buffer, and has its own
 UV compression origin and scale. A zero offset means both textures share UVs.
 The GPU blends both textures, including their coverage, before applying the
-vertex RGB and material tint. Turning off Vertex Colors removes the RGB shading
-while retaining the terrain mask and texture mixture.
+vertex RGB and material tint. With vertex-color shading off, the terrain mask
+and texture mixture remain active; only the authored RGB shading is omitted.
 
 The same two-diffuse-layer technique occurs in 68 pieces/instances across nine
 of the 21 imported maps, including hidden authoring meshes. Reflection layers
@@ -97,10 +100,11 @@ the model data.
 
 ## Controls and performance
 
-The **Vertex Color** panel's ON/OFF buttons enable or disable stored vertex
-shading. Intensity adjusts its strength without decoding assets, reuploading
-textures, replacing geometry, changing layer visibility or resetting the
-camera. The **Time of day** slider samples the source rig described above.
+Map vertex-color shading is currently off by default and enabled automatically
+for Garage. Its preview intensity is 100%. The **Lights** panel independently
+turns map illumination on or off; the **Pointers** panel controls the spawn,
+light and camera overlays. The source day/night rig is sampled at 12:00; there
+is currently no time-of-day control in the interface.
 
 The **Layers** browser shows texture basenames without `txt_`, bitmap suffixes
 or mesh IDs. Its textured search field filters only the list. Hidden layers
@@ -114,6 +118,15 @@ ended in the last 32 bytes of the section. The decoder now uses the declared
 header and checks pixel and palette bounds against that section size.
 All 51 counter pieces/instances in Espiritu Estate load their referenced
 `textures/design_mode/counters/counter01.tif` with the original UVs.
+
+The green ground is also vertex-colored. `pieza_382` has 1,682 colored
+vertices, while `pieza_377` and `pieza_378` have 171 and 294. Their constant
+RGBA is `(0, 8/255, 0, 1)`: alpha selects the second, grass diffuse layer, while
+the near-black RGB is not a useful brightness value and would nearly black out
+the grass if used as a tint. The terrain blend shader therefore carries map
+lighting separately from its vertex-color mask. Local-light gain is added to
+the day/night surface factor before the texture is shaded, so a dim DNL factor
+does not suppress the local lights a second time.
 
 ## Checks
 

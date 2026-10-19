@@ -32,9 +32,41 @@ GLB mesh nodes keep those two identifiers in `extras`.
 
 **Export as... > Prop placement references (.json)** saves each level reference,
 its source path, position, full matrix and whether an embedded graph was found.
-Coordinates use the PSP basis: X/Y ground, Z up. JSON matrix rows use column-vector
-transforms; translations are in the last column. GLB geometry uses the viewer's
-normal glTF conversion `(-x, z, y)`.
+It also includes named character/NPC start and spawn transforms from the level
+NODE graph. The **Pointers** panel overlays these transforms and their local
+XYZ axes. Coordinates use the PSP basis: X/Y ground, Z up. JSON matrix rows
+use column-vector transforms; translations are in the last column. GLB geometry
+uses the viewer's normal glTF conversion `(-x, z, y)`.
+
+The **Pointers** panel has independent toggles for spawn points, lights, and
+cameras. Camera markers are only present where a map stores camera locators;
+the gameplay camera can also be created or moved at runtime by scripts. Light
+markers use the authored RGB color, intensity, and light type; their marker
+color and size visualize those properties, while the XYZ axes show orientation.
+Point lights also display a wireframe guide for their preview reach. The
+day/night rig markers use the preview's default 12:00 sample.
+
+Light RGB, intensity, type, and transform are read from the original level and
+lighting-rig resources. The three day/night lights also use the original
+sequencer curves, including their cubic tangents. These source values are kept
+at their stored precision; the on-screen marker color is necessarily displayed
+as 8-bit RGB.
+
+Authored ambient, directional, point, and spot lights also illuminate map
+surfaces in the preview. Vertex/material color remains the base, so its painted
+shading is preserved and local light adds a bounded diffuse contribution. The
+viewer uses the original RGB and intensity in the surface calculation, with a
+per-channel color tint, a preview intensity scale, and distance falloff for
+local lights. Point-light gain and radius are preview settings, not source-file
+fields. The tint is applied before display clipping so colored sources
+do not collapse to white on bright surfaces. The intensity scale is a preview
+calibration because the resources do not define the game's conversion from
+these stored intensity units to framebuffer radiance. Spot lights
+currently use point-light falloff because their cone parameters are not yet
+decoded. Generic Maya `light` shapes are treated as point lights when the
+resource does not identify a more specific type. The game's full
+GPU/material equation, light cutoffs, and occlusion are not available in these
+resources, so the final pixel values cannot yet be claimed as exact.
 
 To inspect all maps from the command line:
 

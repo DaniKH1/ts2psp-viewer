@@ -629,18 +629,15 @@ def _install_sims_theme(root):
         textura normal o, si el botón está seleccionado, la activa, igual que
         hacían los estilos Selected.*.TButton.
 
-        El resalte depende de si se ve el botón verde: cuando está seleccionado
-        se aclara un poco su propia base, porque al pasar por encima con la
-        textura genérica el verde saltaba de color. Cuando se ve el botón
-        normal se usa el resalte de borde azul oscuro, y al pulsarlo aparece un
-        momento la textura de botón activo.
+        Selected buttons keep the same green fill in all pointer states.
+        Unselected buttons retain their hover and pressed feedback.
         """
         base_caps = button_active_caps if selected else button_normal_caps
         if selected:
             states = {
                 "normal": (base_caps, 1.0),
-                "active": (base_caps, 1.10),
-                "pressed": (base_caps, 1.22),
+                "active": (base_caps, 1.0),
+                "pressed": (base_caps, 1.0),
             }
         else:
             states = {

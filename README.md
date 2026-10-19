@@ -16,9 +16,9 @@ texture ZIPs preserve internal folders with PNG filenames. Differing images
 that share a source name receive a short suffix to prevent overwrites.
 
 Map terrain materials can mix two textures using vertex alpha and separate UV
-sets. The viewer keeps that mixture when toggling **Vertex Colors**; exports
-bake it into a portable texture and preserve source UVs/masks in GLB attributes.
-See [map colors and the full-map audit](docs/map-vertex-colors.md).
+sets. The viewer preserves that mixture independently of vertex-color shading;
+exports bake it into a portable texture and preserve source UVs/masks in GLB
+attributes. See [map colors and the full-map audit](docs/map-vertex-colors.md).
 
 ## Run from source
 
@@ -175,10 +175,11 @@ stage exposes four separate hose clips and all 13 joints. See
 [reported prop fixes and source limitations](docs/reported-props.md) for water
 materials, UV repairs and the remaining untextured authoring templates.
 
-Props and maps switch Vertex Colors using cached color arrays. Changing this
-setting does not reread the archive, reupload textures, reset the camera or
-restart an animation. Prop exports retain their source colors. Map exports
-currently omit vertex colors regardless of the preview setting.
+Props switch Vertex Colors using cached color arrays. Changing this setting
+does not reread the archive, reupload textures, reset the camera or restart an
+animation. Prop exports retain their source colors. Map preview vertex shading
+is off by default and turns on automatically for Garage; map exports currently
+omit vertex colors.
 See [first import and Vertex Colors validation](docs/first-import-and-vertex-colors.md)
 for the decoder changes and measured switch timings.
 
@@ -186,19 +187,26 @@ for the decoder changes and measured switch timings.
 
 Map props use their authored position, rotation and scale, including repeated
 instances and nested object references. The same placements are preserved in
-GLB exports. Click a piece to see its source prop and instance name.
+GLB exports. Click a piece to see its source prop and instance name. **Pointers**
+opens independent ON/OFF controls for spawn points, lights and cameras. Markers
+show authored positions and local XYZ axes; light markers include source color,
+type and intensity, and point lights show a wireframe reach guide. The **Grid**
+button sits beside Pointers.
 
-The floating **Vertex Color** panel controls the preview's authored vertex
-shading and source day/night time. Its intensity defaults to 100%; dark authored
-colors receive a luminance lift while their relative shadow variation is kept.
-The time slider samples the map's original day/night rig when available. The
-preview still approximates the game's lighting, as its GPU combiner is unknown.
-Map exports currently omit vertex colors. See [map Vertex Colors and lighting
+The **Lights** panel has an ON/OFF control for map illumination. The preview
+uses the map's original light colors, intensities and day/night rig, plus local
+ambient, directional and point lights. Directional lights use their source
+orientation; point lights use distance falloff. The viewer approximates the
+game's lighting because its GPU/material combiner and source-unit conversion
+are not available. Point-light gain and reach are preview settings; vertex
+shading remains off by default and turns on automatically for Garage. Map
+exports currently omit vertex colors. See [map Vertex Colors and lighting
 findings](docs/map-vertex-colors.md).
 
 **Maps > Export as... > Prop placement references (.json)** saves the resource
-paths and full transforms in PSP coordinates (X/Y ground, Z up). This reads the
-existing map archive; importing the ISO again is unnecessary for this change.
+paths and full transforms in PSP coordinates (X/Y ground, Z up), along with
+named spawn-point transforms. This reads the existing map archive; importing
+the ISO again is unnecessary for this change.
 
 See [map prop placements](docs/map-prop-placements.md) for binary references,
 the catalogue audit and limits involving scripted object states.

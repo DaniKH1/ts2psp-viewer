@@ -11,7 +11,8 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from PIL import Image, ImageTk
+import numpy as np
+from PIL import Image, ImageDraw, ImageTk
 
 from ts2psp.ui.camera import CAMERA_HINT, OrbitController, Viewport
 import ts2psp.rendering.opengl as gl
@@ -19,8 +20,11 @@ from ts2psp.rendering.props import prop_scene, render_prop, without_vertex_color
 from ts2psp.formats.props import parse_rdms, sections, write_rigid_glb
 from ts2psp.formats.prop_scene import (
     daynight_rig_profiles,
+    level_camera_light_points,
     level_prop_references,
+    level_spawn_points,
 )
+from ts2psp.formats.characters import nombre_publico
 from ts2psp.formats.materials import surface_textures
 from ts2psp.core.names import layer_label, part_label, part_filename, texture_paths
 from ts2psp.exporting.gltf import export_gltf
@@ -234,6 +238,10 @@ class MapTab(ttk.Frame):
         self.visible = []
         self.current = None
         self.data = b""
+        self.spawn_points = []
+        self.camera_light_points = []
+        self.camera_points = []
+        self.light_points = []
         self.daylight_profile = None
         self.daynight_rig_data = None
         self.daynight_rig_records = None
@@ -347,19 +355,28 @@ class MapTab(ttk.Frame):
         # abarca entero, que es como se lee un mapa; en positivo se va por debajo
         # del terreno y el suelo no se ve, al mirarse su cara de menos.
         self.camera = OrbitController(
-            self.canvas, self.schedule, yaw=0.0, pitch=math.radians(-30)
+            self.canvas, self.schedule, yaw=0.0, pitch=math.radians(-30), zoom=1.15
         )
         self.show_grid = tk.BooleanVar(value=True)
+        self.show_spawn_points = tk.BooleanVar(value=False)
+        self.show_camera_points = tk.BooleanVar(value=False)
+        self.show_light_points = tk.BooleanVar(value=False)
+        self.light_illumination = tk.BooleanVar(value=True)
         # Botones flotantes sobre el visor, como en la pestaña de props.
         self.floating_buttons = []
         self.camera.ignores = self._over_floating_button
         self.export_button = self._floating_button("Export as...", self.export_as)
         self.recenter_button = self._floating_button("Reset view", self.camera.reset)
         self.layers_button = self._floating_button("Layers", self.toggle_layers_panel)
+        self.pointers_button = self._floating_button(
+            "Pointers", self.toggle_pointers_panel
+        )
         self.grid_button = self._floating_button(
             "Grid", self.toggle_grid, selected=True
         )
+        self.vertex_button = self._floating_button("Lights", self.toggle_vertex_colors)
         self._build_layers_panel()
+        self._build_pointers_panel()
         self._build_vertex_color_panel()
         self.canvas.bind("<Configure>", self._position_viewport_controls, add="+")
         self.after_idle(self._position_viewport_controls)
@@ -442,16 +459,30 @@ class MapTab(ttk.Frame):
         if hasattr(self, "_vertex_color_title"):
             self.vertex_color_bar.itemconfigure(
                 self._vertex_color_title,
-                text=translate("Vertex Color", _language),
+                text=translate("Lights", _language),
+            )
+        if hasattr(self, "_pointers_title"):
+            self.pointers_bar.itemconfigure(
+                self._pointers_title, text=translate("Pointers", _language)
+            )
+            self.pointers_spawn_label.configure(
+                text=translate("Spawn points", _language)
+            )
+            self.pointers_lights_label.configure(
+                text=translate("Lights", _language)
+            )
+            self.pointers_cameras_label.configure(
+                text=translate("Cameras", _language)
+            )
+            self._pintar_pointers_panel()
+        if hasattr(self, "_light_illumination_label"):
+            self._light_illumination_label.configure(
+                text=translate("Light illumination", _language)
             )
         if hasattr(self, "_rotulo"):
             self.capa_barra.itemconfigure(
                 self._rotulo, text=translate("Layers", _language)
             )
-        if hasattr(self, "daynight_label"):
-            self._set_daynight_hour(self.daynight_hour.get())
-        if hasattr(self, "vertex_intensity_label"):
-            self._update_vertex_intensity_label()
         self.after_idle(self._position_viewport_controls)
         self.refresh()
 
@@ -489,7 +520,9 @@ class MapTab(ttk.Frame):
         """La camara no debe arrastrarse si el puntero esta sobre un boton."""
         if any(button.hit(event.x, event.y) for button in self.floating_buttons):
             return True
-        return self._over_vertex_color_panel(event.x, event.y)
+        return self._over_vertex_color_panel(event.x, event.y) or self._over_pointers_panel(
+            event.x, event.y
+        )
 
     def _over_vertex_color_panel(self, x, y):
         if not getattr(self, "vertex_color_window", None):
@@ -519,18 +552,245 @@ class MapTab(ttk.Frame):
         else:
             width = event.width
         self.export_button.place(10, 10)
-        y = place_right_buttons(width, (self.grid_button, self.layers_button))
+        y = place_right_buttons(
+            width,
+            (
+                self.grid_button,
+                self.pointers_button,
+                self.vertex_button,
+                self.layers_button,
+            ),
+        )
         self.recenter_button.place(width - 10 - self.recenter_button.reqwidth, y)
         if getattr(self, "vertex_color_window", None) and self.canvas.itemcget(
             self.vertex_color_window, "state"
         ) == "normal":
             self._colocar_vertex_color_panel()
+        if getattr(self, "pointers_window", None) and self.canvas.itemcget(
+            self.pointers_window, "state"
+        ) == "normal":
+            self._colocar_pointers_panel()
         self._colocar_panel_capas()
 
     def toggle_grid(self):
         self.show_grid.set(not self.show_grid.get())
         self.grid_button.set_selected(self.show_grid.get())
         self.schedule()
+
+    def toggle_spawn_points(self):
+        self._set_spawn_points(not self.show_spawn_points.get())
+
+    def toggle_camera_points(self):
+        self._set_camera_points(not self.show_camera_points.get())
+
+    def _set_camera_points(self, enabled):
+        self.show_camera_points.set(bool(enabled))
+        self._update_pointers_buttons()
+        self.schedule()
+
+    def toggle_light_points(self):
+        self._set_light_points(not self.show_light_points.get())
+
+    def _set_spawn_points(self, enabled):
+        self.show_spawn_points.set(bool(enabled))
+        self._update_pointers_buttons()
+        self.schedule()
+
+    def _set_light_points(self, enabled):
+        self.show_light_points.set(bool(enabled))
+        self._update_pointers_buttons()
+        self.schedule()
+
+    def _update_pointers_buttons(self):
+        if not hasattr(self, "pointers_spawn_on"):
+            return
+        spawn = self.show_spawn_points.get()
+        lights = self.show_light_points.get()
+        cameras = self.show_camera_points.get()
+        self.pointers_spawn_on.configure(
+            style="Selected.Toggle.TButton" if spawn else "Toggle.TButton"
+        )
+        self.pointers_spawn_off.configure(
+            style="Toggle.TButton" if spawn else "Selected.Toggle.TButton"
+        )
+        self.pointers_lights_on.configure(
+            style="Selected.Toggle.TButton" if lights else "Toggle.TButton"
+        )
+        self.pointers_lights_off.configure(
+            style="Toggle.TButton" if lights else "Selected.Toggle.TButton"
+        )
+        self.pointers_cameras_on.configure(
+            style="Selected.Toggle.TButton" if cameras else "Toggle.TButton"
+        )
+        self.pointers_cameras_off.configure(
+            style="Toggle.TButton" if cameras else "Selected.Toggle.TButton"
+        )
+
+    def toggle_pointers_panel(self, force_close=False):
+        abierto = self.canvas.itemcget(self.pointers_window, "state") == "normal"
+        mostrar = not abierto and not force_close
+        estado = "normal" if mostrar else "hidden"
+        self.canvas.itemconfigure(self.pointers_window, state=estado)
+        self.canvas.itemconfigure(self.pointers_background, state=estado)
+        self.pointers_button.set_selected(mostrar)
+        if mostrar:
+            bounds = self.canvas.bbox(self.pointers_background)
+            ancho = bounds[2] - bounds[0] if bounds else ANCHO_TROUGH_PROPS
+            self.pointers_pos = [
+                max(10, self.canvas.winfo_width() - ancho - 10),
+                92,
+            ]
+            self._colocar_pointers_panel()
+            self.canvas.tag_raise(self.pointers_background)
+            self.canvas.tag_raise(self.pointers_window)
+
+    def _build_pointers_panel(self):
+        """Create the floating controls for spawn-point and light markers."""
+        self.pointers_background = self.canvas.create_image(0, 0, anchor="nw")
+        self.pointers_panel = ttk.Frame(self.canvas)
+        self.pointers_window = self.canvas.create_window(
+            0, 0, anchor="nw", window=self.pointers_panel
+        )
+        self.pointers_pos = [10, 92]
+        self._pointers_drag_origin = None
+        self.pointers_bar = tk.Canvas(
+            self.pointers_panel,
+            width=ANCHO_TROUGH_PROPS,
+            height=self.ALTO_BARRA,
+            highlightthickness=0,
+            borderwidth=0,
+            background=self.app._sims_theme_colors["background"],
+        )
+        self.pointers_bar.pack(fill="x", padx=MARGEN_CAPAS, pady=(MARGEN_CAPAS, 0))
+        self.pointers_bar.bind("<Configure>", self._pintar_pointers_bar)
+        self.pointers_bar.bind("<ButtonPress-1>", self._pointers_panel_press)
+        self.pointers_bar.bind("<B1-Motion>", self._pointers_panel_drag)
+        self._pointers_title = self.pointers_bar.create_text(
+            0,
+            self.ALTO_BARRA / 2,
+            text="Pointers",
+            anchor="center",
+            font=(self.app._sims_font_family, 9, "bold"),
+            fill=self.app._sims_theme_colors["foreground"],
+        )
+        self._pointers_close = self.pointers_bar.create_line(
+            0, 0, 0, 0, width=2, fill=self.app._sims_theme_colors["foreground"]
+        )
+        self._pointers_close2 = self.pointers_bar.create_line(
+            0, 0, 0, 0, width=2, fill=self.app._sims_theme_colors["foreground"]
+        )
+        body = ttk.Frame(self.pointers_panel)
+        body.pack(fill="x", padx=MARGEN_CAPAS, pady=(6, MARGEN_CAPAS))
+        self.pointers_spawn_label = ttk.Label(body, text="Spawn points")
+        self.pointers_spawn_label.pack(anchor="w")
+        spawn_row = ttk.Frame(body)
+        spawn_row.pack(fill="x", pady=(2, 6))
+        self.pointers_spawn_on = ttk.Button(
+            spawn_row, text="ON", command=lambda: self._set_spawn_points(True)
+        )
+        self.pointers_spawn_on.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        self.pointers_spawn_off = ttk.Button(
+            spawn_row, text="OFF", command=lambda: self._set_spawn_points(False)
+        )
+        self.pointers_spawn_off.pack(side="left", fill="x", expand=True, padx=(4, 0))
+        self.pointers_lights_label = ttk.Label(body, text="Lights")
+        self.pointers_lights_label.pack(anchor="w")
+        lights_row = ttk.Frame(body)
+        lights_row.pack(fill="x", pady=(2, 6))
+        self.pointers_lights_on = ttk.Button(
+            lights_row, text="ON", command=lambda: self._set_light_points(True)
+        )
+        self.pointers_lights_on.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        self.pointers_lights_off = ttk.Button(
+            lights_row, text="OFF", command=lambda: self._set_light_points(False)
+        )
+        self.pointers_lights_off.pack(side="left", fill="x", expand=True, padx=(4, 0))
+        self.pointers_cameras_label = ttk.Label(body, text="Cameras")
+        self.pointers_cameras_label.pack(anchor="w")
+        cameras_row = ttk.Frame(body)
+        cameras_row.pack(fill="x", pady=(2, 0))
+        self.pointers_cameras_on = ttk.Button(
+            cameras_row, text="ON", command=lambda: self._set_camera_points(True)
+        )
+        self.pointers_cameras_on.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        self.pointers_cameras_off = ttk.Button(
+            cameras_row, text="OFF", command=lambda: self._set_camera_points(False)
+        )
+        self.pointers_cameras_off.pack(side="left", fill="x", expand=True, padx=(4, 0))
+        self._update_pointers_buttons()
+        self.pointers_panel.update_idletasks()
+        self._pintar_pointers_panel()
+        self.canvas.itemconfigure(self.pointers_background, state="hidden")
+        self.canvas.itemconfigure(self.pointers_window, state="hidden")
+
+    def _pintar_pointers_bar(self, _event=None):
+        ancho = max(ANCHO_TROUGH_PROPS, self.pointers_bar.winfo_width())
+        centro_y = self.ALTO_BARRA / 2
+        self.pointers_bar.coords(self._pointers_title, ancho / 2, centro_y)
+        x = ancho - self.HOLGURA_BARRA - self.LADO_BOTON / 2
+        brazo = 4
+        self.pointers_bar.coords(
+            self._pointers_close,
+            x - brazo, centro_y - brazo, x + brazo, centro_y + brazo,
+        )
+        self.pointers_bar.coords(
+            self._pointers_close2,
+            x - brazo, centro_y + brazo, x + brazo, centro_y - brazo,
+        )
+
+    def _pintar_pointers_panel(self):
+        # Preserve visibility when redrawing after language/theme changes.
+        # Otherwise a hidden panel leaves its background image at the origin.
+        state = self.canvas.itemcget(self.pointers_window, "state")
+        self.pointers_panel.update_idletasks()
+        ancho = self.pointers_panel.winfo_reqwidth() + 2 * MARGEN_CAPAS
+        alto = self.pointers_panel.winfo_reqheight() + 2 * MARGEN_CAPAS
+        self._pointers_photo = ImageTk.PhotoImage(
+            panel_redondeado(self._capas_fuente, ancho, alto), master=self.canvas
+        )
+        self.canvas.itemconfigure(
+            self.pointers_background, image=self._pointers_photo, state=state
+        )
+        self._pintar_pointers_bar()
+
+    def _colocar_pointers_panel(self):
+        if not getattr(self, "pointers_window", None):
+            return
+        bounds = self.canvas.bbox(self.pointers_background)
+        ancho = bounds[2] - bounds[0] if bounds else ANCHO_TROUGH_PROPS
+        alto = bounds[3] - bounds[1] if bounds else 140
+        x, y = self.pointers_pos
+        x = max(10, min(x, max(10, self.canvas.winfo_width() - ancho - 10)))
+        y = max(10, min(y, max(10, self.canvas.winfo_height() - alto - 10)))
+        self.pointers_pos = [x, y]
+        self.canvas.coords(self.pointers_background, x, y)
+        self.canvas.coords(
+            self.pointers_window, x + MARGEN_CAPAS, y + MARGEN_CAPAS
+        )
+
+    def _over_pointers_panel(self, x, y):
+        if not getattr(self, "pointers_window", None):
+            return False
+        if self.canvas.itemcget(self.pointers_window, "state") != "normal":
+            return False
+        bounds = self.canvas.bbox(self.pointers_background)
+        return bool(bounds and bounds[0] <= x <= bounds[2] and bounds[1] <= y <= bounds[3])
+
+    def _pointers_panel_press(self, event):
+        ancho = self.pointers_bar.winfo_width()
+        if event.x >= ancho - self.HOLGURA_BARRA - self.LADO_BOTON:
+            self.toggle_pointers_panel(force_close=True)
+            return
+        self._pointers_drag_origin = (event.x_root, event.y_root)
+
+    def _pointers_panel_drag(self, event):
+        origen = self._pointers_drag_origin
+        if origen is None:
+            return
+        self.pointers_pos[0] += event.x_root - origen[0]
+        self.pointers_pos[1] += event.y_root - origen[1]
+        self._pointers_drag_origin = (event.x_root, event.y_root)
+        self._colocar_pointers_panel()
 
     def _build_layers_panel(self):
         """El desplegable de capas: se pinta encima del visor y se puede mover.
@@ -881,7 +1141,7 @@ class MapTab(ttk.Frame):
         self._vertex_color_title = self.vertex_color_bar.create_text(
             0,
             self.ALTO_BARRA / 2,
-            text="Vertex Color",
+            text="Lights",
             anchor="center",
             font=(self.app._sims_font_family, 9, "bold"),
             fill=self.app._sims_theme_colors["foreground"],
@@ -894,43 +1154,29 @@ class MapTab(ttk.Frame):
         )
         self.vertex_color_body = ttk.Frame(self.vertex_color_panel)
         self.vertex_color_body.pack(fill="x", padx=MARGEN_CAPAS, pady=(6, MARGEN_CAPAS))
-        states = ttk.Frame(self.vertex_color_body)
-        states.pack(fill="x")
-        ttk.Button(
-            states, text="ON", command=lambda: self._set_vertex_colors(True)
-        ).pack(side="left", fill="x", expand=True, padx=(0, 4))
-        ttk.Button(
-            states, text="OFF", command=lambda: self._set_vertex_colors(False)
-        ).pack(side="left", fill="x", expand=True, padx=(4, 0))
-
-        self.vertex_intensity_label = ttk.Label(self.vertex_color_body)
-        self.vertex_intensity_label.pack(anchor="w", pady=(9, 0))
-        self.vertex_intensity_slider = ttk.Scale(
-            self.vertex_color_body,
-            from_=0,
-            to=200,
-            length=ANCHO_TROUGH_PROPS,
-            variable=self.vertex_color_intensity,
-            command=self._set_vertex_color_intensity,
-            style="Props.Horizontal.TScale",
+        self._light_illumination_label = ttk.Label(
+            self.vertex_color_body, text="Light illumination"
         )
-        self.vertex_intensity_slider.pack(fill="x", pady=(2, 0))
-        ttk.Separator(self.vertex_color_body).pack(fill="x", pady=(9, 5))
-        self.daynight_label = ttk.Label(
-            self.vertex_color_body, text="Time of day: 12:00"
+        self._light_illumination_label.pack(anchor="w")
+        light_states = ttk.Frame(self.vertex_color_body)
+        light_states.pack(fill="x", pady=(2, 0))
+        self.light_illumination_on = ttk.Button(
+            light_states,
+            text="ON",
+            command=lambda: self._set_light_illumination(True),
         )
-        self.daynight_label.pack(anchor="w")
-        self.daynight_slider = ttk.Scale(
-            self.vertex_color_body,
-            from_=0,
-            to=24,
-            length=ANCHO_TROUGH_PROPS,
-            variable=self.daynight_hour,
-            command=self._set_daynight_hour,
-            style="Props.Horizontal.TScale",
+        self.light_illumination_on.pack(
+            side="left", fill="x", expand=True, padx=(0, 4)
         )
-        self.daynight_slider.pack(fill="x", pady=(2, 0))
-        self._update_vertex_intensity_label()
+        self.light_illumination_off = ttk.Button(
+            light_states,
+            text="OFF",
+            command=lambda: self._set_light_illumination(False),
+        )
+        self.light_illumination_off.pack(
+            side="left", fill="x", expand=True, padx=(4, 0)
+        )
+        self._update_light_illumination_buttons()
         self._pintar_vertex_color_panel()
         self.canvas.itemconfigure(self.vertex_color_background, state="hidden")
         self.canvas.itemconfigure(self.vertex_color_window, state="hidden")
@@ -1010,12 +1256,18 @@ class MapTab(ttk.Frame):
         if getattr(self, "vertex_button", None):
             self.vertex_button.set_selected(mostrar)
         if mostrar:
-            ancho = self.canvas.bbox(self.vertex_color_background)
-            total = ancho[2] - ancho[0] if ancho else ANCHO_TROUGH_PROPS
-            # Leave the Layers panel at the right when both controls are open.
-            self.vertex_color_pos[0] = max(
-                10, min(self.vertex_color_pos[0], self.canvas.winfo_width() - total - 10)
+            panel_bounds = self.canvas.bbox(self.vertex_color_background)
+            _, _, button_x1, button_y1 = self.vertex_button.bbox()
+            panel_width = (
+                panel_bounds[2] - panel_bounds[0]
+                if panel_bounds
+                else ANCHO_TROUGH_PROPS
             )
+            # Open directly below the Lights button, right-edge aligned.
+            self.vertex_color_pos = [
+                button_x1 - panel_width,
+                button_y1 + 8,
+            ]
             self._colocar_vertex_color_panel()
             self.canvas.tag_raise(self.vertex_color_background)
             self.canvas.tag_raise(self.vertex_color_window)
@@ -1028,50 +1280,23 @@ class MapTab(ttk.Frame):
         self.vertex_colors.set(bool(enabled))
         self.schedule()
 
-    def _set_vertex_color_intensity(self, _value=None):
-        self._update_vertex_intensity_label()
-        self.schedule()
-
-    def _set_daynight_hour(self, value=None):
-        """Debounce rig sampling while dragging the source-time slider."""
-        hour = float(value if value is not None else self.daynight_hour.get()) % 24.0
-        self.daynight_label.configure(
-            text=translate(
-                f"Time of day: {int(hour):02d}:{int((hour % 1) * 60):02d}",
-                self.app.language,
-            )
-        )
-        if self._daynight_update:
-            self.after_cancel(self._daynight_update)
-        if self.daynight_rig_data is not None:
-            self._daynight_update = self.after(120, self._apply_daynight_hour)
-
-    def _apply_daynight_hour(self):
-        self._daynight_update = None
-        if self.daynight_rig_data is None or self.daynight_rig_records is None:
-            return
-        self.daylight_profile = daynight_rig_profiles(
-            self.daynight_rig_data,
-            self.daynight_rig_records,
-            self.daynight_hour.get(),
-        )
+    def _set_light_illumination(self, enabled):
+        self.light_illumination.set(bool(enabled))
+        self._update_light_illumination_buttons()
         if self.objeto is not None:
-            self.objeto.fijar_luz_direccional_mapa(self.daylight_profile)
+            self.objeto.fijar_iluminacion_mapa(self.light_illumination.get())
         self.schedule()
 
-    def _update_vertex_intensity_label(self):
-        label = getattr(self, "vertex_intensity_label", None)
-        try:
-            existe = label is not None and label.winfo_exists()
-        except tk.TclError:
-            existe = False
-        if existe:
-            label.configure(
-                text=translate(
-                    f"Intensity: {self.vertex_color_intensity.get():.0f}%",
-                    self.app.language,
-                )
-            )
+    def _update_light_illumination_buttons(self):
+        if not hasattr(self, "light_illumination_on"):
+            return
+        enabled = self.light_illumination.get()
+        self.light_illumination_on.configure(
+            style="Selected.Toggle.TButton" if enabled else "Toggle.TButton"
+        )
+        self.light_illumination_off.configure(
+            style="Toggle.TButton" if enabled else "Selected.Toggle.TButton"
+        )
 
     def _filter_layers(self, *_args):
         """Search changes list rows only; visibility and mesh IDs stay intact."""
@@ -1145,6 +1370,7 @@ class MapTab(ttk.Frame):
                 "coordinates": "PSP: X/Y ground, Z up; column-vector matrices, row-major JSON",
                 "note": "Authored references; game scripts may select alternate states or move objects.",
                 "references": level_prop_references(self.data, sections(self.data)),
+                "spawn_points": level_spawn_points(self.data, sections(self.data)),
             }
             Path(target).write_text(
                 json.dumps(report, indent=2) + "\n", encoding="utf-8"
@@ -1175,11 +1401,14 @@ class MapTab(ttk.Frame):
         if self._carga_entrada == row["entry"]:
             return  # este mapa ya esta cargandose
         if self._cache is not None and self._cache[0] == row["entry"]:
-            _, data, parts, rejected, light_profile, rig_data, rig_records = self._cache
+            (
+                _, data, parts, rejected, light_profile, rig_data, rig_records,
+                spawn_points,
+            ) = self._cache
             self.daylight_profile = light_profile
             self.daynight_rig_data = rig_data
             self.daynight_rig_records = rig_records
-            self._aplicar_mapa(row, data, parts, rejected)
+            self._aplicar_mapa(row, data, parts, rejected, spawn_points)
             return
         self._empezar_carga(row)
 
@@ -1222,6 +1451,7 @@ class MapTab(ttk.Frame):
                     rig_data = None
                     rig_records = None
                     references = level_prop_references(data, sections(data))
+                    spawn_points = level_spawn_points(data, sections(data))
                     rig = next(
                         (
                             item["resource"]
@@ -1254,13 +1484,15 @@ class MapTab(ttk.Frame):
                 cola.put(
                     (
                         generacion, row, data, parts, rejected,
-                        light_profile, rig_data, rig_records, None,
+                        light_profile, rig_data, rig_records, spawn_points, None,
                     )
                 )
             except Exception as exc:
                 # Aqui no se toca la interfaz ni se avisa de nada: solo se deja
                 # el resultado y que lo recoja el hilo de la interfaz.
-                cola.put((generacion, row, None, None, None, None, None, None, exc))
+                cola.put(
+                    (generacion, row, None, None, None, None, None, None, None, exc)
+                )
 
         threading.Thread(target=work, daemon=True).start()
         self._carga_poll = self.after(50, self._poll_carga)
@@ -1273,7 +1505,7 @@ class MapTab(ttk.Frame):
         try:
             (
                 generacion, row, data, parts, rejected, light_profile,
-                rig_data, rig_records, error,
+                rig_data, rig_records, spawn_points, error,
             ) = (
                 self._carga_cola.get_nowait()
             )
@@ -1290,14 +1522,14 @@ class MapTab(ttk.Frame):
             return  # mientras cargaba se eligio otro mapa: este ya no vale
         self._cache = (
             row["entry"], data, parts, rejected, light_profile,
-            rig_data, rig_records,
+            rig_data, rig_records, spawn_points,
         )
         self.daylight_profile = light_profile
         self.daynight_rig_data = rig_data
         self.daynight_rig_records = rig_records
-        self._aplicar_mapa(row, data, parts, rejected)
+        self._aplicar_mapa(row, data, parts, rejected, spawn_points)
 
-    def _aplicar_mapa(self, row, data, parts, rejected):
+    def _aplicar_mapa(self, row, data, parts, rejected, spawn_points):
         """Pinta las piezas de un mapa ya parseado y dibuja la mas grande."""
         self._carga_entrada = None
         # Los recursos del mapa anterior ya no estan en pantalla. Se sueltan
@@ -1311,6 +1543,23 @@ class MapTab(ttk.Frame):
         self.objeto_key = None
         self.data = data
         self.parts = parts
+        self.spawn_points = spawn_points
+        self.camera_light_points = level_camera_light_points(
+            data,
+            sections(data),
+            self.daynight_rig_data,
+            self.daynight_rig_records,
+        )
+        self.camera_points = [
+            point for point in self.camera_light_points if point["kind"] == "camera"
+        ]
+        self.light_points = [
+            point for point in self.camera_light_points if point["kind"] == "light"
+        ]
+        self.vertex_colors.set(
+            row.get("ruta_interna", "").casefold().rstrip("/")
+            == "levels/gas_station/garage"
+        )
         self.current = row
         # La camara vuelve al origen y al encuadre de partida: el foco es la caja
         # de lo que se dibuja, asi que sin resetarla cada nivel se abriria
@@ -1496,6 +1745,10 @@ class MapTab(ttk.Frame):
                     light_profile=self.daylight_profile,
                     ruta_escena=self.current["ruta_interna"],
                 )
+                self.objeto.fijar_luces_locales_mapa(self.light_points)
+                self.objeto.fijar_iluminacion_mapa(
+                    self.light_illumination.get()
+                )
                 self.objeto_key = key
             self.objeto.fijar_vertex_colors(
                 self.vertex_colors.get(), self.vertex_color_intensity.get()
@@ -1530,10 +1783,132 @@ class MapTab(ttk.Frame):
                 show_grid=self.show_grid.get(),
                 culling=culling,
             )
+            if self.show_spawn_points.get():
+                self._draw_map_markers(image, width, height, self.spawn_points)
+            if self.show_camera_points.get():
+                self._draw_map_markers(image, width, height, self.camera_points)
+            if self.show_light_points.get():
+                self._draw_map_markers(image, width, height, self.light_points)
             self.canvas.set_image(image)
         except Exception as exc:
             self.status.configure(
                 text=translate(f"Preview: {exc}", self.app.language)
+            )
+
+    def _draw_map_markers(self, image, width, height, points):
+        """Overlay authored scene transforms with their local XYZ axes."""
+        if self.objeto is None or not points:
+            return
+        draw = ImageDraw.Draw(image)
+        axis_colors = ((245, 88, 88), (108, 226, 129), (91, 169, 255))
+        marker_colors = {
+            "camera": (94, 210, 255),
+            "spawn": (255, 222, 72),
+            "hidden": (255, 125, 214),
+        }
+        for point in points:
+            kind = point.get("kind", "spawn")
+            position = np.asarray(point["position"], dtype=np.float64)
+            x, y = self.objeto.proyectar(
+                position,
+                width,
+                height,
+                self.camera.yaw,
+                self.camera.pitch,
+                self.camera.zoom,
+                self.camera.pan,
+                self.camera,
+            )
+            if not (-12 <= x < width + 12 and -12 <= y < height + 12):
+                continue
+            for axis, color in enumerate(axis_colors):
+                direction = np.asarray(point["matrix"], dtype=np.float64)[:3, axis]
+                length = np.linalg.norm(direction)
+                if length < 1e-8:
+                    continue
+                endpoint = position + direction / length * 0.75
+                end_x, end_y = self.objeto.proyectar(
+                    endpoint,
+                    width,
+                    height,
+                    self.camera.yaw,
+                    self.camera.pitch,
+                    self.camera.zoom,
+                    self.camera.pan,
+                    self.camera,
+                )
+                draw.line((x, y, end_x, end_y), fill=color, width=2)
+            radius = 4
+            marker_color = marker_colors.get(kind, marker_colors["spawn"])
+            label = point["name"]
+            if kind == "light":
+                profile = (self.daylight_profile or {}).get(point["name"])
+                light_color = profile.get("color") if profile else point.get("color")
+                intensity = (
+                    profile.get("intensity")
+                    if profile
+                    else point.get("intensity", 0.0)
+                )
+                if light_color:
+                    marker_color = tuple(
+                        int(np.clip(channel, 0.0, 1.0) * 255)
+                        for channel in light_color[:3]
+                    )
+                if str(point.get("light_type", "")).casefold() == "point":
+                    reach = gl.alcance_luz_local_mapa(point)
+                    if reach > 0:
+                        reach_color = tuple(
+                            int(channel * 0.55 + 255 * 0.45)
+                            for channel in marker_color
+                        )
+                        for first_axis, second_axis in ((0, 1), (0, 2), (1, 2)):
+                            ring = []
+                            for step in range(33):
+                                angle = 2.0 * math.pi * step / 32
+                                sample = position.copy()
+                                sample[first_axis] += math.cos(angle) * reach
+                                sample[second_axis] += math.sin(angle) * reach
+                                ring.append(
+                                    self.objeto.proyectar(
+                                        sample,
+                                        width,
+                                        height,
+                                        self.camera.yaw,
+                                        self.camera.pitch,
+                                        self.camera.zoom,
+                                        self.camera.pan,
+                                        self.camera,
+                                    )
+                                )
+                            draw.line(ring, fill=reach_color, width=1)
+                radius = min(9, 4 + int(np.log10(1.0 + max(0.0, intensity))))
+                type_label = point.get("light_type", "light").title()
+                if point.get("light_type_inferred"):
+                    type_label += " (inferred)"
+                label = (
+                    f"{type_label}: {point['name']} "
+                    f"I={intensity:g}"
+                )
+            elif kind == "camera":
+                label = f"Camera: {label}"
+            elif kind == "hidden":
+                label = f"{translate('Hidden', self.app.language)}: {label}"
+            elif point.get("character_slug"):
+                label = nombre_publico(
+                    point["character_slug"], self.app.language
+                )
+            draw.ellipse(
+                (x - radius, y - radius, x + radius, y + radius),
+                fill=marker_color,
+                outline=(30, 25, 12),
+                width=1,
+            )
+            draw.text(
+                (x + 7, y - 8),
+                label,
+                fill=(255, 245, 192),
+                stroke_width=2,
+                stroke_fill=(20, 20, 20),
             )
 
     def frame_part(self):

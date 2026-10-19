@@ -313,6 +313,10 @@ def rdms_indices(
 # lo lejos que este el origen y no de hacia donde mire la cara. Las de plano se
 # anotan una a una segun se ven, como las demas excepciones del visor.
 CARAS_AL_REVES = {
+    # Suelo de madera de la sala de Crear un Sim: es un plano en Z constante
+    # con los triangulos mirando hacia -Z; al ser plano, el volumen con signo
+    # no permite detectar el sentido y se corrige por pieza.
+    "levels/cas": {"pieza_221"},
     # Un cartel de 10 x 10 m con alfa, suelto en el cielo: en el cementerio es el
     # pieza_581 y en el hub el pieza_588, la misma malla duplicada en los dos
     # niveles. Es un plano de dos triangulos mirando a +y, y el volumen con signo

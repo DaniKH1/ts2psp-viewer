@@ -530,6 +530,241 @@ def level_prop_references(data, records):
     return result
 
 
+def level_spawn_points(data, records):
+    """Named character/NPC spawn transforms authored in the level NODE graph."""
+    graphs = node_hierarchies(data, records)
+    by_head = {graph[2]: graph for graph in graphs}
+    result = []
+    for tag, off, size, _, _ in records:
+        head = off + _header_sizes(data)[0]
+        if tag != b"levl" or size < 8 or head + 8 > len(data):
+            continue
+        graph = by_head.get(_relative(data, head + 4))
+        if graph is None:
+            continue
+        nodes, world, graph_head, end = graph
+        player_locator_groups = {
+            index
+            for index, node in enumerate(nodes)
+            if is_transform(data, node)
+            and node_name(data, node).casefold() == "playerlocators"
+        }
+        for index, node in enumerate(nodes):
+            at, _, _, _ = node
+            if not is_transform(data, node) or at + 24 > end:
+                continue
+            name = node_name(data, node)
+            folded = name.casefold()
+            is_hidden_spot = "hidden" in folded
+            # Character start locators are grouped under playerlocators. Some
+            # (including Library's Lincoln/Adolfo locator) do not contain the
+            # words "start" or "spawn" in their authored node name.
+            is_player_locator = node[2] in player_locator_groups
+            if (
+                "start" not in folded
+                and "spawn" not in folded
+                and not is_hidden_spot
+                and not folded.startswith("objects:zombiecontroller")
+                and not is_player_locator
+            ):
+                continue
+            matrix = world(index)
+            point = {
+                "node": index,
+                "name": name,
+                "position": matrix[:3, 3].tolist(),
+                "matrix": matrix.tolist(),
+                "graph": graph_head,
+                "kind": "hidden" if is_hidden_spot else "spawn",
+            }
+            if "lincoln" in folded:
+                point["character_slug"] = "lincolnbroadsheet"
+            result.append(point)
+    # Some actors are represented by locators inside their prop's NODE graph,
+    # rather than by a top-level level spawn transform. Graveyard's gothic
+    # organ has a __ghost__ locator used for its apparition.
+    for reference in level_prop_references(data, records):
+        if reference.get("resource") != "objects/pianos/fx_piano_gothic":
+            continue
+        target = reference.get("target_graph")
+        graph = by_head.get(target)
+        if graph is None:
+            continue
+        nodes, local_world, graph_head, end = graph
+        for index, node in enumerate(nodes):
+            if node_name(data, node).casefold() != "__ghost__":
+                continue
+            at = node[0]
+            if not is_transform(data, node) or at + 24 > end:
+                continue
+            matrix = np.asarray(reference["matrix"], dtype=np.float64) @ local_world(
+                index
+            )
+            result.append(
+                {
+                    "node": index,
+                    "name": "organ::__ghost__",
+                    "position": matrix[:3, 3].tolist(),
+                    "matrix": matrix.tolist(),
+                    "graph": graph_head,
+                }
+            )
+    return result
+
+
+def level_camera_light_points(data, records, rig_data=None, rig_records=None):
+    """Return authored camera and light transforms in the level and its DNL rig."""
+    result = []
+    seen = set()
+
+    def add(kind, name, matrix):
+        matrix = np.asarray(matrix, dtype=np.float64)
+        position = matrix[:3, 3]
+        key = (kind, name.casefold(), tuple(np.round(position, 4)))
+        if key in seen:
+            return next(
+                item
+                for item in result
+                if item.get("kind") == kind
+                and item["name"].casefold() == name.casefold()
+                and tuple(np.round(item["position"], 4)) == key[2]
+            )
+        seen.add(key)
+        marker = {
+            "kind": kind,
+            "name": name,
+            "position": position.tolist(),
+            "matrix": matrix.tolist(),
+        }
+        result.append(marker)
+        return marker
+
+    def scan(source, source_records, matrix_for_graph=None):
+        if source is None or source_records is None:
+            return
+        for nodes, world, _, _ in node_hierarchies(source, source_records):
+            light_shapes = {}
+            for index, node in enumerate(nodes):
+                if node[1] != 10 or is_transform(source, node):
+                    continue
+                shape_name = node_name(source, node).casefold()
+                parent = node[2]
+                if (
+                    parent is not None
+                    and 0 <= parent < len(nodes)
+                    and "light" in shape_name
+                    and "shape" in shape_name
+                ):
+                    light_shapes.setdefault(parent, []).append(node)
+
+            for index, node in enumerate(nodes):
+                if not is_transform(source, node):
+                    continue
+                name = node_name(source, node)
+                folded = name.casefold()
+                matrix = world(index)
+                if matrix_for_graph is not None:
+                    matrix = matrix_for_graph @ matrix
+
+                # FOV controls are children of the actual camera locator in
+                # Kine and Monument. Use that parent once instead of drawing
+                # dozens of coincident camera controls.
+                if "fovcontrol" in folded:
+                    parent = node[2]
+                    if parent is not None and 0 <= parent < len(nodes):
+                        parent_node = nodes[parent]
+                        parent_name = node_name(source, parent_node)
+                        parent_folded = parent_name.casefold()
+                        if (
+                            is_transform(source, parent_node)
+                            and parent_folded.startswith("cam")
+                            and parent_folded[3:].isdigit()
+                        ):
+                            parent_matrix = world(parent)
+                            if matrix_for_graph is not None:
+                                parent_matrix = matrix_for_graph @ parent_matrix
+                            add("camera", parent_name, parent_matrix)
+                    continue
+
+                if (
+                    "camera" in folded
+                    and "shape" not in folded
+                    and "group" not in folded
+                    and folded != "objects:cameras"
+                ):
+                    add("camera", name, matrix)
+
+                for shape in light_shapes.get(index, ()):
+                    shape_name = node_name(source, shape).rsplit(":", 1)[-1]
+                    shape_folded = shape_name.casefold()
+                    light_identity = f"{folded} {shape_folded}"
+                    light_type = next(
+                        (
+                            candidate
+                            for candidate in ("ambient", "directional", "point", "spot")
+                            if candidate in light_identity
+                        ),
+                        "directional"
+                        if "daynightlight" in light_identity
+                        else "unknown",
+                    )
+                    light_type_inferred = light_type == "unknown"
+                    if light_type_inferred:
+                        # Level resources often serialize Maya lights as generic
+                        # `light` shapes. Those are local emitters; use point
+                        # falloff until a more specific type is encoded.
+                        light_type = "point"
+                    attributes = _relative(source, shape[0] + 8)
+                    if attributes < 0 or attributes + 32 > len(source):
+                        continue
+                    color_intensity = struct.unpack_from(
+                        "<4f", source, attributes + 16
+                    )
+                    if not all(math.isfinite(value) for value in color_intensity):
+                        continue
+                    marker = add(
+                        "light",
+                        name,
+                        matrix,
+                    )
+                    marker.update(
+                        {
+                            "light_type": light_type,
+                            "light_type_inferred": light_type_inferred,
+                            "color": [float(value) for value in color_intensity[:3]],
+                            "intensity": float(color_intensity[3]),
+                        }
+                    )
+                    if light_type == "directional":
+                        # Directional emitters use their world-space local +Z
+                        # axis (towards the source), never their translation.
+                        direction = matrix[:3, :3] @ np.array((0.0, 0.0, 1.0))
+                        length = float(np.linalg.norm(direction))
+                        if math.isfinite(length) and length > 1e-8:
+                            marker["direction"] = (direction / length).tolist()
+
+    scan(data, records)
+
+    if rig_data is not None and rig_records is not None:
+        rig_reference = next(
+            (
+                reference
+                for reference in level_prop_references(data, records)
+                if reference.get("resource", "").startswith(
+                    "objects/light_rigs/fx_dnl_"
+                )
+            ),
+            None,
+        )
+        placement = (
+            np.asarray(rig_reference["matrix"], dtype=np.float64)
+            if rig_reference
+            else np.eye(4)
+        )
+        scan(rig_data, rig_records, placement)
+    return result
+
+
 def rigid_placement_details(data, records):
     """Mesh owners plus referenced prop instances, retaining each local graph."""
     meshes = {

@@ -138,7 +138,9 @@ def factores_luz_direccional_mapa(normales, perfil):
             continue
         direccion /= longitud
         intensidad = float(np.clip(intensidad, 0.0, 1.0))
-        tinte = np.clip(color / max_color, 0.0, 1.0)
+        # Keep the source RGB magnitude as well as its hue. Normalizing by the
+        # brightest channel preserves hue but discards the authored light power.
+        tinte = np.clip(color, 0.0, 1.0)
         lambert = np.zeros(len(normales), dtype=np.float32)
         lambert[validas] = np.maximum(normales_unitarias[validas] @ direccion, 0.0)
         contribuciones.append(
@@ -147,6 +149,127 @@ def factores_luz_direccional_mapa(normales, perfil):
         )
     if contribuciones:
         factores[:] = np.mean(contribuciones, axis=0)
+    return factores
+
+
+def radio_luz_local_mapa(light):
+    """Return the inverse-square falloff radius for a map point light."""
+    try:
+        intensity = float(light.get("intensity", 0.0))
+    except (AttributeError, TypeError, ValueError):
+        return 0.0
+    if not math.isfinite(intensity) or intensity <= 0:
+        return 0.0
+    light_type = str(light.get("light_type", "unknown")).casefold()
+    radius_scale = 0.01 if light_type == "point" else 0.04
+    return max(math.sqrt(intensity) * radius_scale, 1.0)
+
+
+def alcance_luz_local_mapa(light):
+    """Practical visible reach: twice the radius leaves 20% attenuation."""
+    return radio_luz_local_mapa(light) * 2.0
+
+
+def factores_luces_locales_mapa(posiciones, normales, luces):
+    """Estimate diffuse gains from authored local lights for map surfaces.
+
+    Point/spot intensity in the source files is stored in large engine-specific
+    units. Convert it to a bounded preview radius and gain; this keeps vertex
+    colors as the material base while allowing nearby surfaces to receive light.
+    """
+    posiciones = np.asarray(posiciones, dtype=np.float32)
+    normales = np.asarray(normales, dtype=np.float32)
+    factores = np.ones((len(posiciones), 3), dtype=np.float32)
+    if (
+        posiciones.shape != normales.shape
+        or posiciones.ndim != 2
+        or posiciones.shape[1] != 3
+    ):
+        return factores
+
+    normal_lengths = np.linalg.norm(normales, axis=1)
+    valid = normal_lengths > 1e-8
+    unit_normals = np.zeros_like(normales)
+    unit_normals[valid] = normales[valid] / normal_lengths[valid, None]
+    additions = np.zeros_like(factores)
+    for light in luces or ():
+        if not isinstance(light, dict):
+            continue
+        light_type = str(light.get("light_type", "unknown")).casefold()
+        if light_type not in {"ambient", "directional", "point", "spot", "unknown"}:
+            continue
+        name = str(light.get("name", "")).casefold()
+        # DayNightLight is already evaluated from the selected animated DNL profile.
+        if name.startswith("daynightlight"):
+            continue
+        color = np.asarray(light.get("color", (1.0, 1.0, 1.0)), dtype=np.float32)
+        if color.shape != (3,) or not np.all(np.isfinite(color)):
+            continue
+        color = np.clip(color, 0.0, 1.0)
+        if not np.any(color > 1e-6):
+            continue
+        try:
+            intensity = float(light.get("intensity", 0.0))
+        except (TypeError, ValueError):
+            continue
+        if not math.isfinite(intensity) or intensity <= 0:
+            continue
+        matrix = np.asarray(light.get("matrix", np.eye(4)), dtype=np.float32)
+        if matrix.shape != (4, 4) or not np.all(np.isfinite(matrix)):
+            continue
+
+        if light_type == "ambient":
+            strength = intensity if intensity <= 1.0 else intensity / (intensity + 5000.0)
+            additions += np.clip(strength * 0.35, 0.0, 0.35) * color[None, :]
+            continue
+
+        if light_type == "directional":
+            # Directionals use only their world-space axis. Their translation
+            # is deliberately ignored, so illumination has no point-light
+            # distance falloff and reaches surfaces throughout the map.
+            direction = np.asarray(
+                light.get("direction", matrix[:3, 2]), dtype=np.float32
+            )
+            if direction.shape != (3,) or not np.all(np.isfinite(direction)):
+                continue
+            direction_length = float(np.linalg.norm(direction))
+            if direction_length <= 1e-8:
+                continue
+            direction /= direction_length
+            lambert = np.zeros(len(posiciones), dtype=np.float32)
+            lambert[valid] = np.maximum(unit_normals[valid] @ direction, 0.0)
+            strength = intensity if intensity <= 1.0 else intensity / (intensity + 5000.0)
+            additions += (
+                np.minimum(strength * lambert[:, None] * 0.28, 0.28)
+                * color[None, :]
+            )
+            continue
+
+        light_position = matrix[:3, 3]
+        to_light = light_position[None, :] - posiciones
+        distances = np.linalg.norm(to_light, axis=1)
+        directions = np.zeros_like(to_light)
+        nonzero = distances > 1e-8
+        directions[nonzero] = to_light[nonzero] / distances[nonzero, None]
+        lambert = np.zeros(len(posiciones), dtype=np.float32)
+        lambert[valid] = np.maximum(
+            np.sum(unit_normals[valid] * directions[valid], axis=1), 0.0
+        )
+        radius = radio_luz_local_mapa(light)
+        source_strength = intensity / (intensity + 5000.0)
+        attenuation = 1.0 / (1.0 + np.square(distances / radius))
+        is_point_light = light_type == "point"
+        gain = 2.0 if is_point_light else 1.5
+        gain_limit = 1.8 if is_point_light else 1.4
+        point_gain = source_strength * attenuation * lambert * gain
+        additions += (
+            np.minimum(point_gain[:, None], gain_limit)
+            * color[None, :]
+        )
+
+    # Authored RGB contributes positive diffuse light; it must not darken a
+    # surface merely because a source channel is below mid-gray.
+    factores += np.clip(additions, 0.0, 1.4)
     return factores
 GL_TEXTURE_2D = 0x0DE1
 GL_RGBA = 0x1908
@@ -442,6 +565,7 @@ class Escena:
         colores_base, modos_base = [], []
         vertices_con_color = []
         vertices_vertex_color_original = []
+        vertices_texture_blend = []
         blend_coords = []
         uv_panning_ranges = []
         self.texture_layers = []
@@ -463,7 +587,49 @@ class Escena:
         # los UV, así que subir la textura tal cual reproduce exactamente el muestreo
         # del rasterizador de CPU (comprobado: diferencia media 0 frente a la CPU)
         voltear = False
-        for ruta, parte in self._normalizar(piezas):
+        partes_normalizadas = list(self._normalizar(piezas))
+        intensidad_referencia_terreno = None
+        if (
+            self.tipo in {"mapa", "prop"}
+            and self.ruta_escena.replace("\\", "/").strip("/").lower()
+            == "levels/paradise_place/espiritu"
+        ):
+            colores_terreno_referencia = []
+            for _, candidata in partes_normalizadas:
+                if (
+                    candidata.get("name") in {"pieza_377", "pieza_382"}
+                    or not candidata.get("texture_blend")
+                ):
+                    continue
+                rutas_capas = {
+                    str((layer.get("texture") or ("",))[0])
+                    .replace("\\", "/")
+                    .lower()
+                    for layer in candidata.get("texture_layers", ())
+                    if isinstance(layer, dict)
+                }
+                if not (
+                    any(
+                        path.endswith("textures/terrain/txt_terrain_desert_tan.tif")
+                        for path in rutas_capas
+                    )
+                    and any(
+                        path.endswith("textures/terrain/txt_terrain_greengrass_.tif")
+                        for path in rutas_capas
+                    )
+                ):
+                    continue
+                colores_terreno_referencia.extend(
+                    tuple(vertex[3][:3])
+                    for vertex in candidata.get("vertices", ())
+                    if vertex[3] is not None
+                )
+            if colores_terreno_referencia:
+                intensidad_referencia_terreno = float(
+                    np.asarray(colores_terreno_referencia, dtype=np.float32).mean()
+                )
+
+        for ruta, parte in partes_normalizadas:
             if parte.get("oculta"):
                 # parte sustituida por otra (p. ej. la cabeza por defecto cuando
                 # la ficha declara un arquetipo facial): no se sube a la GPU
@@ -478,8 +644,31 @@ class Escena:
                 )
                 alpha_textura[texture_state] = self._tiene_alpha(textura)
             color = parte.get("color")
+            # Keep this inspection override scoped to the green grass meshes
+            # from Espiritu Estate. Their source RGB is normally treated as
+            # neutral by the terrain blend shader, but the viewer should expose
+            # the authored values when inspecting Vertex Color.
+            layer_paths = {
+                str((layer.get("texture") or ("",))[0]).replace("\\", "/").lower()
+                for layer in parte.get("texture_layers", ())
+                if isinstance(layer, dict)
+            }
+            es_terreno_espiritu = (
+                self.tipo in {"mapa", "prop"}
+                and self.ruta_escena.replace("\\", "/").strip("/").lower()
+                == "levels/paradise_place/espiritu"
+                and any("/textures/terrain/" in path for path in layer_paths)
+            )
+            es_terreno_verde_espiritu = (
+                es_terreno_espiritu
+                and str(parte.get("name", "")) in {"pieza_377", "pieza_382"}
+                and any(
+                    path.endswith("textures/terrain/txt_terrain_greengrass_.tif")
+                    for path in layer_paths
+                )
+            )
             malla_tiene_vertex_color = (
-                not parte.get("texture_blend")
+                (not parte.get("texture_blend") or es_terreno_espiritu)
                 and any(vertice[3] is not None for vertice in parte["vertices"])
             )
             second_texture = 0
@@ -507,8 +696,10 @@ class Escena:
                 # vertices without an authored color use the material fallback
                 # but must not be left behind in a partially colored mesh.
                 vertices_con_color.append(malla_tiene_vertex_color)
+                vertices_texture_blend.append(bool(parte.get("texture_blend")))
                 vertices_vertex_color_original.append(
-                    vertice[3] is not None and malla_admite_lift_vertex_color(parte)
+                    vertice[3] is not None
+                    and malla_admite_lift_vertex_color(parte)
                 )
                 # los personajes traen UV crudos en 1/4096: se normalizan con el v
                 # invertido, igual que los usa el rasterizador de CPU. En los props
@@ -537,7 +728,17 @@ class Escena:
                 if not normaliza_uv and vertice[3] is not None:
                     rgba = tuple(vertice[3])
                     rgba = rgba + (1.0,) if len(rgba) == 3 else rgba
-                    if parte.get("texture_blend"):
+                    if es_terreno_verde_espiritu and intensidad_referencia_terreno:
+                        # Keep the source green hue, scaling its strength to the
+                        # mean authored RGB level of adjacent terrain meshes
+                        # that use the same diffuse layers. Preserve alpha.
+                        rgb = np.asarray(rgba[:3], dtype=np.float32)
+                        maximo = float(rgb.max())
+                        if maximo > 1e-8:
+                            rgb *= intensidad_referencia_terreno / maximo
+                        rgb = np.clip(rgb, 0.0, 1.0)
+                        rgba = tuple(float(channel) for channel in rgb) + (rgba[3],)
+                    if parte.get("texture_blend") and not es_terreno_espiritu:
                         # Terrain RGB is unused by the game: its alpha selects
                         # coverage between the two diffuse layers. Tinting the
                         # shader with that often-black RGB turns the whole road
@@ -610,6 +811,24 @@ class Escena:
         self.tiene_normales = np.fromiter(
             (normal is not None for normal in normales), dtype=bool, count=len(normales)
         )
+        # Some map meshes have no authored vertex normals. Derive smooth normals
+        # from their triangles so authored lights can illuminate them too.
+        missing_normals = ~self.tiene_normales
+        if np.any(missing_normals):
+            triangles = np.asarray(indices, dtype=np.int64).reshape(-1, 3)
+            triangle_positions = self.posiciones[triangles]
+            face_normals = np.cross(
+                triangle_positions[:, 1] - triangle_positions[:, 0],
+                triangle_positions[:, 2] - triangle_positions[:, 0],
+            )
+            derived_normals = np.zeros_like(self.normales)
+            for corner in range(3):
+                np.add.at(derived_normals, triangles[:, corner], face_normals)
+            lengths = np.linalg.norm(derived_normals, axis=1)
+            derivable = missing_normals & (lengths > 1e-8)
+            self.normales[derivable] = (
+                derived_normals[derivable] / lengths[derivable, None]
+            )
         self.UV = np.ascontiguousarray(uvs, dtype=np.float32)
         self._uv_base = self.UV.copy()
         self._uv_panning_ranges = tuple(uv_panning_ranges)
@@ -620,8 +839,13 @@ class Escena:
         self._vertices_vertex_color_original = np.asarray(
             vertices_vertex_color_original, dtype=bool
         )
+        self._vertices_texture_blend = np.asarray(vertices_texture_blend, dtype=bool)
         self._vertex_colors_enabled = True
         self._perfil_luz_mapa = None
+        self._iluminacion_mapa_enabled = True
+        self._luces_locales_mapa = ()
+        self._factores_luces_locales_mapa = np.ones((len(self.posiciones), 3), dtype=np.float32)
+        self._factores_iluminacion_mapa = np.ones((len(self.posiciones), 3), dtype=np.float32)
         self._blend_coords = np.ascontiguousarray(blend_coords, dtype=np.float32)
         self._colores_base = (
             np.ascontiguousarray(colores_base, dtype=np.float32) / 255.0
@@ -863,14 +1087,22 @@ class Escena:
 
     def _aplicar_vertex_colors(self):
         if not self._vertex_colors_enabled:
-            self.colores = self._colores_base
-            return
-        intensidad = getattr(self, "_vertex_color_intensity", 1.0)
-        self.colores = levantar_vertex_colors_oscuros(
-            self._colores_vertex, self._vertices_vertex_color_original
-        )
-        self.colores[self._vertices_con_color, :3] *= intensidad
-        np.clip(self.colores[:, :3], 0.0, 1.0, out=self.colores[:, :3])
+            self.colores = self._colores_base.copy()
+        else:
+            intensidad = getattr(self, "_vertex_color_intensity", 1.0)
+            self.colores = levantar_vertex_colors_oscuros(
+                self._colores_vertex_sin_luz,
+                self._vertices_vertex_color_original,
+            )
+            self.colores[self._vertices_con_color, :3] *= intensidad
+            np.clip(self.colores[:, :3], 0.0, 1.0, out=self.colores[:, :3])
+
+        if self._iluminacion_mapa_enabled:
+            # Keep authored material/vertex color as albedo, then apply the
+            # light gain afterwards. Gains above 1 must survive to texturing so
+            # local lights can brighten white, non-vertex-colored materials.
+            normales = ~self._vertices_texture_blend
+            self.colores[normales, :3] *= self._factores_iluminacion_mapa[normales]
 
     def fijar_luz_direccional_mapa(self, perfil):
         """Apply the active source day/night profile to map vertex colors.
@@ -879,17 +1111,31 @@ class Escena:
         This operates on mesh colors before rasterization and never changes
         framebuffer exposure.
         """
-        factores = factores_luz_direccional_mapa(self.normales, perfil)
+        self._perfil_luz_mapa = perfil
+        if self._iluminacion_mapa_enabled:
+            factores_dia = factores_luz_direccional_mapa(self.normales, perfil)
+            # The day/night profile shades the base surface. Local lights add
+            # radiance and must not be attenuated again by that base factor.
+            factores = factores_dia + self._factores_luces_locales_mapa - 1.0
+        else:
+            factores = np.ones((len(self.normales), 3), dtype=np.float32)
+        self._factores_iluminacion_mapa = factores.copy()
         self._colores_vertex = self._colores_vertex_sin_luz.copy()
         self._colores_vertex[:, :3] *= factores
-        np.clip(
-            self._colores_vertex[:, :3],
-            0.0,
-            1.0,
-            out=self._colores_vertex[:, :3],
-        )
-        self._perfil_luz_mapa = perfil
         self._aplicar_vertex_colors()
+
+    def fijar_luces_locales_mapa(self, luces):
+        """Use authored local light records to illuminate the map's surfaces."""
+        self._luces_locales_mapa = tuple(luces or ())
+        self._factores_luces_locales_mapa = factores_luces_locales_mapa(
+            self.posiciones, self.normales, self._luces_locales_mapa
+        )
+        self.fijar_luz_direccional_mapa(self._perfil_luz_mapa)
+
+    def fijar_iluminacion_mapa(self, enabled):
+        """Enable or disable authored local and day/night map lighting."""
+        self._iluminacion_mapa_enabled = bool(enabled)
+        self.fijar_luz_direccional_mapa(self._perfil_luz_mapa)
 
     def pose_actual(self):
         return self.pose
@@ -1161,7 +1407,12 @@ class Escena:
                         from ts2psp.rendering.texture_blend import TextureBlendProgram
 
                         gl.terrain_blend = TextureBlendProgram()
-                    gl.terrain_blend.begin(gl, second, self._blend_coords)
+                    gl.terrain_blend.begin(
+                        gl,
+                        second,
+                        self._blend_coords,
+                        self._factores_iluminacion_mapa,
+                    )
                 gl.dibujar(
                     GL_TRIANGLES, len(indices), GL_UNSIGNED_INT, indices.ctypes.data
                 )
