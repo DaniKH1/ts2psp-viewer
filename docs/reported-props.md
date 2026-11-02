@@ -8,6 +8,7 @@ separate object BANM clips. No game data is distributed with the source or EXE.
 
 | Resource or family | Result |
 | --- | --- |
+| Object-linked animations | Object interaction BANM clips (including SkinScorcher, Laxative Bidet and window-looking animations) are included in the Animations catalogue and grouped by object type. In Props, matching interactions also load the default female Sim beside the object, with a per-prop animation dropdown; prop-only rigs under `/anims/` remain in the Props viewer. Reimport the ISO to update the catalogue. |
 | `fx_trackingdevice` | The closed rest assembly removes the opposite housing/lid offsets. Playback retains the original source curves and transforms. Export includes the constant transforms needed to preserve that playback. |
 | `moneytree` | BMSH UV shorts are interpreted as unsigned. Coordinates just below the bias no longer jump by 16 texture tiles. Preview and export share this correction. |
 | `fx_polygraph` | Its embedded atlas is literally the game's Missing Texture placeholder. The support bank provides the genuine `txt_careerpolygraph-surfaces.tif` for those parts. Other materials remain separate. |

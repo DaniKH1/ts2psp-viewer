@@ -5,6 +5,7 @@ repairs record whether UVs came from the game or a generated projection.
 """
 
 import json
+import re
 import zipfile
 
 import numpy as np
@@ -60,6 +61,46 @@ class PropAssets:
             if bindings:
                 rows.append({**row, "bindings": bindings})
         return rows
+
+    def human_animation_rows(self, model):
+        """Find human BANM clips whose authored object name matches this prop."""
+        folder, _, model_name = model.casefold().rpartition("/")
+        category = folder.rsplit("/", 1)[-1]
+        model_key = re.sub(r"[^a-z0-9]", "", model_name)
+        if model_key.startswith("fx"):
+            model_key = model_key[2:]
+        model_keys = [model_key]
+        if model_key.endswith("medic"):
+            model_keys.append(model_key[:-2])
+
+        rows = []
+        for row in self.manifest.get("animations", ()):
+            name = row["name"].casefold()
+            if not name.startswith(folder + "/"):
+                continue
+            relative = name[len(folder) + 1 :]
+            if any(part in ("anims", "plumbobanims") for part in relative.split("/")[:-1]):
+                continue
+            animation_key = re.sub(r"[^a-z0-9]", "", relative.rsplit("/", 1)[-1])
+            for prefix in ("fxo2a", "a2o", "o2a", "fx"):
+                if animation_key.startswith(prefix):
+                    animation_key = animation_key[len(prefix) :]
+                    break
+            overlap = max(
+                (
+                    len(model_key_part[i : i + length])
+                    for model_key_part in model_keys
+                    for i in range(len(model_key_part))
+                    for length in range(6, len(model_key_part) - i + 1)
+                    if model_key_part[i : i + length] in animation_key
+                ),
+                default=0,
+            )
+            window_look = category == "windows" and "windowlook" in animation_key
+            if overlap >= 6 or window_look:
+                rows.append(row)
+        unique = {row["name"].casefold(): row for row in rows}
+        return sorted(unique.values(), key=lambda row: row["name"].casefold())
 
     def clip(self, row):
         if row["file"] not in self._clips:

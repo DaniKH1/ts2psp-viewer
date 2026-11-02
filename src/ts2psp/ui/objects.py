@@ -2,6 +2,7 @@
 
 import csv
 import io
+import json
 import math
 import queue
 import threading
@@ -10,6 +11,7 @@ import zipfile
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
+import numpy as np
 from ts2psp.rendering.props import (
     bones_over,
     load_parts,
@@ -25,6 +27,19 @@ from ts2psp.formats.prop_anim import (
     iter_prop_animations,
     prop_animations,
     prop_clip,
+)
+from ts2psp.formats.animations import (
+    REFERENCE_F,
+    attach_animations,
+    open_glb,
+    parse_banm,
+)
+from ts2psp.formats.characters import convert_character
+from ts2psp.rendering.animation import (
+    aplanar,
+    glb_piezas,
+    posed_meshes,
+    validate_preview_frame,
 )
 from ts2psp.ui.camera import OrbitController, Viewport
 from ts2psp.ui.floating_button import FloatingButton, place_right_buttons
@@ -60,6 +75,35 @@ PANNING_TARGETS = {
         -0.10,
     ),
 }
+PROP_SIM_DEFAULT = "tinamansfield"
+_PROP_SIM_MODEL_LOCK = threading.Lock()
+
+
+def build_prop_sim_preview(
+    character_path, prop_path, animation_path, cache_path, animation_row
+):
+    """Build the default female Sim's GLB animation outside the Tk thread."""
+    cache_path = Path(cache_path)
+    cache_path.mkdir(parents=True, exist_ok=True)
+    model = cache_path / (
+        f"character_{PROP_SIM_DEFAULT}_texture_names_v5.glb"
+    )
+    with _PROP_SIM_MODEL_LOCK:
+        if not model.is_file():
+            convert_character(character_path, PROP_SIM_DEFAULT, model)
+    with zipfile.ZipFile(prop_path) as archive:
+        clip = parse_banm(archive.read(animation_row["file"]))
+    with zipfile.ZipFile(animation_path) as archive:
+        catalog = json.loads(archive.read("catalog.json"))
+        reference_row = next(item for item in catalog if item["name"] == REFERENCE_F)
+        fallback = parse_banm(archive.read(reference_row["file"]))
+    output = cache_path / f"prop_sim_preview_{Path(animation_row['file']).stem}.glb"
+    attach_animations(model, [clip], None, output, fps=20, fallback=fallback)
+    doc, binary = open_glb(output)
+    animation = doc["animations"][0]
+    frame = validate_preview_frame(doc, binary, animation)
+    parts, textures = glb_piezas(doc, binary, frame)
+    return doc, binary, animation, frame, parts, textures
 
 
 class PropTab(ttk.Frame):
@@ -94,6 +138,20 @@ class PropTab(ttk.Frame):
         self.disposed = False
         self.clip = None
         self.animator = None
+        self.prop_clip = None
+        self.object_clip = None
+        self.object_animator = None
+        self.human_animation_rows = []
+        self.human_animation_lookup = {}
+        self.human_animation_row = None
+        self.human_clip = None
+        self.human_preview = None
+        self.human_parts = []
+        self.human_textures = {}
+        self.human_ready = False
+        self.human_generation = 0
+        self.human_queue = None
+        self.human_poll = None
         self.has_export_animation = False
         self.data = None
         self.bone_src = ()
@@ -179,6 +237,24 @@ class PropTab(ttk.Frame):
         self.anim_group = tk.StringVar(value="All")
         self.anim_group_box = ttk.Combobox(
             right, textvariable=self.anim_group, state="readonly", width=28
+        )
+        self.human_animation_label = ttk.Label(
+            right,
+            text=translate("Sim animation", app.language),
+            anchor="center",
+            font=(grupo, 10, "bold"),
+        )
+        self.human_animation_label.pack(fill="x", pady=(8, 0))
+        self.human_animation = tk.StringVar()
+        self.human_animation_box = ttk.Combobox(
+            right,
+            textvariable=self.human_animation,
+            state="disabled",
+            width=28,
+        )
+        self.human_animation_box.pack(fill="x", pady=(0, 4))
+        self.human_animation_box.bind(
+            "<<ComboboxSelected>>", self.select_human_animation
         )
         # De arriba abajo, como la izquierda: la lista tiene alto fijo y lo que
         # sobra de la columna se queda al final, en vez de abrir un hueco en
@@ -356,6 +432,18 @@ class PropTab(ttk.Frame):
         for button in self.floating_buttons:
             label = translate(button.text, language)
             button.set_text(label, top._sims_floating_text_width(label) + 2 * 14)
+        self.human_animation_label.configure(
+            text=translate("Sim animation", language)
+        )
+        if self.human_animation_rows:
+            self.human_animation_box.configure(
+                values=(
+                    translate("No Sim animation", language),
+                    *self.human_animation_lookup.keys(),
+                )
+            )
+            if self.human_animation_row is None:
+                self.human_animation.set(translate("No Sim animation", language))
         self.group_box.configure(
             values=tuple(translate(value, language) for value in self._grupos(self.rows))
         )
@@ -566,6 +654,211 @@ class PropTab(ttk.Frame):
                 break
         self.load(row)
 
+    @staticmethod
+    def _human_action_key(name):
+        key = name.rsplit("/", 1)[-1].casefold()
+        for prefix in ("fx_o2a-", "a2o-", "a20-", "o2a-"):
+            if key.startswith(prefix):
+                return key[len(prefix) :]
+        return key
+
+    def _paired_prop_clip(self, human_row):
+        candidates = [
+            row
+            for row in self.assets.animation_rows(
+                self.current["ruta_interna"], self.data
+            )
+            if row.get("kind") == "node"
+        ]
+        human_key = self._human_action_key(human_row["name"])
+        matches = [
+            row
+            for row in candidates
+            if self._human_action_key(row["name"]).startswith(human_key)
+            or human_key.startswith(self._human_action_key(row["name"]))
+        ]
+        if not matches:
+            return None
+        row = max(matches, key=lambda item: len(self._human_action_key(item["name"])))
+        return self.assets.clip(row), row.get("bindings")
+
+    def _invalidate_scene(self):
+        if self.objeto_key is not None:
+            gl.forget(self.objeto_key)
+        self.objeto = None
+        self.objeto_key = None
+
+    def _set_human_options(self, model):
+        rows = self.assets.human_animation_rows(model)
+        self.human_animation_rows = rows
+        self.human_animation_lookup = {
+            row["name"].rsplit("/", 1)[-1]: row for row in rows
+        }
+        if rows:
+            self.human_animation_box.configure(
+                state="readonly",
+                values=(
+                    translate("No Sim animation", self.app.language),
+                    *self.human_animation_lookup.keys(),
+                ),
+            )
+        else:
+            self.human_animation_box.configure(
+                state="disabled",
+                values=(translate("No Sim animation", self.app.language),),
+            )
+            self.human_animation.set(translate("No Sim animation", self.app.language))
+
+    def select_human_animation(self, _event=None):
+        name = self.human_animation.get()
+        row = self.human_animation_lookup.get(name)
+        if row is None:
+            self._clear_human_animation()
+            return
+        self._start_human_animation(row)
+
+    def _reset_preview_request(self):
+        self.human_generation += 1
+        if self.human_poll:
+            self.after_cancel(self.human_poll)
+            self.human_poll = None
+        self.human_queue = None
+        self.human_preview = None
+        self.human_parts = []
+        self.human_textures = {}
+        self.human_ready = False
+        self._invalidate_scene()
+
+    def _set_playback_controls(self):
+        duration = self.clip["duration"] if self.clip else 0
+        self.slider.configure(to=duration if duration else 1)
+        supported = bool(
+            self.parts
+            and self.clip
+            and (
+                self.human_ready
+                if self.human_animation_row is not None
+                else self.animator and self.animator.bindings
+            )
+        )
+        self.play_button.configure(state="normal" if supported else "disabled")
+        self.slider.configure(state="normal" if supported else "disabled")
+        self.time_label.configure(text=self.time_text(0, duration))
+
+    def _clear_human_animation(self):
+        self._reset_preview_request()
+        self.human_animation_row = None
+        self.human_clip = None
+        self.prop_clip = self.object_clip
+        self.animator = self.object_animator
+        self.clip = self.object_clip
+        self.has_export_animation = bool(
+            self.prop_clip and self.animator and self.animator.bindings
+        )
+        self.playhead = 0.0
+        self.moving_slider = True
+        self.position.set(0)
+        self.moving_slider = False
+        self._set_playback_controls()
+        if self.current:
+            vertices = sum(len(part["vertices"]) for part in self.parts)
+            self.status.configure(
+                text=translate(self.status_text(self.current, vertices), self.app.language)
+            )
+        self.schedule()
+
+    def _start_human_animation(self, row):
+        self.stop()
+        self._reset_preview_request()
+        self.human_animation_row = row
+        self.human_clip = self.assets.clip(row)
+        self.clip = self.human_clip
+        paired = self._paired_prop_clip(row)
+        if paired:
+            self.prop_clip, bindings = paired
+            self.animator = PropAnimator(
+                self.data, self.prop_clip, bindings=bindings
+            )
+        else:
+            self.prop_clip = None
+            self.animator = PropAnimator(self.data, None, bindings=())
+        self.has_export_animation = bool(
+            self.prop_clip and self.animator.bindings
+        )
+        self.playhead = 0.0
+        self.moving_slider = True
+        self.position.set(0)
+        self.moving_slider = False
+        self._set_playback_controls()
+        self.status.configure(
+            text=translate("Preparing Sim preview...", self.app.language)
+        )
+        generation = self.human_generation
+        pending = queue.Queue()
+        self.human_queue = pending
+        paths = self.app.paths
+        cache = self.app.cache
+
+        def work():
+            try:
+                result = build_prop_sim_preview(
+                    paths["characters"],
+                    paths["props"],
+                    paths["animations"],
+                    cache,
+                    row,
+                )
+                pending.put((generation, result, None))
+            except Exception as exc:
+                pending.put((generation, None, str(exc)))
+
+        threading.Thread(target=work, daemon=True).start()
+        self.human_poll = self.after(100, self._poll_human_preview)
+        self._invalidate_scene()
+        self.schedule()
+
+    def _poll_human_preview(self):
+        self.human_poll = None
+        if self.disposed or self.human_queue is None:
+            return
+        try:
+            generation, result, error = self.human_queue.get_nowait()
+        except queue.Empty:
+            self.human_poll = self.after(100, self._poll_human_preview)
+            return
+        self.human_queue = None
+        if generation != self.human_generation:
+            return
+        if error:
+            self.status.configure(
+                text=translate(
+                    f"Could not load Sim animation: {error}", self.app.language
+                )
+            )
+            self._set_playback_controls()
+            return
+        (
+            doc,
+            binary,
+            animation,
+            _frame,
+            self.human_parts,
+            self.human_textures,
+        ) = result
+        self.human_preview = (doc, binary, animation)
+        self.human_ready = True
+        self._invalidate_scene()
+        self._set_playback_controls()
+        self.status.configure(
+            text=translate(
+                self.status_text(self.current, sum(len(p["vertices"]) for p in self.parts)),
+                self.app.language,
+            )
+        )
+        self.schedule()
+        if self.auto_play.get():
+            self.start_play()
+
     def load(self, row):
         try:
             with zipfile.ZipFile(self.app.paths["props"]) as z:
@@ -603,7 +896,8 @@ class PropTab(ttk.Frame):
             )
             self.bones = bones_over(self.parts, self.bone_src)
             self.clip = prop_clip(data)
-            self.animator = PropAnimator(data, self.clip)
+            self.prop_clip = self.clip
+            self.animator = PropAnimator(data, self.prop_clip)
             clips = self.assets.clips(row["ruta_interna"], data)
             if b"bmsh" in data[:128]:
                 clips = [clip for clip in clips if clip.get("kind") != "node"]
@@ -618,23 +912,26 @@ class PropTab(ttk.Frame):
                     reference,
                 )
                 self.clip = selected
+                self.prop_clip = selected
                 if b"bmsh" in data[:128]:
                     self.animator = SkinnedPropAnimator(data, selected, reference)
-                    self.clip = self.animator.clip
+                    self.prop_clip = self.animator.clip
+                    self.clip = self.prop_clip
                     self.bones = self.bone_src
                 elif selected.get("kind") == "node":
                     self.animator = PropAnimator(
                         data, selected, bindings=selected["bindings"]
                     )
+            self.object_clip = self.prop_clip
+            self.object_animator = self.animator
+            self.human_clip = None
+            self.human_animation_row = None
+            self._reset_preview_request()
             self.has_export_animation = bool(
-                self.clip
-                and self.animator.bindings
+                self.prop_clip and self.animator.bindings
             )
             self.current = row
-            for textured in (False, True):
-                gl.forget(("prop", row["entry"], textured))
-            self.objeto = None
-            self.objeto_key = None
+            self._set_human_options(row["ruta_interna"])
             # La galeria enseña lo que se pinta: cada parte lleva su textura en
             # `texture` como (nombre, pixeles), y sin pixeles no se ve nada.
             self.textures = {
@@ -648,16 +945,18 @@ class PropTab(ttk.Frame):
             }
             self.gallery.set_textures(self.textures)
             self.playhead = 0.0
+            if self.human_animation_rows:
+                human_row = self.human_animation_rows[0]
+                self.human_animation.set(human_row["name"].rsplit("/", 1)[-1])
+                self._start_human_animation(human_row)
+            else:
+                self.human_animation.set(
+                    translate("No Sim animation", self.app.language)
+                )
             self.moving_slider = True
             self.position.set(0)
             self.moving_slider = False
-            self.slider.configure(to=self.clip["duration"] if self.clip else 1)
-            supported = bool(self.parts and self.clip and self.animator.bindings)
-            self.play_button.configure(state="normal" if supported else "disabled")
-            self.slider.configure(state="normal" if supported else "disabled")
-            self.time_label.configure(
-                text=self.time_text(0, self.clip["duration"] if self.clip else 0)
-            )
+            self._set_playback_controls()
             vertices = sum(len(p["vertices"]) for p in self.parts)
             self.status.configure(
                 text=translate(self.status_text(row, vertices), self.app.language)
@@ -669,7 +968,7 @@ class PropTab(ttk.Frame):
                 self.canvas.clear()
             # Con 'Auto Play' marcado, abrir un prop que tenga clip ya lo pone en
             # marcha: es lo que se quiere al irlos viendo seguidos.
-            if supported and self.auto_play.get():
+            if self._playback_supported() and self.auto_play.get():
                 self.start_play()
             self.schedule()
         except Exception as exc:
@@ -687,9 +986,14 @@ class PropTab(ttk.Frame):
             self._nombre(row),
             f"{len(self.bones)} bones · {vertices} vertices",
         ]
-        if self.clip and self.animator.bindings:
-            pistas = len(self.clip["channels"])
-            lineas.append(f"{self.clip['duration']:.2f} s · {pistas} tracks")
+        if self.human_clip is not None:
+            lineas.append(
+                f'{self.human_clip["duration"]:.2f} s · '
+                f'{len(self.human_clip["tracks"])} tracks'
+            )
+        elif self.prop_clip and self.animator.bindings:
+            pistas = len(self.prop_clip["channels"])
+            lineas.append(f"{self.prop_clip['duration']:.2f} s · {pistas} tracks")
         warnings = sorted(
             {p["texture_warning"] for p in self.parts if p.get("texture_warning")}
         )
@@ -717,7 +1021,7 @@ class PropTab(ttk.Frame):
 
     def start_play(self):
         """Arranca la reproduccion; no hace nada si ya esta sonando."""
-        if not self.clip or not self.animator.bindings or self.playing:
+        if not self._playback_supported() or self.playing:
             return
         if self.clip["duration"] <= 0:
             return
@@ -729,7 +1033,7 @@ class PropTab(ttk.Frame):
         self.schedule()
 
     def toggle_play(self):
-        if not self.clip or not self.animator.bindings or self.clip["duration"] <= 0:
+        if not self._playback_supported() or self.clip["duration"] <= 0:
             return
         if self.playing:
             self.stop()
@@ -754,6 +1058,13 @@ class PropTab(ttk.Frame):
         self.fps_index = (self.fps_index + 1) % len(FPS_VALORES)
         self._fps_button_refresh()
 
+    def _playback_supported(self):
+        if not self.clip:
+            return False
+        if self.human_animation_row is not None:
+            return self.human_ready
+        return bool(self.animator and self.animator.bindings)
+
     def scrub(self, value):
         if self.moving_slider or not self.clip:
             return
@@ -767,19 +1078,22 @@ class PropTab(ttk.Frame):
 
     def posed_parts(self):
         """Las piezas en el instante actual, con las curvas aplicadas."""
+        if not self.prop_clip or not self.animator or not self.animator.bindings:
+            return self.parts
         show_rest = (
             not self.playing
             and self.playhead == 0
             and getattr(self.animator, "rest_overrides", ())
         )
-        if not self.clip or show_rest:
+        if show_rest:
             self.bones = (
                 self.bone_src
                 if isinstance(self.animator, SkinnedPropAnimator)
                 else bones_over(self.parts, self.bone_src)
             )
             return self.parts
-        partes, huesos = self.animator.pose(self.parts, self.playhead, self.bone_src)
+        parts_time = min(self.playhead, self.prop_clip["duration"])
+        partes, huesos = self.animator.pose(self.parts, parts_time, self.bone_src)
         posed_bones = tuple(
             {**bone, "position": huesos.get(bone["index"], bone["position"])}
             for bone in self.bone_src
@@ -858,16 +1172,56 @@ class PropTab(ttk.Frame):
             # vertices: si se pidiera por clave, la cache devolveria la de
             # reposo y el prop no se moveria.
             key = (self.current["entry"], self.show_textures.get())
-            if self.objeto_key != key:
-                self.objeto = prop_scene(self.parts, key[0], key[1])
-                self.objeto_key = key
+            human_active = bool(self.human_ready and self.human_preview)
+            scene_key = (
+                (
+                    "prop_sim",
+                    key[0],
+                    self.human_animation_row["file"],
+                    key[1],
+                )
+                if human_active
+                else ("prop", key[0], key[1])
+            )
+            if self.objeto_key != scene_key:
+                if self.objeto_key is not None:
+                    gl.forget(self.objeto_key)
+                if human_active:
+                    scene_parts = []
+                    scene_textures = {}
+                    for index, part in enumerate(self.parts):
+                        texture = part.get("texture")
+                        scene_parts.append(
+                            (texture[0] if texture else f"prop:{index}", part)
+                        )
+                        if texture:
+                            scene_textures[texture[0]] = texture
+                        for layer in part.get("texture_layers", []):
+                            layer_texture = layer.get("texture")
+                            if layer_texture:
+                                scene_textures[layer_texture[0]] = layer_texture
+                    scene_parts.extend(self.human_parts)
+                    scene_textures.update(self.human_textures)
+                    self.objeto = gl.escena(
+                        scene_key, scene_parts, scene_textures, "prop"
+                    )
+                else:
+                    self.objeto = prop_scene(self.parts, key[0], key[1])
+                self.objeto_key = scene_key
             if self.uv_pan_started_at is not None:
                 self.objeto.fijar_panning_tiempo(
                     time.perf_counter() - self.uv_pan_started_at
                 )
             self.objeto.fijar_vertex_colors(self.show_vertex_colors.get())
             if self.clip:
-                self.objeto.fijar_poses(posed_positions(partes))
+                positions = posed_positions(partes)
+                if human_active:
+                    doc, binary, animation = self.human_preview
+                    human_meshes = posed_meshes(
+                        doc, binary, animation, self.playhead
+                    )
+                    positions = np.concatenate((positions, aplanar(human_meshes)))
+                self.objeto.fijar_poses(positions)
             image = render_prop(
                 partes,
                 w,
@@ -1032,6 +1386,11 @@ class PropTab(ttk.Frame):
         if self._anim_poll:
             self.after_cancel(self._anim_poll)
             self._anim_poll = None
+        self.human_generation += 1
+        if self.human_poll:
+            self.after_cancel(self.human_poll)
+            self.human_poll = None
+        self.human_queue = None
         for button in self.floating_buttons:
             button.destroy()
         self.floating_buttons = []

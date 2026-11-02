@@ -146,3 +146,20 @@ class ReportedPropTests(unittest.TestCase):
                             ),
                         )
             self.assertGreater(moved, 0.01)
+
+    def test_home_medic_exposes_its_human_interaction_clips(self):
+        self.require_support()
+        names = {
+            row["name"]
+            for row in self.assets.human_animation_rows(
+                "objects/home_medic/fx_home_medic"
+            )
+        }
+        self.assertEqual(
+            names,
+            {
+                "objects/home_medic/a2o-homemed-drinkpotion",
+                "objects/home_medic/a2o-homemed-get-start",
+                "objects/home_medic/a2o-homemed-giveinfo",
+            },
+        )

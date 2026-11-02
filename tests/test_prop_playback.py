@@ -31,9 +31,17 @@ class PropPlaybackTests(unittest.TestCase):
         self.tab.rendering = False
         self.tab.redraw_requested = False
         self.tab.disposed = False
+        self.tab.app = SimpleNamespace(language="en")
         self.tab.playing = True
         self.tab.clip = {"duration": 0.1}
         self.tab.animator = SimpleNamespace(bindings=(1,))
+        self.tab.human_animation_row = None
+        self.tab.human_preview = None
+        self.tab.human_ready = False
+        self.tab.human_generation = 0
+        self.tab.human_queue = None
+        self.tab.human_poll = None
+        self.tab.uv_pan_started_at = None
         self.tab.playhead = 0
         self.tab.clock_ms = 0
         self.tab.moving_slider = False
@@ -47,7 +55,7 @@ class PropPlaybackTests(unittest.TestCase):
         self.tab.posed_parts = lambda: self.tab.parts
         self.tab.current = {"entry": "satellite"}
         self.tab.objeto = Mock()
-        self.tab.objeto_key = ("satellite", True)
+        self.tab.objeto_key = ("prop", "satellite", True)
         self.tab.bones = ()
         self.tab.status = Mock()
         self.tab.play_button = Mock()

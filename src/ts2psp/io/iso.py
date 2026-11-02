@@ -115,6 +115,29 @@ def object_resource_name(data, records):
     return ""
 
 
+def is_standalone_prop_animation(object_name, records):
+    """Identify object NODE resources that may contain linked prop curves."""
+    return (
+        object_name.startswith("objects/")
+        and any(section[0] == b"node" for section in records)
+        and not any(section[0] in (b"rdms", b"bmsh", b"levl") for section in records)
+    )
+
+
+def animation_catalog_category(name):
+    """Return a viewer category for character clips and object interactions."""
+    parts = name.split("/")
+    if len(parts) >= 3 and parts[:2] == ["characters", "bodyanims"]:
+        return parts[2]
+    if (
+        len(parts) >= 3
+        and parts[0] == "objects"
+        and not any(part in ("anims", "plumbobanims") for part in parts[2:-1])
+    ):
+        return parts[1]
+    return None
+
+
 def decode_texture(data):
     if data[:4] != b"res\n" or data[0x38:0x3C] != b"surf":
         return None
@@ -295,15 +318,7 @@ def import_iso(iso_path, output_dir, progress=None, cancelled=None):
                                         "duration": clip["duration"],
                                     }
                                 )
-                        if (
-                            object_name.casefold().split("/")[-1].startswith(
-                                ("fx_o-", "fx_o2a-")
-                            )
-                            and any(s[0] == b"node" for s in records)
-                            and not any(
-                                s[0] in (b"rdms", b"bmsh", b"levl") for s in records
-                            )
-                        ):
+                        if is_standalone_prop_animation(object_name, records):
                             # Some rigid prop animations are separate NODE-only
                             # resources. Preserve their curves with the props so
                             # the viewer can bind them to the matching base prop.
@@ -441,21 +456,26 @@ def import_iso(iso_path, output_dir, progress=None, cancelled=None):
 
                     if b"banm" in data[:96]:
                         name = clip_name(data)
-                        if name.startswith("characters/bodyanims/"):
-                            clip = parse_banm(data)
-                            category = name.split("/")[2]
-                            file = f'res/{row["entry"]}.res'
-                            zips["animations"].writestr(file, data)
-                            animations.append(
-                                {
-                                    **row,
-                                    "name": name,
-                                    "duration": round(clip["duration"], 6),
-                                    "tracks": len(clip["tracks"]),
-                                    "category": category,
-                                    "file": file,
-                                }
-                            )
+                        category = animation_catalog_category(name)
+                        if category is not None:
+                            try:
+                                clip = parse_banm(data)
+                            except (ValueError, struct.error):
+                                if name.startswith("characters/bodyanims/"):
+                                    raise
+                            else:
+                                file = f'res/{row["entry"]}.res'
+                                zips["animations"].writestr(file, data)
+                                animations.append(
+                                    {
+                                        **row,
+                                        "name": name,
+                                        "duration": round(clip["duration"], 6),
+                                        "tracks": len(clip["tracks"]),
+                                        "category": category,
+                                        "file": file,
+                                    }
+                                )
 
                     if b"levl" in data:
                         level_sections = res_sections(data)

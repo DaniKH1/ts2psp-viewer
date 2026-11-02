@@ -622,7 +622,7 @@ def self_test(base):
         clip = parse_banm(z.read(row["file"]))
         fallback_row = next(r for r in catalog if r["name"] == REFERENCE_F)
         fallback = parse_banm(z.read(fallback_row["file"]))
-    assert len(catalog) == 1336 and clip["tracks"]
+    assert len(catalog) >= 1336 and clip["tracks"]
     with zipfile.ZipFile(paths["maps"]) as z:
         maps = list(
             csv.DictReader(

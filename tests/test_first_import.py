@@ -10,6 +10,51 @@ from ts2psp.app import Sims2PSPApp
 
 
 class FirstImportTests(unittest.TestCase):
+    def test_animation_catalog_includes_object_interactions_not_prop_rigs(self):
+        from ts2psp.io.iso import animation_catalog_category
+
+        for name, category in (
+            ("objects/sinks/a2o-skinscorcher-washhands-start", "sinks"),
+            ("objects/toilets/a2o-laxativebidet-reaction", "toilets"),
+            ("objects/windows/a2o-window-lookstart", "windows"),
+            ("objects/bars/sittransitions/a2o-drink-dn-carry", "bars"),
+        ):
+            with self.subTest(name=name):
+                self.assertEqual(animation_catalog_category(name), category)
+
+        self.assertIsNone(
+            animation_catalog_category(
+                "objects/cowthulu_stage/anims/o2a-hose-idle-lookaround"
+            )
+        )
+        self.assertIsNone(
+            animation_catalog_category(
+                "objects/plumbob_char/plumbobanims/o-plumbob-lean"
+            )
+        )
+        self.assertIsNone(animation_catalog_category("characters/example"))
+
+    def test_standalone_node_prop_animation_does_not_need_fx_o_name(self):
+        from ts2psp.io.iso import is_standalone_prop_animation
+
+        node_only = [(b"node", 0, 0, 0, 0)]
+        for name in (
+            "objects/sinks/fx_sinkcounterskinscorcher",
+            "objects/toilets/fx_laxativebidet",
+        ):
+            with self.subTest(name=name):
+                self.assertTrue(is_standalone_prop_animation(name, node_only))
+
+        self.assertFalse(
+            is_standalone_prop_animation(
+                "objects/toilets/fx_laxativebidet",
+                node_only + [(b"rdms", 0, 0, 0, 0)],
+            )
+        )
+        self.assertFalse(
+            is_standalone_prop_animation("characters/example", node_only)
+        )
+
     def test_cancel_iso_dialog_without_data_or_character_tab(self):
         app = SimpleNamespace(importing=False, tabs=None)
         with patch("ts2psp.app.filedialog.askopenfilename", return_value="") as dialog:
