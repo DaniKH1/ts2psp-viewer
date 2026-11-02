@@ -1,3 +1,9 @@
+### AI Assistance Disclosure
+
+This project was developed with the assistance of AI tools, which were used throughout the development process for tasks such as code generation, debugging, problem-solving, and technical research.
+
+The overall concept, project direction, feature requirements, testing, and final implementation decisions were guided and reviewed by the developer. AI served as a development aid, while responsibility for the project, its design, and its final results remains with the author.
+
 # The Sims 2 PSP Viewer
 
 Windows app for characters, facial shape keys, props and maps. Game resources are not included.
